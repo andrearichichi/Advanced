@@ -1,5 +1,5 @@
 # TILES STATS 📊📈🎯 
-The `tiles_count` function calculates statistics for tiles discovered in a world map, based on a list of visited tiles. It returns a `HashMap` associating each tile type (`TileType`) with its discovery count. Here's a detailed overview:
+The `tiles_stats` function calculates statistics for tiles discovered in a world map, based on a list of visited tiles. It returns a `HashMap` associating each tile type (`TileType`) with its discovery count. Here's a detailed overview:
 
 - `world`: A 2D array representing the world map, where each element is a `Tile` object.
 - `visited_tiles`: A list of identifiers (coordinates) for tiles that have been visited.
