@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use robotics_lib::world::tile::TileType;
 
-// The `get_discovered_tiles_stats` function provides statistics on all the tiles that have been discovered so far
+// The `tiles_stats` function provides statistics on all the tiles that have been discovered so far
 // in a world map (`world`), considering the tiles already visited (`visited_tiles`). It returns a single value:
 // A `HashMap` that maps each tile type (`TileType`) to the number of times that type has been discovered.
 //
