@@ -1,81 +1,45 @@
 use std::collections::HashMap;
+use robotics_lib::world::tile::TileType;
 
-use robotics_lib::world::{tile::{Tile, TileType}, world_generator::get_tiletype_percentage};
-
-
-
-
-/// Represents the Tools
-/// The `Tools` trait is used to define the Tools.
-///
-/// # Usage
-/// ```rust
-/// use robotics_lib::interface::Tools;
-/// ```
-///
-/// # Example
-/// ```rust
-/// use robotics_lib::interface::Tools;
-///
-/// struct Tool;
-/// impl Tools for Tool {};
-/// ```
-
-pub trait Tools {}
-
-//* STATS based on discovered tails
-
-//* */ La funzione `get_missing_tiles_count` sembra calcolare il numero di tile mancanti in base a una mappa del mondo (`world`), considerando anche le tile già visitate (`visited_tiles`). Restituisce un tuple contenente due valori:
-
-//* */ 1. Una `HashMap` che associa a ciascun tipo di tile (`TileType`) il numero di tile mancanti di quel tipo.
-//* */ 2. Una stima del costo medio delle tile mancanti in base al costo associato a ciascun tipo di tile. Questa stima è calcolata dividendo la somma dei costi delle tile mancanti per il numero totale di tile mancanti.
-
-//* */ Ecco una spiegazione più dettagliata:
-
-//* */ - `total_blocks`: rappresenta il numero totale di blocchi nel mondo.
-//* */ - `world`: è una mappa del mondo, dove ogni blocco è rappresentato da un oggetto `Tile` e la struttura dati è una matrice bidimensionale di tile.
-//* */ - `visited_tiles`: è una lista di tile che sono già state visitate.
-
-//* */ La funzione inizia calcolando le percentuali di ciascun tipo di tile nel mondo chiamando la funzione `get_tiletype_percentage`. Questo può essere un metodo che hai implementato altrove nel codice.
-
-//* */ Successivamente, inizia un ciclo che itera su ciascun tipo di tile presente nella mappa (`tile_percentages`). Per ogni tipo di tile, calcola il conteggio atteso sulla base della percentuale fornita, confronta questo conteggio con il numero effettivo di tile di quel tipo già visitate e calcola il numero di tile mancanti.
-
-//* */ La funzione tiene traccia di questi valori in una `HashMap` chiamata `missing_tiles_count`, che associa ogni tipo di tile al numero di tile mancanti di quel tipo.
-
-//* */ Infine, la funzione esegue un calcolo complessivo per stimare il costo medio delle tile mancanti. Questo calcolo esclude i tipi di tile specifici (`Lava`, `DeepWater`, e `Wall`) dal conteggio e dal calcolo del costo medio. La stima del costo medio è ottenuta dividendo la somma dei costi delle tile mancanti per il numero totale di tile mancanti.
-
-//* */ La restituzione della funzione è quindi una tupla contenente la `HashMap` con il conteggio dei tile mancanti per tipo e la stima del costo medio delle tile mancanti.
+// The `get_discovered_tiles_stats` function provides statistics on all the tiles that have been discovered so far
+// in a world map (`world`), considering the tiles already visited (`visited_tiles`). It returns a single value:
+// A `HashMap` that maps each tile type (`TileType`) to the number of times that type has been discovered.
+//
+// Detailed explanation:
+// - `world` is a map of the world, where each block is represented by a `Tile` object, and the data structure is a two-dimensional array of tiles.
+// - `visited_tiles` is a list of coordinates (or some form of identifier) for tiles that have already been visited.
+//
+// The function iterates through the `visited_tiles` list, examining each visited tile in the `world` map to determine its type.
+// It then updates a `HashMap` called `discovered_tiles_count`, which tracks the count of discovered tiles by type.
+//
+// This `HashMap` is dynamically updated as the function processes each visited tile, incrementing the count for the respective tile type.
+// The primary goal is to compile a comprehensive overview of the variety and distribution of tile types that have been explored within the game world.
+//
+// The function ultimately returns the `HashMap`, providing a detailed count of each tile type that has been discovered up to the current point in the game.
 
 
 
-pub fn tiles_count(
-    total_blocks: usize,
-    world: Vec<Vec<Tile>>,
-    visited_tiles: &Vec<Tile>,
-) -> (HashMap<TileType, usize>, f64) {
-    let tile_percentages: HashMap<TileType, f64> = get_tiletype_percentage(&world);
-    let mut missing_tiles_count = HashMap::new();
-    let mut sum = 0;
-    let mut count = 0;
-
-    for (tile_type, &percentage) in tile_percentages.iter() {
-        let expected_count = (percentage * total_blocks as f64) as usize;
-
-        let visited_count = visited_tiles
-            .iter()
-            .filter(|&tile| tile.tile_type == *tile_type)
-            .count();
-
-        let missing_count = expected_count - visited_count;
-        missing_tiles_count.insert(*tile_type, missing_count);
-        
-        if tile_type != &TileType::Lava && tile_type != &TileType::DeepWater && tile_type != &TileType::Wall {
-            count +=missing_count;
-            sum += missing_count*tile_type.properties().cost();
-        } 
-
+pub fn discovered_tiles_stats(
+    visited_tiles: &Vec<TileType>,
+) -> HashMap<TileType, f64> {
+    let mut tile_counts = HashMap::new();
+    let total_tiles = visited_tiles.len() as f64;
+    
+    // Count occurrences of each TileType
+    for tile in visited_tiles {
+        *tile_counts.entry(tile.clone()).or_insert(0) += 1;
     }
-    (missing_tiles_count, sum as f64/count as f64)
+    
+    // Calculate percentages and insert them into discovered_tiles_count
+    let mut discovered_tiles_count = HashMap::new();
+    for (tile, count) in tile_counts {
+        let percentage = (count as f64 / total_tiles) * 100.0;
+        discovered_tiles_count.insert(tile, percentage);
+    }
+    
+    discovered_tiles_count
 }
+
+
 
 
