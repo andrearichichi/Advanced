@@ -12,7 +12,7 @@
 
 ## NEAREST TP
 - **Purpose**: Finds the cheapest path from a starting point to a "Teleport(true)" destination.
+- **Algorithm**: Dijkstra algorithm for optimal pathfinding.
 - **Return Value**: Returns the minimum path and distance in an option, or `None` if unreachable.
-- **Algorithm Used**: Dijkstra algorithm for optimal pathfinding.
 
 <img src="img/nearest_tp.webp" width="80%">
