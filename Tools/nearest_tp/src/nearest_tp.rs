@@ -26,7 +26,7 @@ fn bfs_shortest_path(start: Point, target: TileType, grid: &Vec<Vec<Option<Tile>
                 Some(Tile { tile_type, .. }) if *tile_type == target => {
                     let mut final_path = path.clone();
                     final_path.push(current);
-                    return Some((final_pat.clone(), final_path.len() - 1)); // Ritorna il percorso e la lunghezza
+                    return Some((final_path.clone(), final_path.len() - 1)); // Ritorna il percorso e la lunghezza
                 },
                 Some(_) | None => { // Continua la ricerca se è un tile visitabile o non definito
                     for &(dx, dy) in &directions {
