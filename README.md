@@ -63,3 +63,5 @@ Tools combine interfaces to provide robots with complex functionalities, provide
 
 This project aims to foster collaboration and innovation in virtual robotics, challenging participants to develop efficient, creative solutions within a simulated environment.
 
+<img src="Tool/img/nearest_tp.webp" width="80%">
+
