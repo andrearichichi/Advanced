@@ -34,7 +34,7 @@ fn bfs_shortest_path(start: Point, target: TileType, grid: &Vec<Vec<Option<Tile>
                         let next_y = current.y as isize + dy;
                         if next_x >= 0 && next_y >= 0 {
                             let next_point = Point { x: next_x as usize, y: next_y as usize };
-                            let mut next_path = path.clone();
+                            let mut next_path: Vec<Point> = path.clone();
                             next_path.push(current);
                             queue.push_back((next_point, next_path));
                         }
