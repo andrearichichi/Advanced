@@ -54,7 +54,10 @@ pub fn nearest_tp(point: (usize, usize), visited: Option<Vec<Vec<Option<Tile>>>>
         let target = TileType::Teleport(true); // Definisce il tipo di tile target come un teleport non visitato
 
         // Esegue la ricerca BFS dal punto di partenza alla ricerca del teleport più vicino
-        bfs_shortest_path(start, target, &grid)
+        let (path, distance) = bfs_shortest_path(start, target, &grid)?;
+
+        // Restituisce il percorso e la distanza dal punto di partenza al teleport
+        Some((path, distance))
     } else {
         None
     }
