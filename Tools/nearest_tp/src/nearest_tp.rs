@@ -26,7 +26,7 @@ fn bfs_shortest_path(start: Point, target: TileType, grid: &Vec<Vec<Option<Tile>
                 Some(Tile { tile_type, .. }) if *tile_type == target => {
                     let mut final_path = path.clone();
                     final_path.push(current);
-                    return Some((final_path, final_path.len() - 1)); // Ritorna il percorso e la lunghezza
+                    return Some((final_pat.clone(), final_path.len() - 1)); // Ritorna il percorso e la lunghezza
                 },
                 Some(_) | None => { // Continua la ricerca se è un tile visitabile o non definito
                     for &(dx, dy) in &directions {
@@ -54,7 +54,10 @@ pub fn nearest_tp(point: (usize, usize), visited: Option<Vec<Vec<Option<Tile>>>>
         let target = TileType::Teleport(true); // Definisce il tipo di tile target come un teleport non visitato
 
         // Esegue la ricerca BFS dal punto di partenza alla ricerca del teleport più vicino
-        bfs_shortest_path(start, target, &grid)
+        let (path, distance) = bfs_shortest_path(start, target, &grid)?;
+
+        // Restituisce il percorso e la distanza dal punto di partenza al teleport
+        Some((path.clone(), distance)) // Clona il percorso prima di restituirlo
     } else {
         None
     }
