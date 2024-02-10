@@ -1,41 +1,59 @@
-use robotics_lib::{energy::Energy, runner::{backpack::BackPack, Robot, Runnable, Runner}, world::{coordinates::Coordinate, world_generator::Generator}};
 
+use robotics_lib::interface::Direction::Up;
+use robotics_lib::interface::{ go, one_direction_view,  robot_view, Direction};
+use robotics_lib::{
+    energy::Energy,
+    runner::{backpack::BackPack, Robot, Runnable, Runner},
+    world::coordinates::Coordinate
+
+};
 fn main() {
-    let robot: Box<dyn Runnable> = Box::new(Robottino::new());
+    let robot = Robottino::new();
 
     // world generator initialization
-    let mut world_gen = ghost_amazeing_island::world_generator::WorldGenerator::new(10, false, 0, 0.0);
-    let mut interface = world_gen.gen();
-    println!("{:?}", interface);
+    let mut world_gen =
+        ghost_amazeing_island::world_generator::WorldGenerator::new(244, false, 1, 1.1);
     // Runnable creation and start
     println!("Generating runnable (world + robot)...");
-    let mut run = Runner::new(robot, &mut world_gen);
+    let mut runner = Runner::new(Box::new(robot), &mut world_gen);
     println!("Runnable succesfully generated");
 
-    // for _i in 0..n_iterations {
-    //     let rtn = run.as_mut().unwrap().game_tick();
-
+    for _i in 0..15 {
+        let rtn = runner.as_mut().unwrap().game_tick();
+    }
 }
-
 
 struct Robottino {
     robot: Robot,
 }
 
-impl Robottino{
-    fn new()-> Self{
-        Robottino { robot: Robot::new() }
+impl Robottino {
+    fn new() -> Self {
+        Robottino {
+            robot: Robot::new(),
+        }
     }
 }
 
-impl Runnable for Robottino{
+impl Runnable for Robottino {
     fn process_tick(&mut self, world: &mut robotics_lib::world::World) {
-        todo!()
+        let view = robot_view(self, world);
+        if let Some(oggetto) = &view[0][0]{
+
+            let mut tree_direction: Option<Direction> = None;
+            println!("{:?}", oggetto)
+        };
+
+        let actual_energy = self.get_energy().get_energy_level();
+        println!("{:?}", actual_energy);
+        let _ = go(self, world, Direction::Down);
+        let perceived_world = robot_view(self, world);
+        let one_view = one_direction_view(self, world, Up, 5);
+        let actual_energy = self.get_energy().get_energy_level();
+        println!("{:?}", actual_energy);
     }
 
-    fn handle_event(&mut self, event: robotics_lib::event::events::Event) {
-        
-    }
+    fn handle_event(&mut self, event: robotics_lib::event::events::Event) {}
 
     fn get_energy(&self) -> &Energy {
         &self.robot.energy
@@ -60,5 +78,4 @@ impl Runnable for Robottino{
     fn get_backpack_mut(&mut self) -> &mut BackPack {
         &mut self.robot.backpack
     }
-    
 }
