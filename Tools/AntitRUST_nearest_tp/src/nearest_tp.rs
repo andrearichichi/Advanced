@@ -30,7 +30,7 @@ mod private {
                     Some(Tile { tile_type, .. }) if tile_type == &target => { // Corretto qui
                         let mut final_path = path.clone();
                         final_path.push(current);
-                        return Some((final_path, final_path.len() - 1));
+                        return Some((final_path.clone(), final_path.len() - 1));
                     },
                     Some(_) | None => {
                         for &(dx, dy) in &directions {
