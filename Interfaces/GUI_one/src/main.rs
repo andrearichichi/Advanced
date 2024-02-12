@@ -22,17 +22,11 @@ fn get_color(tile: Tile) -> Color {
 // Funzione di setup che crea la scena
 fn setup(mut commands: Commands) {
     // Matrice di esempio
-    let matrice = vec![
-        vec![1, 2, 3, 4, 5],
-        vec![5, 4, 3, 2, 1],
-        vec![1, 2, 1, 4, 5],
-        vec![1, 2, 3, 4, 5],
-        vec![5, 4, 1, 2, 1],
-        ];
-    let mut world_gen = ghost_amazeing_island::world_generator::WorldGenerator::new(1000, false, 1, 1.1);
+  
+    let mut world_gen = ghost_amazeing_island::world_generator::WorldGenerator::new(300, false, 1, 1.1);
     let mut interface =world_gen.gen().0;
     let square_size = 3.0; // Dimensione di ogni quadrato
-    let spacing = 3.0; // Spaziatura tra i quadrati
+    let spacing = 2.0; // Spaziatura tra i quadrati
     commands.spawn(Camera2dBundle::default());
 
 
@@ -46,8 +40,8 @@ fn setup(mut commands: Commands) {
                     ..Default::default()
                 },
                 transform: Transform::from_xyz(
-                    x as f32 * spacing - 10.0, // Posizione X con un offset
-                    y as f32 * spacing - 10.0, // Posizione Y con un offset
+                    x as f32 * spacing - 300.0, // Posizione X con un offset
+                    y as f32 * spacing - 300.0, // Posizione Y con un offset
                     0.0,
                 ),
                 ..Default::default()
@@ -59,6 +53,6 @@ fn setup(mut commands: Commands) {
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
-        .add_startup_system(setup)
+        .add_systems(Startup,setup)
         .run();
 }
