@@ -13,6 +13,7 @@ fn main() {
     // world generator initialization
     let mut world_gen =
         ghost_amazeing_island::world_generator::WorldGenerator::new(244, false, 1, 1.1);
+    let mut Vec_world = world_gen::
     // Runnable creation and start
     println!("Generating runnable (world + robot)...");
     let mut runner = Runner::new(Box::new(robot), &mut world_gen);
