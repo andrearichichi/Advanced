@@ -1,4 +1,4 @@
-use bevy::prelude::*;
+use bevy::{prelude::*, text::FontAtlas};
 use robotics_lib::{interface, world::{tile::{self, Tile, TileType}, world_generator::Generator}};
 
 // Funzione per convertire un numero da 1 a 5 in un colore
@@ -24,13 +24,16 @@ fn setup(mut commands: Commands) {
     // Matrice di esempio
   
     let mut world_gen = ghost_amazeing_island::world_generator::WorldGenerator::new(300, false, 1, 1.1);
-    let mut interface =world_gen.gen().0;
+    let mut world =world_gen.gen().0;
     let square_size = 2.0; // Dimensione di ogni quadrato
     let spacing = 2.0; // Spaziatura tra i quadrati
+
+    let mut infos = world_gen.gen().2;
+
     commands.spawn(Camera2dBundle::default());
 
     //*ROBOT GRANDE 2 PIXEL, COME SI VEDE? */
-    for (y, row) in interface.iter().enumerate() {
+    for (y, row) in world.iter().enumerate() {
         for (x, tile) in row.iter().enumerate() {
             let color = get_color(tile.clone());
             commands.spawn(SpriteBundle {
@@ -40,13 +43,26 @@ fn setup(mut commands: Commands) {
                     ..Default::default()
                 },
                 transform: Transform::from_xyz(
-                    x as f32 * spacing - 300.0, // Posizione X con un offset
+                    x as f32 * spacing - 600.0, // Posizione X con un offset
                     y as f32 * spacing - 300.0, // Posizione Y con un offset
                     0.0,
                 ),
                 ..Default::default()
             });
         }
+
+        commands.spawn(Text2dBundle {
+            text: Text::from_section(
+                format!("Part of the day: {:?}\n\nWeather: {:?}", infos.get_time_of_day(), infos.get_weather_condition()),
+                TextStyle {
+                    font_size:25.0,
+                    color: Color::ORANGE,
+                    ..Default::default() // Usa il font di default
+                },
+            ),
+            ..Default::default()
+        })
+        .insert(Transform::from_xyz(400.0, 300.0, 0.0));
     }
 }
 
