@@ -29,7 +29,7 @@ fn setup(mut commands: Commands) {
         vec![1, 2, 3, 4, 5],
         vec![5, 4, 1, 2, 1],
         ];
-    let mut world_gen = ghost_amazeing_island::world_generator::WorldGenerator::new(1000, false, 1, 1.1);
+    let mut world_gen = ghost_amazeing_island::world_generator::WorldGenerator::new(350, false, 1, 1.1);
     let mut interface =world_gen.gen().0;
     let square_size = 3.0; // Dimensione di ogni quadrato
     let spacing = 3.0; // Spaziatura tra i quadrati

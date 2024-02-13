@@ -11,8 +11,9 @@ robotics_lib = { registry = "kellnr"}
 ghost_amazeing_island = {registry = "kellnr"}
 bessie = { registry = "kellnr"}
 oxagaudiotool = {registry = "kellnr"}
-rust_and_furious_dynamo = {registry = "kellnr"}
-crab_rave_explorer = {registry = "kellnr"}
 arrusticini_destroy_zone = {registry = "kellnr"}
 op_map = {registry = "kellnr"}
 ohcrab_weather = {registry = "kellnr"}
+
+rust_and_furious_dynamo = {registry = "kellnr"}
+crab_rave_explorer = {registry = "kellnr"}
