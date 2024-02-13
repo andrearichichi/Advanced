@@ -25,11 +25,11 @@ fn setup(mut commands: Commands) {
   
     let mut world_gen = ghost_amazeing_island::world_generator::WorldGenerator::new(300, false, 1, 1.1);
     let mut interface =world_gen.gen().0;
-    let square_size = 3.0; // Dimensione di ogni quadrato
+    let square_size = 2.0; // Dimensione di ogni quadrato
     let spacing = 2.0; // Spaziatura tra i quadrati
     commands.spawn(Camera2dBundle::default());
 
-
+    //*ROBOT GRANDE 2 PIXEL, COME SI VEDE? */
     for (y, row) in interface.iter().enumerate() {
         for (x, tile) in row.iter().enumerate() {
             let color = get_color(tile.clone());
