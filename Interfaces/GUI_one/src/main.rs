@@ -1,5 +1,67 @@
-use bevy::prelude::*;
-use robotics_lib::{interface, world::{tile::{self, Tile, TileType}, world_generator::Generator}};
+//TODO:
+//SISTEMARE POSITIONING/CONTROLLO MATRICE
+//MINIMAPPA
+//BOTTONE ZOOM MAPPA
+//INSERIRE TUTTE LE INFO(TEMPO, ENERGIA, COSTO, ECC..)
+//DESPAWN CONTENT QUANDO SI PRENDONO/DISTRUGGONO 
+//CREAZIONE BACKPACK/INSERIMENTO VISUALIZZA OGGETTI
+//MODIFICA TILE QUANDO SI POSIZIONA LA ROCCIA
+
+
+use bevy::{ecs::system::FunctionSystem, prelude::*, transform::commands, utils::petgraph::dot};
+use robotics_lib::{world, world::{tile::{self, Tile, TileType, Content}, world_generator::Generator}};
+use bevy::render::camera::Viewport;
+use rand::Rng;
+
+
+#[derive(Component, Debug)]
+//componente posizione
+struct Position{
+    x: f32,
+    y: f32,
+}
+
+#[derive(Component, Debug)]
+// componente velocità
+struct Velocity{
+    x: f32,
+    y: f32,
+}
+
+
+//aggiungere sempre le risorse nell'app del main
+#[derive(Default, Resource)]
+struct RobotPosition {
+    x: f32,
+    y: f32,
+}
+
+#[derive(Resource, Debug, Default)]
+//risorsa generale per vedere/settare se il robot è in pausa o meno(mettere in pausa il tutto)
+struct RobotState{
+    is_moving: bool,
+}
+
+#[derive(Resource, Debug, Default)]
+struct TileSize{
+    tile_size: f32,
+}
+
+#[derive(Component, Debug)]
+//componente per la mappa zoommata
+struct MainCamera;
+
+#[derive(Component, Debug)]
+//componente per la minimappa
+struct MainCameraEntity {
+    entity: Entity,
+}
+
+// Puoi aggiungere altri campi se necessario, per esempio per memorizzare la posizione o altri parametri della camera.
+
+
+#[derive(Component, Debug)]
+struct Robot;
 
 // Funzione per convertire un numero da 1 a 5 in un colore
 fn get_color(tile: Tile) -> Color {
@@ -18,47 +80,507 @@ fn get_color(tile: Tile) -> Color {
     }
 }
 
+fn get_content_color(content: Tile) -> Color {
+    match content.content {
+        Content::Rock(_) => Color::rgb_u8(0xB0, 0xC4, 0xDE), // Light Steel Blue
+        Content::Tree(_) => Color::rgb_u8(0x00, 0x64, 0x00), // Dark Green
+        Content::Garbage(_) => Color::rgb_u8(0x8B, 0x45, 0x13), // Saddle Brown
+        Content::Fire => Color::rgb_u8(0xFF, 0x45, 0x00), // Orange Red
+        Content::Coin(_) => Color::rgb_u8(0xFF, 0xD7, 0x00), // Gold
+        Content::Water(_) => Color::rgb_u8(0x87, 0xCE, 0xEB), // Sky Blue
+        Content::Bin(_) => Color::rgb_u8(0x70, 0x80, 0x90), // Slate Gray
+        Content::Crate(_) => Color::rgb_u8(0xF5, 0xF5, 0xDC), // Beige
+        Content::Bank(_) => Color::rgb_u8(0x85, 0xBB, 0x65), // Dollar Bill
+        Content::Market(_) => Color::rgb_u8(0xB2, 0x22, 0x22), // Firebrick
+        Content::Fish(_) => Color::rgb_u8(0x00, 0xFF, 0xFF), // Aqua
+        Content::Building => Color::rgb_u8(0x80, 0x00, 0x80), // Purple
+        Content::Bush(_) => Color::rgb_u8(0x90, 0xEE, 0x90), // Light Green
+        Content::JollyBlock(_) => Color::rgb_u8(0xFF, 0xC0, 0xCB), // Pink
+        Content::Scarecrow => Color::rgb_u8(0xFF, 0xA5, 0x00), // Orange
+        Content::None => Color::NONE, // Transparent or keep the tile color
+        _ => Color::YELLOW_GREEN, // Fallback color for unspecified contents
+    }
+}
+
 
 // Funzione di setup che crea la scena
-fn setup(mut commands: Commands) {
+fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     // Matrice di esempio
-    let matrice = vec![
-        vec![1, 2, 3, 4, 5],
-        vec![5, 4, 3, 2, 1],
-        vec![1, 2, 1, 4, 5],
-        vec![1, 2, 3, 4, 5],
-        vec![5, 4, 1, 2, 1],
-        ];
-    let mut world_gen = ghost_amazeing_island::world_generator::WorldGenerator::new(350, false, 1, 1.1);
-    let mut interface =world_gen.gen().0;
+
+//TODO: controllare se positioning si basa effettivamente sulla matrice
+//TODO: cabiare dimenzione con l'utilizzo della risorsa tile
+    let mut world_gen = ghost_amazeing_island::world_generator::WorldGenerator::new(300, false, 1, 1.1);
+    let mut world =world_gen.gen().0;
     let square_size = 3.0; // Dimensione di ogni quadrato
     let spacing = 3.0; // Spaziatura tra i quadrati
-    commands.spawn(Camera2dBundle::default());
+    //sotto funzione per telecamera
+    //commands.spawn(Camera2dBundle::default()); 
 
-
-    for (y, row) in interface.iter().enumerate() {
+    for (y, row) in world.iter().enumerate() {
         for (x, tile) in row.iter().enumerate() {
-            let color = get_color(tile.clone());
+            let tile_color = get_color(tile.clone());
+            let content_color = get_content_color(tile.clone());
+
+            // Create a base sprite for the tile
             commands.spawn(SpriteBundle {
                 sprite: Sprite {
-                    color, // Imposta il colore direttamente qui
+                    color: tile_color, // Use the tile color
                     custom_size: Some(Vec2::new(square_size, square_size)),
                     ..Default::default()
                 },
                 transform: Transform::from_xyz(
-                    x as f32 * spacing - 10.0, // Posizione X con un offset
-                    y as f32 * spacing - 10.0, // Posizione Y con un offset
+                    x as f32 * spacing - 300.0, // X position with an offset
+                    y as f32 * spacing - 300.0, // Y position with an offset
                     0.0,
                 ),
                 ..Default::default()
             });
+
+            // Optionally spawn an additional sprite for the content if it's not None
+            if tile.content != Content::None {
+                commands.spawn(SpriteBundle {
+                    sprite: Sprite {
+                        color: content_color, // Use the content color
+                        custom_size: Some(Vec2::new(square_size / 3.0, square_size / 3.0)), // Smaller than the tile for distinction
+                        ..Default::default()
+                    },
+                    transform: Transform::from_xyz(
+                        x as f32 * spacing - 303.0 + square_size, // Centered on the tile
+                        y as f32 * spacing - 303.0 + square_size, // Centered on the tile
+                        1.0, // Slightly above the tile layer
+                    ),
+                    ..Default::default()
+                });
+            }
+        }
+    }
+
+    //random tile per lo spawn del robot
+    let rows = world.len();
+    let cols = world[0].len(); 
+    let random_row = world_gen.gen().1.0;
+    let random_col = world_gen.gen().1.1;
+
+    // per la posizione centrale della tile
+    let center_x = random_col as f32 * spacing - 300.0 + square_size;
+    let center_y = random_row as f32 * spacing - 300.0 + square_size;
+
+    let robot_size = 1.0;
+
+    //spawna il robot
+    commands.spawn(SpriteBundle {
+        sprite: Sprite {
+            color: Color::RED,
+            custom_size: Some(Vec2::new(robot_size, robot_size)),
+            ..Default::default()
+        },
+        transform: Transform::from_xyz(center_x, center_y, 2.0), // asse z serve per metterlo sopra i tile e i conent
+        ..Default::default()
+    }).insert(Robot);
+        
+    commands
+        .spawn(NodeBundle {
+            style: Style {
+                // Imposta le dimensioni del nodo contenitore per occupare l'intera finestra
+                width: Val::Percent(100.0),
+                height: Val::Percent(100.0),
+                // Allinea i bottoni in alto a sinistra
+                align_items: AlignItems::FlexEnd, // Allinea verticalmente i figli all'inizio (alto)
+                justify_content: JustifyContent::FlexEnd, // Allinea orizzontalmente i figli all'inizio (sinistra)
+                flex_direction: FlexDirection::Row, // Disponi i figli in orizzontale
+                // Aggiungi padding per posizionare i bottoni un po' distanti dal bordo superiore e sinistro
+                padding: UiRect {
+                    left: Val::Px(10.0),
+                    top: Val::Px(10.0),
+                    right: Val::Auto,
+                    bottom: Val::Auto,
+                },
+                ..default()
+            },
+            ..default()
+        })
+        .with_children(|parent| {
+            // Primo bottone
+            parent.spawn(ButtonBundle {
+                style: Style {
+                    width: Val::Px(30.0),
+                    height: Val::Px(30.0),
+                    margin: UiRect::all(Val::Px(3.0)), // Spazio tra i bottoni
+                    border: UiRect::all(Val::Px(3.0)),
+                    ..default()
+                },
+                border_color: BorderColor(Color::BLACK),
+                background_color: NORMAL_BUTTON.into(),
+                ..default()
+            })
+            .with_children(|parent| {
+                parent.spawn(TextBundle::from_section(
+                    "Zoomin",
+                    TextStyle {
+                        font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                        font_size: 40.0,
+                        color: Color::rgb(0.9, 0.9, 0.9),
+                    },
+                ));
+            })
+            .insert(ZoomIn);
+
+            // Secondo bottone
+            parent.spawn(ButtonBundle {
+                style: Style {
+                    width: Val::Px(30.0),
+                    height: Val::Px(30.0),
+                    margin: UiRect::all(Val::Px(3.0)), // Spazio tra i bottoni
+                    border: UiRect::all(Val::Px(3.0)),
+                    ..default()
+                },
+                border_color: BorderColor(Color::BLACK),
+                background_color: NORMAL_BUTTON.into(),
+                ..default()
+            })
+            .with_children(|parent| {
+                parent.spawn(TextBundle::from_section(
+                    "ZoomOut",
+                    TextStyle {
+                        font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                        font_size: 40.0,
+                        color: Color::rgb(0.9, 0.9, 0.9),
+                    },
+                ));
+            }).insert(ZoomOut);
+        });
+
+    
+
+
+        
+
+    //utilizzato per spawnare la camera sopra il puntino rosso con le sue coordinate x e y
+    setup_main_camera(&mut commands, center_x, center_y);
+
+}
+
+
+
+
+
+
+//TODOOOOOOOOOOOOOO CREARE MINIMAPPA, VIEWPORT(?)
+//NON WORKA 
+//RIVEDERE PER CREARE MINIMAPPA 
+/* fn setup_minimap_camera(mut commands: Commands) {
+   
+ 
+    commands.spawn((
+        Camera2dBundle {
+            projection: OrthographicProjection {
+                scale: camera_scale.x.min(camera_scale.y), // usa la scala minore per garantire che l'intera mappa sia visibile
+                ..Default::default()
+            },
+            transform: Transform::from_xyz(
+                world_size.x / 2.0, // centra la telecamera sull'asse X
+                world_size.y / 2.0, // centra la telecamera sull'asse Y
+                100.0,             // posiziona la telecamera sopra la mappa
+            ),
+            // Configura il viewport per posizionare la minimappa nell'angolo in alto a sinistra
+            camera: Camera {
+                viewport: Some(Viewport {
+                    physical_position: UVec2::new(0, 0), // in alto a sinistra
+                    physical_size: UVec2::new(256, 256), // dimensioni della viewport della minimappa
+                    ..Default::default()
+                }),
+                ..Default::default()
+            },
+            ..Default::default()
+        },
+        MyMinimapCamera,
+    ));
+}
+ */
+// ...
+
+
+const NORMAL_BUTTON: Color = Color::rgb(0.15, 0.15, 0.15);
+const HOVERED_BUTTON: Color = Color::rgb(0.25, 0.25, 0.25);
+const PRESSED_BUTTON: Color = Color::rgb(0.35, 0.75, 0.35);
+
+
+
+// Modifica setup_main_camera per accettare posizione x, y del punto rosso
+fn setup_main_camera(commands: &mut Commands, x: f32, y: f32) {
+    commands.spawn(Camera2dBundle {
+        transform: Transform::from_xyz(x, y, 1.0) // Usa la posizione del punto rosso
+        .with_scale(Vec3::splat(0.1)),
+        ..Default::default()
+    }).insert(MainCamera);
+
+}
+
+pub fn zoom_in(mut query: Query<&mut OrthographicProjection, With<Camera>>) {
+    for mut projection in query.iter_mut() {
+        projection.scale -= 100.0;
+
+        println!("Current zoom scale: {}", projection.scale);
+    }
+}
+
+//WORKA
+/* fn setup_main_camera(mut commands: Commands) {
+    commands.spawn((
+        Camera2dBundle {
+            transform: Transform::from_xyz(0.0, 0.0, 1.0)
+                .with_scale(Vec3::splat(0.1)), // Modifica questo valore per ottenere l'area desiderata
+            ..Default::default()
+        },
+        MainCamera,
+    ));
+} */
+
+ 
+
+
+
+//WORKA
+//MUOVE LA CAM CON LA KEYBOARD
+/* fn camera_movement_system(
+    keyboard_input: Res<Input<KeyCode>>,
+    mut query: Query<&mut Transform, With<MainCamera>>,
+) {
+    // Scegli quanto spostare la telecamera per ogni pressione del tasto
+    let move_speed = 2.0; 
+
+    for mut transform in query.iter_mut() {
+        // Muovi verso sinistra
+        if keyboard_input.pressed(KeyCode::Left) {
+            transform.translation.x -= move_speed;
+        }
+        // Muovi verso destra
+        if keyboard_input.pressed(KeyCode::Right) {
+            transform.translation.x += move_speed;
+        }
+        // Muovi verso il basso
+        if keyboard_input.pressed(KeyCode::Down) {
+            transform.translation.y -= move_speed;
+        }
+        // Muovi verso l'alto
+        if keyboard_input.pressed(KeyCode::Up) {
+            transform.translation.y += move_speed;
+        }
+    }
+} */
+
+
+//MOVIMENTO LIBERO KEYBOARD
+//movimenti keyboard puntino rosso 
+/* fn robot_movement_system(
+    keyboard_input: Res<Input<KeyCode>>,
+    mut query: Query<&mut Transform, With<Robot>>,
+) {
+    let move_speed = 2.0;
+
+    for mut transform in query.iter_mut() {
+        if keyboard_input.pressed(KeyCode::Left) {
+            transform.translation.x -= move_speed;
+            println!("Mosso a sinistra");
+        }
+        if keyboard_input.pressed(KeyCode::Right) {
+            transform.translation.x += move_speed;
+            println!("Destra");
+        }
+        if keyboard_input.pressed(KeyCode::Down) {
+            transform.translation.y -= move_speed;
+            println!("Basso");
+        }
+        if keyboard_input.pressed(KeyCode::Up) {
+            transform.translation.y += move_speed;
+            println!("Alto");
+        }
+    }
+} */
+
+
+// Funzione per stampare la posizione del tile in cui si trova il robot
+fn print_robot_tile_position(robot_position: &Transform, tile_size: f32) {
+    // Calcola le coordinate del tile dividendo le coordinate del robot per la dimensione del tile
+    // e aggiungendo l'offset se necessario per allinearsi con l'origine della griglia dei tile
+    let tile_x = ((robot_position.translation.x + 300.0) / tile_size).floor() as i32;
+    let tile_y = ((robot_position.translation.y + 300.0) / tile_size).floor() as i32;
+
+    println!("Il robot si trova nel tile: ({}, {})", tile_x, tile_y);
+}
+
+
+
+//movimento del robot in base alla grandezza di una tile
+fn robot_movement_system(
+    keyboard_input: Res<Input<KeyCode>>,
+    mut query: Query<&mut Transform, With<Robot>>,
+    tile_size: Res<TileSize>, // Utilizza la risorsa TileSize
+) {
+    let tile_step = tile_size.tile_size; // Usa la dimensione del tile dalla risorsa
+
+    for mut transform in query.iter_mut() {
+        let mut moved = false;
+        if keyboard_input.just_pressed(KeyCode::Left) {
+            transform.translation.x -= tile_step;
+            moved = true;
+        } else if keyboard_input.just_pressed(KeyCode::Right) {
+            transform.translation.x += tile_step;
+            moved = true;
+        } else if keyboard_input.just_pressed(KeyCode::Down) {
+            transform.translation.y -= tile_step;
+            moved = true;
+        } else if keyboard_input.just_pressed(KeyCode::Up) {
+            transform.translation.y += tile_step;
+            moved = true;
+        }
+        if moved{
+            print_robot_tile_position(&transform, tile_size.tile_size);
         }
     }
 }
 
+//NON WORKA PERCHE' LETTURA E SCRITTURA NELLO STESSO FRAME, LEGGERE POSIZIONE IN UNA FUNZIONE E SCRIVERE IN UN'ALTRA
+//SEPARARE:
+/* fn follow_robot_system(
+    mut camera_query: Query<&mut Transform, With<MainCamera>>,
+    robot_query: Query<&Transform, With<Robot>>,
+) {
+    // Ottiene la Transform del robot
+    if let Ok(robot_transform) = robot_query.get_single() {
+        // Ottiene la Transform della camera
+        if let Ok(mut camera_transform) = camera_query.get_single_mut() {
+            // Aggiorna la posizione della camera per centrarla sul robot
+            camera_transform.translation.x = robot_transform.translation.x;
+            camera_transform.translation.y = robot_transform.translation.y;
+            // Mantiene la camera in una posizione elevata per garantire una vista top-down
+            camera_transform.translation.z = 10.0; // Assicurati che questo sia abbastanza alto da vedere il robot
+        }
+    }
+}
+ */
+
+
+ //TODO: CAMBIARE LA POSIZIONE DEL ROBOT BASANDOLA SULLE RIGHE E COLONNE DELLA MATRICE 
+ //serve per avere la posizione del puntino rosso ad ogni movimento
+ fn update_robot_position(
+    mut robot_position: ResMut<RobotPosition>,
+    robot_query: Query<&Transform, With<Robot>>,
+) {
+    if let Ok(robot_transform) = robot_query.get_single() {
+        robot_position.x = robot_transform.translation.x;
+        robot_position.y = robot_transform.translation.y;
+    }
+}
+
+
+//serve per far muovere la camera sopra il puntino rosso, prenderndo le sue coordinate 
+fn follow_robot_system(
+    robot_position: Res<RobotPosition>,
+    mut camera_query: Query<&mut Transform, With<MainCamera>>,
+) {
+    if let Ok(mut camera_transform) = camera_query.get_single_mut() {
+        camera_transform.translation.x = robot_position.x;
+        camera_transform.translation.y = robot_position.y;
+        //serve per la distanza dall'alto dal punto rosso 
+        camera_transform.translation.z = 10.0; // Mantiene la camera elevata per una vista top-down
+    }
+}
+
+#[derive(Component)]
+struct ZoomIn;
+
+#[derive(Component)]
+struct ZoomOut;
+
+fn button_system(
+    mut interaction_query: Query<
+        (
+            &Interaction,
+            &mut BackgroundColor,
+            &mut BorderColor,
+            &Children,
+            Option<&ZoomIn>,
+            Option<&ZoomOut>,
+        ),
+        (Changed<Interaction>, With<Button>),
+    >,
+    mut text_query: Query<&mut Text>,
+    mut camera_query: Query<&mut Transform, With<MainCamera>>,
+){
+    for (interaction, mut color, mut border_color, children,zoomin,zoomout) in &mut interaction_query {
+        let mut text = text_query.get_mut(children[0]).unwrap();
+        match *interaction {
+            Interaction::Pressed => {
+                if zoomin.is_some() {
+                    for mut projection in camera_query.iter_mut() {
+                        projection.scale += 0.01;
+                        println!("Current zoom scale: {}", projection.scale);
+                    }
+                } else if zoomout.is_some() {
+                    for mut projection in camera_query.iter_mut() {
+                        projection.scale -= 0.01;
+                        println!("Current zoom scale: {}", projection.scale);
+                    }
+                    
+                }
+
+                text.sections[0].value = "Press".to_string();
+                *color = PRESSED_BUTTON.into();
+                border_color.0 = Color::RED;
+            }
+            Interaction::Hovered => {
+                text.sections[0].value = "Hover".to_string();
+                *color = HOVERED_BUTTON.into();
+                border_color.0 = Color::WHITE;
+            }
+            Interaction::None => {
+                text.sections[0].value = "Button".to_string();
+                *color = NORMAL_BUTTON.into();
+                border_color.0 = Color::BLACK;
+            }
+        }
+    }
+}
+
+
+//WORKA
+//CODICE DI PROVA
+/* 
+fn spawn_robot(mut commands: Commands){
+    //spawna l'entitià con componente posizione e componente velocità settate 
+    commands.spawn((Position{ x: 0.0, y: 0.0}, Velocity{x:1.0, y:1.0}));
+}
+
+//update della posizione di ogni entità
+fn update_position(robot_state: Res<RobotState>, mut query: Query<(&Velocity, &mut Position)>){
+    
+    //entra solo se il robot sta runnando(true)
+    if(robot_state.is_moving){
+    for(velocity, mut position) in query.iter_mut(){
+        position.x += velocity.x;
+        position.y += velocity.y;
+
+    }}
+
+}
+
+//printa la posizione di ogni entità 
+fn print_position(query: Query<(Entity, &Position)>){
+    for (entity, position) in query.iter(){
+        info!("Entity {:?} is at position {:?},", entity, position);
+    }
+
+} */
+
 fn main() {
     App::new()
+        .init_resource::<RobotState>()// aggiunge la risorsa con default valure, usare per settare values (.insert_resource(RobotState{is_moving:true}))
+        .init_resource::<RobotPosition>()//ricordarsi di metterlo quando si ha una risorsa 
+        .insert_resource(TileSize{tile_size: 3.0}) //setta la risorsa tile per la grandezza di esso
+        .add_systems(Startup,setup)
+        //.add_systems(Startup, setup_minimap_camera)
+        .add_systems(Update, (robot_movement_system, update_robot_position, follow_robot_system, button_system)) //unpdate every frame
         .add_plugins(DefaultPlugins)
-        .add_startup_system(setup)
-        .run();
+        .run();     
 }
