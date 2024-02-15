@@ -7,13 +7,14 @@ name = "my_crate"
 version = "0.1.0"
 
 [dependencies]
-robotics_lib = { registry = "kellnr"}
-ghost_amazeing_island = {registry = "kellnr"}
 bessie = { registry = "kellnr"}
-oxagaudiotool = {registry = "kellnr"}
-arrusticini_destroy_zone = {registry = "kellnr"}
 op_map = {registry = "kellnr"}
+
+arrusticini_destroy_zone = {registry = "kellnr"}
 ohcrab_weather = {registry = "kellnr"}
 
+oxagaudiotool = {registry = "kellnr"}
+robotics_lib = { registry = "kellnr"}
+ghost_amazeing_island = {registry = "kellnr"}
 rust_and_furious_dynamo = {registry = "kellnr"}
 crab_rave_explorer = {registry = "kellnr"}
