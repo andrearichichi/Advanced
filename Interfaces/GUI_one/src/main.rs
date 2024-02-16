@@ -32,7 +32,7 @@ use robotics_lib::{
     world::coordinates::Coordinate
 };
 
-const world_size: u32 = 60;
+const WORLD_SIZE: u32 = 60;
 
 #[derive(Component, Debug)]
 struct Roboto;
@@ -120,17 +120,17 @@ fn get_content_color(content: Tile) -> Color {
 
 
 // Funzione di setup che crea la scena
-fn setup(mut commands: Commands, asset_server: Res<AssetServer>, shared_map: Res<MapResource>) {
+fn setup(mut commands: Commands, asset_server: Res<AssetServer>, shared_map: Res<MapResource>,robot_resource: Res<RobotResource>,) {
     // Matrice di esempio
 
 //TODO: controllare se positioning si basa effettivamente sulla matrice
 //TODO: cabiare dimenzione con l'utilizzo della risorsa tile
     //sleep 3 secondi
     sleep(std::time::Duration::from_secs(3));
-    let shared_map = shared_map.0.lock().unwrap();
+    let world = shared_map.0.lock().unwrap();
     let mut count = 0;
     //how many tile is not None
-    for row in shared_map.iter() {
+    for row in world.iter() {
         for tile in row.iter() {
             if tile.is_some() {
                 count += 1;
@@ -138,48 +138,50 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, shared_map: Res
         }
     }
     println!("count mappaa viosualizzaaaaa {:?}", count);
-    let mut world_gen = ghost_amazeing_island::world_generator::WorldGenerator::new(world_size, false, 1, 1.1);
-    let mut world =world_gen.gen().0;
+
+    
     let square_size = 3.0; // Dimensione di ogni quadrato
-    let spacing = 3.0; // Spaziatura tra i quadrati
     //sotto funzione per telecamera
     //commands.spawn(Camera2dBundle::default()); 
 
     for (y, row) in world.iter().enumerate() {
         for (x, tile) in row.iter().enumerate() {
-            let tile_color = get_color(tile.clone());
-            let content_color = get_content_color(tile.clone());
+            if let Some (tile) = tile {
+                let tile_color = get_color(tile.clone());
+                let content_color = get_content_color(tile.clone());
+            
 
-            // Create a base sprite for the tile
-            commands.spawn(SpriteBundle {
-                sprite: Sprite {
-                    color: tile_color, // Use the tile color
-                    custom_size: Some(Vec2::new(square_size, square_size)),
-                    ..Default::default()
-                },
-                transform: Transform::from_xyz(
-                    x as f32 * spacing - world_size as f32, // X position with an offset
-                    y as f32 * spacing - world_size as f32, // Y position with an offset
-                    0.0,
-                ),
-                ..Default::default()
-            }).insert(RenderLayers::layer(0));
-
-            // Optionally spawn an additional sprite for the content if it's not None
-            if tile.content != Content::None {
+                // Create a base sprite for the tile
                 commands.spawn(SpriteBundle {
                     sprite: Sprite {
-                        color: content_color, // Use the content color
-                        custom_size: Some(Vec2::new(square_size / 3.0, square_size / 3.0)), // Smaller than the tile for distinction
+                        color: tile_color, // Use the tile color
+                        custom_size: Some(Vec2::new(square_size, square_size)),
                         ..Default::default()
                     },
                     transform: Transform::from_xyz(
-                        x as f32 * spacing - world_size as f32, // Centered on the tile
-                        y as f32 * spacing - world_size as f32, // Centered on the tile
-                        1.0, // Slightly above the tile layer
+                        x as f32 * square_size - WORLD_SIZE as f32, // X position with an offset
+                        y as f32 * square_size - WORLD_SIZE as f32, // Y position with an offset
+                        0.0,
                     ),
                     ..Default::default()
                 }).insert(RenderLayers::layer(0));
+
+                // Optionally spawn an additional sprite for the content if it's not None
+                if tile.content != Content::None {
+                    commands.spawn(SpriteBundle {
+                        sprite: Sprite {
+                            color: content_color, // Use the content color
+                            custom_size: Some(Vec2::new(square_size / 3.0, square_size / 3.0)), // Smaller than the tile for distinction
+                            ..Default::default()
+                        },
+                        transform: Transform::from_xyz(
+                            x as f32 * square_size - WORLD_SIZE as f32, // Centered on the tile
+                            y as f32 * square_size - WORLD_SIZE as f32, // Centered on the tile
+                            1.0, // Slightly above the tile layer
+                        ),
+                        ..Default::default()
+                    }).insert(RenderLayers::layer(0));
+                }
             }
         }
     }
@@ -188,12 +190,11 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, shared_map: Res
     
 
     // per la posizione centrale della tile
-    let center_x = world_gen.gen().1.1 as f32 * spacing - world_size as f32 + square_size;
-    let center_y = world_gen.gen().1.0 as f32 * spacing - world_size as f32 + square_size;
-
+    
     let robot_size = 2.0;
     let sunny: Handle<Image> = asset_server.load("img/sunny.png");
 
+    let resource = robot_resource.0.lock().unwrap();
         //spawna il robot
     commands.spawn(SpriteBundle {
         sprite: Sprite {
@@ -201,7 +202,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, shared_map: Res
             custom_size: Some(Vec2::new(robot_size, robot_size)),
             ..Default::default()
         },
-        transform: Transform::from_xyz(center_x, center_y, 2.0), // asse z serve per metterlo sopra i tile e i conent
+        transform: Transform::from_xyz(square_size * resource.coordinate_column as f32, square_size * resource.coordinate_row as f32, 2.0), // asse z serve per metterlo sopra i tile e i conent
         ..Default::default()
     }).insert(Roboto)
     .insert(RenderLayers::layer(0));
@@ -345,7 +346,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, shared_map: Res
                 .with_children(|parent| {
                     // Primo figlio: TextBundle
                     parent.spawn(TextBundle::from_section(
-                        world_gen.gen().2.get_time_of_day_string() + "\n", // Assumendo che questo generi il testo desiderato
+                         "TIME \n", // Assumendo che questo generi il testo desiderato
                         TextStyle {
                             font_size: 25.0,
                             color: Color::BLACK,
@@ -373,7 +374,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, shared_map: Res
     // Right Camera
     commands.spawn((
         Camera2dBundle {
-            transform: Transform::from_xyz(center_x, center_y, 1.0) // Usa la posizione del punto rosso
+            transform: Transform::from_xyz(square_size * resource.coordinate_column as f32, square_size * resource.coordinate_row as f32, 1.0) // Usa la posizione del punto rosso
             .with_scale(main_scale),
             camera: Camera{
                 order: 0,
@@ -387,12 +388,12 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, shared_map: Res
 
 
     // Calcola le dimensioni complessive del mondo
-    let world_width: f32 = world.len() as f32 * spacing;
-    let world_height = world[0].len() as f32 * spacing;
+    let world_width: f32 = world.len() as f32 * square_size;
+    let world_height = world[0].len() as f32 * square_size;
 
     // Calcola il centro del mondo
-    let world_center_x = world_width / 2.0 - world_size as f32; // Assumi che 300 sia l'offset usato
-    let world_center_y = world_height / 2.0 - world_size as f32;
+    let world_center_x = world_width / 2.0 - WORLD_SIZE as f32; // Assumi che 300 sia l'offset usato
+    let world_center_y = world_height / 2.0 - WORLD_SIZE as f32;
 
     // Scala per la camera della minimappa (aggiusta questo valore in base alla necessitÃ )
     let minimap_scale = Vec3::new(5.0, 5.0, 1.0); // Aumenta la scala per visualizzare l'intera matrice
@@ -591,8 +592,8 @@ fn button_system(
                 ..Default::default()
             },
             transform: Transform::from_xyz(
-                world_size.x / 2.0, // centra la telecamera sull'asse X
-                world_size.y / 2.0, // centra la telecamera sull'asse Y
+                WORLD_SIZE.x / 2.0, // centra la telecamera sull'asse X
+                WORLD_SIZE.y / 2.0, // centra la telecamera sull'asse Y
                 100.0,             // posiziona la telecamera sopra la mappa
             ),
             // Configura il viewport per posizionare la minimappa nell'angolo in alto a sinistra
@@ -838,7 +839,7 @@ fn moviment(robot_data: Arc<Mutex<RobotInfo>>, map: Arc<Mutex<Vec<Vec<Option<Til
 
     // world generator initialization
     let mut world_gen =
-        ghost_amazeing_island::world_generator::WorldGenerator::new(world_size, false, 1, 1.1);
+        ghost_amazeing_island::world_generator::WorldGenerator::new(WORLD_SIZE, false, 1, 1.1);
     // Runnable creation and start
     println!("Generating runnable (world + robot)...");
     // match robot.audio.play_audio(&background_music) {
@@ -849,13 +850,13 @@ fn moviment(robot_data: Arc<Mutex<RobotInfo>>, map: Arc<Mutex<Vec<Vec<Option<Til
     //     }
     // }
     let mut world_gen =
-        ghost_amazeing_island::world_generator::WorldGenerator::new(world_size, false, 1, 1.1);
+        ghost_amazeing_island::world_generator::WorldGenerator::new(WORLD_SIZE, false, 1, 1.1);
     let mut runner = Runner::new(Box::new(robot), &mut world_gen);
     println!("Runnable succesfully generated");
     //sleep 5 second
-    sleep(std::time::Duration::from_secs(5));
     for _i in 0..10000 {
         let rtn = runner.as_mut().unwrap().game_tick();
+        sleep(std::time::Duration::from_secs(50));
     }
      
 }
@@ -898,7 +899,7 @@ fn main() {
     let robot_data = Arc::new(Mutex::new(robot_info));
     let robot_data_clone = robot_data.clone();
 
-    let map: Arc<Mutex<Vec<Vec<Option<Tile>>>>> = Arc::new(Mutex::new(vec![vec![None; world_size as usize]; world_size as usize]));
+    let map: Arc<Mutex<Vec<Vec<Option<Tile>>>>> = Arc::new(Mutex::new(vec![vec![None; WORLD_SIZE as usize]; WORLD_SIZE as usize]));
     let map_clone = map.clone();
 
     let moviment = thread::spawn(move || {
