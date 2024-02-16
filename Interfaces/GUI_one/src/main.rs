@@ -14,10 +14,28 @@ use bevy::render::camera::Viewport;
 use rand::Rng;
 use bevy::window::WindowResized;
 use bevy::core_pipeline::clear_color::ClearColorConfig;
+use std::{collections::HashMap, ptr::null};
+use std::thread::sleep;
 
+use bessie::bessie::State;
+use crab_rave_explorer::algorithm::{cheapest_border, move_to_cheapest_border};
+use oxagaudiotool::sound_config::{self, OxAgSoundConfig};
+use robotics_lib::event::events::Event;
+use robotics_lib::interface::Direction::Up;
+use ohcrab_weather::weather_tool::WeatherPredictionTool;
+use arrusticini_destroy_zone::DestroyZone;
+use oxagaudiotool::OxAgAudioTool;
+use robotics_lib::interface::{ go, one_direction_view, robot_map, robot_view, Direction};
+use robotics_lib::{
+    energy::Energy,
+    runner::{backpack::BackPack, Robot, Runnable, Runner},
+    world::coordinates::Coordinate
+};
 
+const world_size: u32 = 60;
 
-
+#[derive(Component, Debug)]
+struct Roboto;
 
 //aggiungere sempre le risorse nell'app del main
 #[derive(Default, Resource)]
@@ -59,8 +77,7 @@ struct MinimapOutline;
 // Puoi aggiungere altri campi se necessario, per esempio per memorizzare la posizione o altri parametri della camera.
 
 
-#[derive(Component, Debug)]
-struct Robot;
+
 
 // Funzione per convertire un numero da 1 a 5 in un colore
 fn get_color(tile: Tile) -> Color {
@@ -103,12 +120,25 @@ fn get_content_color(content: Tile) -> Color {
 
 
 // Funzione di setup che crea la scena
-fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
+fn setup(mut commands: Commands, asset_server: Res<AssetServer>, shared_map: Res<MapResource>) {
     // Matrice di esempio
 
 //TODO: controllare se positioning si basa effettivamente sulla matrice
 //TODO: cabiare dimenzione con l'utilizzo della risorsa tile
-    let mut world_gen = ghost_amazeing_island::world_generator::WorldGenerator::new(300, false, 1, 1.1);
+    //sleep 3 secondi
+    sleep(std::time::Duration::from_secs(3));
+    let shared_map = shared_map.0.lock().unwrap();
+    let mut count = 0;
+    //how many tile is not None
+    for row in shared_map.iter() {
+        for tile in row.iter() {
+            if tile.is_some() {
+                count += 1;
+            }
+        }
+    }
+    println!("count mappaa viosualizzaaaaa {:?}", count);
+    let mut world_gen = ghost_amazeing_island::world_generator::WorldGenerator::new(world_size, false, 1, 1.1);
     let mut world =world_gen.gen().0;
     let square_size = 3.0; // Dimensione di ogni quadrato
     let spacing = 3.0; // Spaziatura tra i quadrati
@@ -128,8 +158,8 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                     ..Default::default()
                 },
                 transform: Transform::from_xyz(
-                    x as f32 * spacing - 300.0, // X position with an offset
-                    y as f32 * spacing - 300.0, // Y position with an offset
+                    x as f32 * spacing - world_size as f32, // X position with an offset
+                    y as f32 * spacing - world_size as f32, // Y position with an offset
                     0.0,
                 ),
                 ..Default::default()
@@ -144,8 +174,8 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                         ..Default::default()
                     },
                     transform: Transform::from_xyz(
-                        x as f32 * spacing - 303.0 + square_size, // Centered on the tile
-                        y as f32 * spacing - 303.0 + square_size, // Centered on the tile
+                        x as f32 * spacing - world_size as f32, // Centered on the tile
+                        y as f32 * spacing - world_size as f32, // Centered on the tile
                         1.0, // Slightly above the tile layer
                     ),
                     ..Default::default()
@@ -158,8 +188,8 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     
 
     // per la posizione centrale della tile
-    let center_x = world_gen.gen().1.1 as f32 * spacing - 300.0 + square_size;
-    let center_y = world_gen.gen().1.0 as f32 * spacing - 300.0 + square_size;
+    let center_x = world_gen.gen().1.1 as f32 * spacing - world_size as f32 + square_size;
+    let center_y = world_gen.gen().1.0 as f32 * spacing - world_size as f32 + square_size;
 
     let robot_size = 2.0;
     let sunny: Handle<Image> = asset_server.load("img/sunny.png");
@@ -173,7 +203,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         },
         transform: Transform::from_xyz(center_x, center_y, 2.0), // asse z serve per metterlo sopra i tile e i conent
         ..Default::default()
-    }).insert(Robot)
+    }).insert(Roboto)
     .insert(RenderLayers::layer(0));
         
     commands
@@ -361,8 +391,8 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     let world_height = world[0].len() as f32 * spacing;
 
     // Calcola il centro del mondo
-    let world_center_x = world_width / 2.0 - 300.0; // Assumi che 300 sia l'offset usato
-    let world_center_y = world_height / 2.0 - 300.0;
+    let world_center_x = world_width / 2.0 - world_size as f32; // Assumi che 300 sia l'offset usato
+    let world_center_y = world_height / 2.0 - world_size as f32;
 
     // Scala per la camera della minimappa (aggiusta questo valore in base alla necessitÃ )
     let minimap_scale = Vec3::new(5.0, 5.0, 1.0); // Aumenta la scala per visualizzare l'intera matrice
@@ -440,15 +470,6 @@ fn update_minimap_outline(
         }
     }
 }
-
-
-
-
-
-
-
-
-
 
 
 fn set_camera_viewports(
@@ -556,10 +577,6 @@ fn button_system(
         }
     }
 }
-
-
-
-
 
 //TODOOOOOOOOOOOOOO CREARE MINIMAPPA, VIEWPORT(?)
 //NON WORKA 
@@ -709,30 +726,16 @@ fn print_robot_tile_position(robot_position: &Transform, tile_size: f32) {
 
 //movimento del robot in base alla grandezza di una tile
 fn robot_movement_system(
-    keyboard_input: Res<Input<KeyCode>>,
-    mut query: Query<&mut Transform, With<Robot>>,
+    mut query: Query<&mut Transform, With<Roboto>>,
     tile_size: Res<TileSize>, // Utilizza la risorsa TileSize
+    robot_resource: Res<RobotResource>,
 ) {
+    let resource = robot_resource.0.lock().unwrap();
     let tile_step = tile_size.tile_size; // Usa la dimensione del tile dalla risorsa
-
+    
     for mut transform in query.iter_mut() {
-        let mut moved = false;
-        if keyboard_input.just_pressed(KeyCode::Left) {
-            transform.translation.x -= tile_step;
-            moved = true;
-        } else if keyboard_input.just_pressed(KeyCode::Right) {
-            transform.translation.x += tile_step;
-            moved = true;
-        } else if keyboard_input.just_pressed(KeyCode::Down) {
-            transform.translation.y -= tile_step;
-            moved = true;
-        } else if keyboard_input.just_pressed(KeyCode::Up) {
-            transform.translation.y += tile_step;
-            moved = true;
-        }
-        if moved{
-            print_robot_tile_position(&transform, tile_size.tile_size);
-        }
+        transform.translation.y = tile_step * resource.coordinate_column as f32;
+        transform.translation.x = tile_step * resource.coordinate_row as f32;
     }
 }
 
@@ -761,7 +764,7 @@ fn robot_movement_system(
  //serve per avere la posizione del puntino rosso ad ogni movimento
  fn update_robot_position(
     mut robot_position: ResMut<RobotPosition>,
-    robot_query: Query<&Transform, With<Robot>>,
+    robot_query: Query<&Transform, With<Roboto>>,
 ) {
     if let Ok(robot_transform) = robot_query.get_single() {
         robot_position.x = robot_transform.translation.x;
@@ -815,14 +818,267 @@ fn print_position(query: Query<(Entity, &Position)>){
 
 } */
 
+// fn main() {
+    
+// }
+
+
+
+fn moviment(robot_data: Arc<Mutex<RobotInfo>>, map: Arc<Mutex<Vec<Vec<Option<Tile>>>>>){
+    println!("Hello, world!");
+    let audio = get_audio_manager();
+
+    let mut robot = Robottino {
+        shared_map: map,
+        shared_robot: robot_data,
+        robot: Robot::new(),
+        audio: audio,
+        weather_tool: WeatherPredictionTool::new()
+    };
+
+    // world generator initialization
+    let mut world_gen =
+        ghost_amazeing_island::world_generator::WorldGenerator::new(world_size, false, 1, 1.1);
+    // Runnable creation and start
+    println!("Generating runnable (world + robot)...");
+    // match robot.audio.play_audio(&background_music) {
+    //     Ok(_) => {},
+    //     Err(e) => {
+    //         eprintln!("Failed to play audio: {}", e);
+    //         std::process::exit(1);
+    //     }
+    // }
+    let mut world_gen =
+        ghost_amazeing_island::world_generator::WorldGenerator::new(world_size, false, 1, 1.1);
+    let mut runner = Runner::new(Box::new(robot), &mut world_gen);
+    println!("Runnable succesfully generated");
+    //sleep 5 second
+    sleep(std::time::Duration::from_secs(5));
+    for _i in 0..10000 {
+        let rtn = runner.as_mut().unwrap().game_tick();
+    }
+     
+}
+
+struct RobotResource(Arc<Mutex<RobotInfo>>);
+struct MapResource(Arc<Mutex<Vec<Vec<Option<Tile>>>>>);
+
+impl bevy::prelude::Resource for RobotResource {}
+impl bevy::prelude::Resource for MapResource {}
+
+use std::sync::{Arc, Mutex};
+use std::thread;
+use std::time::Duration;
+
+// Definire una struttura di dati condivisa; ad esempio, una posizione condivisa (x, y)
+#[derive(Debug)]
+struct Position {
+    x: i32,
+    y: i32,
+}
+
+struct RobotInfo {
+    energy_level: usize,
+    coordinate_row : usize,
+    coordinate_column : usize,
+    bp_size: usize,
+    bp_contents: HashMap<Content, usize>
+}
+
 fn main() {
+    
+    // Dati condivisi tra thread
+    let robot_info= RobotInfo{
+        energy_level: 1000,
+        coordinate_row: 0,
+        coordinate_column: 0,
+        bp_size: 10,
+        bp_contents: HashMap::new()
+    };
+    let robot_data = Arc::new(Mutex::new(robot_info));
+    let robot_data_clone = robot_data.clone();
+
+    let map: Arc<Mutex<Vec<Vec<Option<Tile>>>>> = Arc::new(Mutex::new(vec![vec![None; world_size as usize]; world_size as usize]));
+    let map_clone = map.clone();
+
+    let moviment = thread::spawn(move || {
+        moviment(robot_data, map);
+    });
+
+    let robot_resource = RobotResource(robot_data_clone);
+    let map_resource = MapResource(map_clone);
     App::new()
-        .init_resource::<RobotState>()// aggiunge la risorsa con default valure, usare per settare values (.insert_resource(RobotState{is_moving:true}))
-        .init_resource::<RobotPosition>()//ricordarsi di metterlo quando si ha una risorsa 
-        .insert_resource(TileSize{tile_size: 3.0}) //setta la risorsa tile per la grandezza di esso
-        .add_systems(Startup,setup)
-        //.add_systems(Startup, setup_minimap_camera)
-        .add_systems(Update, (robot_movement_system, update_robot_position, follow_robot_system, button_system,set_camera_viewports, update_minimap_outline)) //unpdate every frame
-        .add_plugins(DefaultPlugins)
-        .run();     
+    .init_resource::<RobotState>()// aggiunge la risorsa con default valure, usare per settare values (.insert_resource(RobotState{is_moving:true}))
+    .init_resource::<RobotPosition>()//ricordarsi di metterlo quando si ha una risorsa 
+    .insert_resource(TileSize{tile_size: 3.0}) //setta la risorsa tile per la grandezza di esso
+    .insert_resource(robot_resource)
+    .insert_resource(map_resource)
+    .add_systems(Startup,setup)
+    //.add_systems(Startup, setup_minimap_camera)
+    .add_systems(Update, (robot_movement_system, update_robot_position, follow_robot_system, button_system,set_camera_viewports, update_minimap_outline)) //unpdate every frame
+    .add_plugins(DefaultPlugins)
+    .run();  
+
+    moviment.join().unwrap();
+}
+
+struct Robottino {
+    shared_robot: Arc<Mutex<RobotInfo>>,
+    shared_map: Arc<Mutex<Vec<Vec<Option<Tile>>>>>,
+    robot: Robot,
+    audio: OxAgAudioTool,
+    weather_tool: WeatherPredictionTool
+}
+
+
+impl Runnable for Robottino {
+    fn process_tick(&mut self, world: &mut robotics_lib::world::World) {
+        
+        sleep(std::time::Duration::from_millis(300));
+        //se l'energia e' sotto il 300, la ricarico
+        if self.robot.energy.get_energy_level() < 300 {
+            self.robot.energy = rust_and_furious_dynamo::dynamo::Dynamo::update_energy();
+        }
+        weather_check(self);
+        
+        // sleep(std::time::Duration::from_millis(300));
+        // bessie::bessie::road_paving_machine(self, world, Direction::Up, State::MakeRoad);
+        DestroyZone.execute(world, self, Content::Rock(1));
+        let a = self.get_backpack();
+        print!("{:?}", a);
+        
+        //print coordinate
+        let coordinates = self.get_coordinate();
+        println!("{:?}", coordinates);
+        robot_view(self, world);
+        let tiles_option = cheapest_border(world, self);
+        let map= robot_map(world);
+        //count how many tiles are not None in map
+        let mut count = 0;
+        if let Some(unwrapped_map) = map {
+            for i in 0..unwrapped_map.len() {
+                for j in 0..unwrapped_map[i].len() {
+                    if unwrapped_map[i][j].is_some() {
+                        count += 1;
+                    }
+                }
+            }
+        }
+        println!("{:?}", count);
+        if let Some(tiles) = tiles_option {
+            //manage the return stat of move to cheapest border
+            let result = move_to_cheapest_border(world, self, tiles);
+            if let Err((_tiles, error)) = result {
+                println!("The robot cannot move due to a {:?}", error);
+            }
+        }
+        //print coordinate
+        let actual_energy = self.get_energy().get_energy_level();
+        println!("{:?}", actual_energy);
+        let coordinates = self.get_coordinate();
+        println!("{:?}", coordinates);
+        
+        let mut shared_map = self.shared_map.lock().unwrap();
+        if let Some(new_map) = robot_map(world) {
+            *shared_map = new_map;
+        }
+        
+
+    }
+
+    fn handle_event(&mut self, event: robotics_lib::event::events::Event) {
+        self.weather_tool.process_event(&event);
+        {
+            let mut shared_robot = self.shared_robot.lock().unwrap();
+            shared_robot.energy_level = self.robot.energy.get_energy_level();
+            shared_robot.coordinate_row = self.robot.coordinate.get_row();
+            shared_robot.coordinate_column = self.robot.coordinate.get_col();
+            shared_robot.bp_size = self.robot.backpack.get_size();
+            shared_robot.bp_contents = self.robot.backpack.get_contents().clone();
+        }
+    }
+
+    fn get_energy(&self) -> &Energy {
+        &self.robot.energy
+    }
+
+    fn get_energy_mut(&mut self) -> &mut Energy {
+        &mut self.robot.energy
+    }
+
+    fn get_coordinate(&self) -> &Coordinate {
+        &self.robot.coordinate
+    }
+
+    fn get_coordinate_mut(&mut self) -> &mut Coordinate {
+        &mut self.robot.coordinate
+    }
+
+    fn get_backpack(&self) -> &BackPack {
+        &self.robot.backpack
+    }
+
+    fn get_backpack_mut(&mut self) -> &mut BackPack {
+        &mut self.robot.backpack
+    }
+}
+
+
+fn weather_check(robot: &Robottino) {
+    let ticks_until_weather = match robot.weather_tool.ticks_until_weather_change(100000000000) {
+        Ok(ticks) => ticks,
+        Err(e) => {
+            eprintln!("Failed to get ticks until weather change: {:?}", e);
+            return;
+        }
+    };
+    let predict = match robot.weather_tool.predict(ticks_until_weather) {
+        Ok(prediction) => prediction,
+        Err(e) => {
+            eprintln!("Failed to predict weather: {:?}", e);
+            return;
+        }
+    };
+    println!("Ticks until change: {:?}", ticks_until_weather);
+    println!("into: {:?}", predict);
+}
+
+fn get_audio_manager() -> OxAgAudioTool {
+    let background_music = OxAgSoundConfig::new_looped_with_volume("audio/background.ogg", 2.0);
+
+    let mut events = HashMap::new();
+    // events.insert(Event::Ready, OxAgSoundConfig::new("assets/default/event/event_ready.ogg"));
+    // events.insert(Event::Terminated, OxAgSoundConfig::new("assets/default/event/event_terminated.ogg"));
+    // // events.insert(Event::EnergyRecharged(0), OxAgSoundConfig::new_with_volume("assets/default/event/event_energy_recharged.ogg", 0.1));
+    // events.insert(Event::AddedToBackpack(Content::None, 0), OxAgSoundConfig::new("assets/default/event/event_add_to_backpack.ogg"));
+    // events.insert(Event::RemovedFromBackpack(Content::None, 0), OxAgSoundConfig::new("assets/default/event/event_remove_from_backpack.ogg"));
+
+    let mut tiles = HashMap::new();
+    // tiles.insert(TileType::DeepWater, OxAgSoundConfig::new("assets/default/tile/tile_water.ogg"));
+    // tiles.insert(TileType::ShallowWater, OxAgSoundConfig::new("assets/default/tile/tile_water.ogg"));
+    // tiles.insert(TileType::Sand, OxAgSoundConfig::new("assets/default/tile/tile_sand.ogg"));
+    // tiles.insert(TileType::Grass, OxAgSoundConfig::new("assets/default/tile/tile_grass.ogg"));
+    // tiles.insert(TileType::Hill, OxAgSoundConfig::new("assets/default/tile/tile_grass.ogg"));
+    // tiles.insert(TileType::Mountain, OxAgSoundConfig::new("assets/default/tile/tile_mountain.ogg"));
+    // tiles.insert(TileType::Snow, OxAgSoundConfig::new("assets/default/tile/tile_snow.ogg"));
+    // tiles.insert(TileType::Lava, OxAgSoundConfig::new("assets/default/tile/tile_lava.ogg"));
+    // tiles.insert(TileType::Teleport(false), OxAgSoundConfig::new("assets/default/tile/tile_teleport.ogg"));
+    // tiles.insert(TileType::Street, OxAgSoundConfig::new("assets/default/tile/tile_street.ogg"));
+
+    let mut weather = HashMap::new();
+    // weather.insert(WeatherType::Rainy, OxAgSoundConfig::new("assets/default/weather/weather_rainy.ogg"));
+    // weather.insert(WeatherType::Foggy, OxAgSoundConfig::new("assets/default/weather/weather_foggy.ogg"));
+    // weather.insert(WeatherType::Sunny, OxAgSoundConfig::new("assets/default/weather/weather_sunny.ogg"));
+    // weather.insert(WeatherType::TrentinoSnow, OxAgSoundConfig::new("assets/default/weather/weather_winter.ogg"));
+    // weather.insert(WeatherType::TropicalMonsoon, OxAgSoundConfig::new("assets/default/weather/weather_tropical.ogg"));
+
+    // Create the audio tool
+    let audio = match OxAgAudioTool::new(events, tiles, weather) {
+        Ok(audio) => audio,
+        Err(e) => {
+            eprintln!("Failed to create OxAgAudioTool: {}", e);
+            std::process::exit(1);
+        }
+    };
+    return audio;
 }
