@@ -7,12 +7,12 @@ name = "my_crate"
 version = "0.1.0"
 
 [dependencies]
-bessie = { registry = "kellnr"}
 op_map = {registry = "kellnr"}
+bessie = { registry = "kellnr"}
+
 
 arrusticini_destroy_zone = {registry = "kellnr"}
 ohcrab_weather = {registry = "kellnr"}
-
 oxagaudiotool = {registry = "kellnr"}
 robotics_lib = { registry = "kellnr"}
 ghost_amazeing_island = {registry = "kellnr"}
