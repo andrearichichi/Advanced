@@ -152,20 +152,22 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, shared_map: Res
         }
     }
     println!("count mappaa viosualizzaaaaa {:?}", count);
-
+    let mut old_map = OldMapResource{
+        //world: vec![vec![None; WORLD_SIZE as usize]; WORLD_SIZE as usize],
+        world: vec![vec![None; WORLD_SIZE as usize]; WORLD_SIZE as usize],
+    };
     
 // Dimensione di ogni quadrato
     //sotto funzione per telecamera
     //commands.spawn(Camera2dBundle::default()); 
 
     println!("Robot {:?} {:?}",resource.coordinate_column, resource.coordinate_row);    
-    update_show_tiles(&world, &mut commands);
+    update_show_tiles(&world, &mut commands, &mut old_map.world);
+    commands.insert_resource(old_map);
 
-
-    
 
     // per la posizione centrale della tile
-    
+
     let robot_size = 2.0;
     let sunny: Handle<Image> = asset_server.load("img/sunny.png");
 
@@ -627,31 +629,18 @@ fn set_camera_viewports(
 
 
 
-fn update_show_tiles(world: &Vec<Vec<Option<Tile>>>, commands: &mut Commands){
-
+fn update_show_tiles(world: &Vec<Vec<Option<Tile>>>, commands: &mut Commands, old_world: &mut Vec<Vec<Option<Tile>>>) {
+    
     for (x, row) in world.iter().enumerate() {
         for (y, tile) in row.iter().enumerate() {
-            if let Some (tile) = tile {
+            let old_tile = &old_world[x][y];
+            // Se il nuovo tile non e' None e il vecchio tile e' None, spawnalo
+            if tile.is_some() && (old_tile.is_none() || old_tile.clone().unwrap().content != tile.clone().unwrap().content) {
+                let tile = tile.clone().unwrap();
                 println!("x: {:?}, y: {:?}, tile: {:?}", x, y, tile);
                 let tile_color = get_color(tile.clone());
                 let content_color = get_content_color(tile.clone());
-            
-
-                // Create a base sprite for the tile
-                commands.spawn(SpriteBundle {
-                    sprite: Sprite {
-                        color: tile_color, // Use the tile color
-                        custom_size: Some(Vec2::new(TILE_SIZE, TILE_SIZE)),
-                        ..Default::default()
-                    },
-                    transform: Transform::from_xyz(
-                        x as f32 * TILE_SIZE, // X position with an offset
-                        y as f32 * TILE_SIZE, // Y position with an offset
-                        0.0,
-                    ),
-                    ..Default::default()
-                }).insert(RenderLayers::layer(0));
-
+                let mut z_value = 1.0;
                 // Optionally spawn an additional sprite for the content if it's not None
                 if tile.content != Content::None {
                     commands.spawn(SpriteBundle {
@@ -663,14 +652,33 @@ fn update_show_tiles(world: &Vec<Vec<Option<Tile>>>, commands: &mut Commands){
                         transform: Transform::from_xyz(
                             x as f32 * TILE_SIZE, // Centered on the tile
                             y as f32 * TILE_SIZE, // Centered on the tile
-                            1.0, // Slightly above the tile layer
+                            z_value, // Slightly above the tile layer
                         ),
                         ..Default::default()
                     }).insert(RenderLayers::layer(0));
+                    z_value = 0.0;
                 }
+
+                // Create a base sprite for the tile
+                commands.spawn(SpriteBundle {
+                    sprite: Sprite {
+                        color: tile_color, // Use the tile color
+                        custom_size: Some(Vec2::new(TILE_SIZE, TILE_SIZE)),
+                        ..Default::default()
+                    },
+                    transform: Transform::from_xyz(
+                        x as f32 * TILE_SIZE, // X position with an offset
+                        y as f32 * TILE_SIZE, // Y position with an offset
+                        z_value,
+                    ),
+                    ..Default::default()
+                }).insert(RenderLayers::layer(0));
+
+                
             }
         }
     }
+    *old_world = world.clone();
 }
 
 #[derive(Component)]
@@ -775,13 +783,14 @@ fn robot_movement_system(
     tile_size: Res<TileSize>, // Utilizza la risorsa TileSize
     robot_resource: Res<RobotResource>,
     world: Res<MapResource>,
+    mut old_world: ResMut<OldMapResource>,
     energy_query: Query<&mut Text, (With<TagEnergy>,Without<Roboto>,Without<TagTime>)>,
     time_query: Query<&mut Text, (With<TagTime>,Without<TagEnergy>,Without<Roboto>)>,
 ) {
 
     
     let world = world.0.lock().unwrap();
-    update_show_tiles(&world, &mut commands);
+    update_show_tiles(&world, &mut commands, &mut old_world.world);
     let resource = robot_resource.0.lock().unwrap();
     let tile_step = tile_size.tile_size; // Use the dimension of the tile from the resource
     let resource_copy = resource.clone();
@@ -868,7 +877,7 @@ fn moviment(robot_data: Arc<Mutex<RobotInfo>>, map: Arc<Mutex<Vec<Vec<Option<Til
     let mut runner = Runner::new(Box::new(robot), &mut world_gen);
     println!("Runnable succesfully generated");
     //sleep 5 second
-    sleep(std::time::Duration::from_secs(2));
+    sleep(std::time::Duration::from_secs(3));
     for _i in 0..10000 {
         let rtn = runner.as_mut().unwrap().game_tick();
         // sleep(std::time::Duration::from_secs(1));
@@ -880,9 +889,13 @@ fn moviment(robot_data: Arc<Mutex<RobotInfo>>, map: Arc<Mutex<Vec<Vec<Option<Til
 #[derive(Clone)]
 struct RobotResource(Arc<Mutex<RobotInfo>>);
 struct MapResource(Arc<Mutex<Vec<Vec<Option<Tile>>>>>);
+struct OldMapResource {
+    world: Vec<Vec<Option<Tile>>>,
+}
 
 impl bevy::prelude::Resource for RobotResource {}
 impl bevy::prelude::Resource for MapResource {}
+impl bevy::prelude::Resource for OldMapResource {}
 
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -964,7 +977,7 @@ struct Robottino {
 impl Runnable for Robottino {
     fn process_tick(&mut self, world: &mut robotics_lib::world::World) {
         
-        sleep(std::time::Duration::from_millis(150));
+        sleep(std::time::Duration::from_millis(30));
         //se l'energia e' sotto il 300, la ricarico
         if self.robot.energy.get_energy_level() < 300 {
             self.robot.energy = rust_and_furious_dynamo::dynamo::Dynamo::update_energy();
@@ -973,7 +986,7 @@ impl Runnable for Robottino {
         
         // sleep(std::time::Duration::from_millis(300));
         // bessie::bessie::road_paving_machine(self, world, Direction::Up, State::MakeRoad);
-        DestroyZone.execute(world, self, Content::Rock(1));
+        DestroyZone.execute(world, self, Content::Tree(0));
         let a = self.get_backpack();
         print!("{:?}", a);
         
