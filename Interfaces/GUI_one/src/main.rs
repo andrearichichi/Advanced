@@ -860,6 +860,8 @@ fn moviment(robot_data: Arc<Mutex<RobotInfo>>, map: Arc<Mutex<Vec<Vec<Option<Til
      
 }
 
+//prova commit
+
 struct RobotResource(Arc<Mutex<RobotInfo>>);
 struct MapResource(Arc<Mutex<Vec<Vec<Option<Tile>>>>>);
 
