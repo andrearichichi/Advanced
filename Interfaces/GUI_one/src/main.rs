@@ -34,6 +34,9 @@ use robotics_lib::{
     world::coordinates::Coordinate
 };
 
+const MIN_ZOOM: f32 = 0.05; // Sostituisci con il valore minimo desiderato
+const MAX_ZOOM: f32 = 1.0; // Sostituisci con il valore massimo calcolato dinamicamente
+
 
 const TILE_SIZE: f32 = 3.0; // Dimensione di ogni quadrato
 
@@ -48,7 +51,7 @@ struct RobotPosition {
 }
 
 #[derive(Resource, Debug, Default)]
-//risorsa generale per vedere/settare se il robot Ã¨ in pausa o meno(mettere in pausa il tutto)
+//risorsa generale per vedere/settare se il robot e' in pausa o meno(mettere in pausa il tutto)
 struct RobotState{
     is_moving: bool,
 }
@@ -86,7 +89,7 @@ struct TagTime;
 struct TagBackPack;
 // Puoi aggiungere altri campi se necessario, per esempio per memorizzare la posizione o altri parametri della camera.
 
-const WORLD_SIZE:u32 = 150;
+const WORLD_SIZE:u32 = 100;
 
 
 // Funzione per convertire un numero da 1 a 5 in un colore
@@ -845,26 +848,23 @@ fn button_system(
         (Changed<Interaction>, With<Button>),
     >,
     mut text_query: Query<&mut Text>,
-    mut camera_query: Query<&mut Transform, With<MainCamera>>,
+    mut camera_query: Query<(&mut Transform, &Camera), With<MainCamera>>,
     mut label_query: Query<&mut Style, (With<Label>, Without<LabelBackPack>)>,
     mut label_backpack_query: Query<&mut Style, (With<LabelBackPack>, Without<Label>)>,
     mut app_exit_events: EventWriter<AppExit>,
+    robot_position: Res<RobotPosition>,
 ){
     for (interaction, mut color, mut border_color, children,zoomin,zoomout,dropdown,dropdownback, closeapp) in &mut interaction_query {
         let mut text = text_query.get_mut(children[0]).unwrap();
         match *interaction {
             Interaction::Pressed => {
                 if zoomin.is_some() {
-                    for mut projection in camera_query.iter_mut() {
-                        projection.scale += 0.03;
-                        println!("Current zoom scale: {}", projection.scale);
-                    }
-                } if zoomout.is_some() {
-                    for mut projection in camera_query.iter_mut() {
-                        projection.scale -= 0.03;
-                        println!("Current zoom scale: {}", projection.scale);
-                    }
-                }else if dropdown.is_some() {
+                    adjust_camera_zoom_and_position(0.03, &mut camera_query, &robot_position);
+                }
+                if zoomout.is_some() {
+                    adjust_camera_zoom_and_position(-0.03, &mut camera_query, &robot_position);
+                }
+                else if dropdown.is_some() {
                     for mut node_style in label_query.iter_mut() {
                         if node_style.display == Display::None {
                             node_style.display = Display::Flex; // Cambia da None a Flex
@@ -896,6 +896,52 @@ fn button_system(
                 *color = NORMAL_BUTTON.into();
                 border_color.0 = Color::BLACK;
             }
+        }
+    }
+}
+
+
+// Funzione per aggiustare lo zoom e la posizione della camera
+fn adjust_camera_zoom_and_position(
+    zoom_change: f32,
+    mut camera_query: &mut Query<(&mut Transform, &Camera), With<MainCamera>>,
+    robot_position: &Res<RobotPosition>,
+) {
+    if let Ok((mut transform, camera)) = camera_query.get_single_mut() {
+        if let Some(viewport) = &camera.viewport {
+            let max_scale_width = (WORLD_SIZE as f32 * TILE_SIZE) / viewport.physical_size.x as f32;
+            let max_scale_height = (WORLD_SIZE as f32 * TILE_SIZE) / viewport.physical_size.y as f32;
+            
+            // Usa il minore dei due per garantire che nessun bordo vada oltre il mondo
+            let max_scale = max_scale_width.min(max_scale_height);
+
+            // Aggiorna il valore di MAX_ZOOM in base al calcolo
+            let max_zoom = MAX_ZOOM.min(max_scale);
+
+            // Aggiusta lo zoom e assicurati che sia nel range consentito
+            let new_scale = (transform.scale.x + zoom_change).clamp(MIN_ZOOM, max_zoom);
+            transform.scale.x = new_scale;
+            transform.scale.y = new_scale;
+
+            // Assicurati che la vista della camera non sia mai più grande del mondo di gioco
+            let camera_half_width = ((viewport.physical_size.x as f32 / new_scale) / 2.0).min(WORLD_SIZE as f32 * TILE_SIZE / 2.0);
+            let camera_half_height = ((viewport.physical_size.y as f32 / new_scale) / 2.0).min(WORLD_SIZE as f32 * TILE_SIZE / 2.0);
+
+            // Calcola i confini del mondo di gioco
+            let world_min_x = camera_half_width;
+            let world_max_x = WORLD_SIZE as f32 * TILE_SIZE - camera_half_width;
+            let world_min_y = camera_half_height;
+            let world_max_y = WORLD_SIZE as f32 * TILE_SIZE - camera_half_height;
+
+            // Clamp può fallire se min è maggiore di max, quindi aggiungiamo un controllo qui
+            if world_min_x > world_max_x || world_min_y > world_max_y {
+                eprintln!("Il mondo di gioco è troppo piccolo per il livello di zoom attuale!");
+                return;
+            }
+
+            // Calcola la nuova posizione della camera limitata dai confini del mondo di gioco
+            transform.translation.x = robot_position.x.clamp(world_min_x, world_max_x);
+            transform.translation.y = robot_position.y.clamp(world_min_y, world_max_y);
         }
     }
 }
@@ -983,7 +1029,7 @@ fn robot_movement_system(
 
 
 
-//serve per far muovere la camera sopra il puntino rosso, prenderndo le sue coordinate 
+/* //serve per far muovere la camera sopra il puntino rosso, prenderndo le sue coordinate 
 fn follow_robot_system(
     robot_position: Res<RobotPosition>,
     mut camera_query: Query<&mut Transform, With<MainCamera>>,
@@ -994,8 +1040,39 @@ fn follow_robot_system(
         //serve per la distanza dall'alto dal punto rosso 
         camera_transform.translation.z = 10.0; // Mantiene la camera elevata per una vista top-down
     }
-}
+} */
 
+fn follow_robot_system(
+    robot_position: Res<RobotPosition>,
+    mut camera_query: Query<(&mut Transform, &Camera), With<MainCamera>>,
+) {
+    if let Ok((mut camera_transform, camera)) = camera_query.get_single_mut() {
+        if let Some(viewport) = &camera.viewport {
+            // Prendi la scala dalla camera transform
+            let camera_scale = camera_transform.scale;
+
+            // Calcola la larghezza e l'altezza visibili dalla camera
+            let camera_half_width = (viewport.physical_size.x as f32 * camera_scale.x) / 3.1;
+            let camera_half_height = (viewport.physical_size.y as f32 * camera_scale.y) / 3.1;
+
+            // Definisci i confini del mondo di gioco
+            let world_min_x = camera_half_width;
+            let world_max_x = WORLD_SIZE as f32 * TILE_SIZE - camera_half_width;
+            let world_min_y = camera_half_height;
+            let world_max_y = WORLD_SIZE as f32 * TILE_SIZE - camera_half_height;
+
+            // Calcola la nuova posizione della camera limitata dai confini del mondo di gioco
+            let new_camera_x = robot_position.x.clamp(world_min_x, world_max_x);
+            let new_camera_y = robot_position.y.clamp(world_min_y, world_max_y);
+
+            // Aggiorna la posizione della camera
+            camera_transform.translation.x = new_camera_x;
+            camera_transform.translation.y = new_camera_y;
+            // La z può rimanere invariata a meno che non si voglia modificare anche l'altezza della camera
+            camera_transform.translation.z = 10.0; // Mantiene la camera elevata per una vista top-down
+        }
+    }
+}
 
 
 fn moviment(robot_data: Arc<Mutex<RobotInfo>>, map: Arc<Mutex<Vec<Vec<Option<Tile>>>>>){
