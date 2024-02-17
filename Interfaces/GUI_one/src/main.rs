@@ -81,6 +81,9 @@ struct TagEnergy;
 
 #[derive(Component, Debug)]
 struct TagTime;
+
+#[derive(Component, Debug)]
+struct TagBackPack;
 // Puoi aggiungere altri campi se necessario, per esempio per memorizzare la posizione o altri parametri della camera.
 
 const WORLD_SIZE:u32 = 150;
@@ -183,7 +186,10 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, shared_map: Res
         ..Default::default()
     }).insert(Roboto)
     .insert(RenderLayers::layer(0));
-        
+
+
+
+    //BUTTONS    
     commands
         .spawn(NodeBundle {
             style: Style {
@@ -291,7 +297,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, shared_map: Res
         }).insert(RenderLayers::layer(0));
 
         
-        //menu a tendina
+        //menu a tendina parte destra
         commands
         .spawn(NodeBundle {
             style: Style {
@@ -389,6 +395,79 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, shared_map: Res
                     ));
                 }).insert(Label);
     });
+
+
+
+        //menu' a tendina BACKPACK
+        commands
+        .spawn(NodeBundle {
+            style: Style {
+                width: Val::Percent(100.0),
+                height: Val::Percent(100.0),
+              justify_content: JustifyContent::FlexEnd,
+                ..default()
+            },
+            ..default()
+        })
+        .with_children(|parent| {
+            parent
+                .spawn(ButtonBundle {
+                    style: Style {
+                        width: Val::Px(100.0),
+                        height: Val::Px(45.0),
+                        border: UiRect::all(Val::Px(5.0)),
+                        // horizontally center child text
+                        justify_content: JustifyContent::Center,
+                        // vertically center child text
+                        align_items: AlignItems::Center,
+                        ..default()
+                    },
+                    border_color: BorderColor(Color::BLACK),
+                    background_color: NORMAL_BUTTON.into(),
+                    ..default()
+                })
+                .with_children(|parent| {
+                    parent.spawn(TextBundle::from_section(
+                        "BACKPACK",
+                        TextStyle {
+                            font_size: 25.0,
+                            color: Color::rgb(0.9, 0.9, 0.9),
+                            
+                            ..default()
+                        },
+                    ));
+                }).insert(DropdownMenuBackpack);
+            
+                parent.spawn(NodeBundle {
+                    style: Style {
+                        width: Val::Px(250.0),
+                        height: Val::Px(500.0),
+                        border: UiRect::all(Val::Px(1.0)),
+                        justify_content: JustifyContent::FlexStart, // Centra orizzontalmente il contenuto
+                        align_items: AlignItems::Center, // Allinea il contenuto dall'inizio verticalmente
+                        flex_direction: FlexDirection::Column, // Disponi i figli in colonna
+                        display: Display::None, // Assicurati che il display sia impostato su Flex
+                        ..default()
+                    },
+                    visibility: Visibility::Visible,
+                    border_color: BorderColor(Color::BLACK),
+                    background_color: BackgroundColor(Color::rgba(255.0,  255.0, 255.0, 0.8)),
+                    ..default()
+                })
+                .with_children(|parent| {
+                    // Primo figlio: 
+                    parent.spawn(TextBundle::from_section(
+                        "BACKPACK", // Assumendo che questo generi il testo desiderato
+                        TextStyle {
+                            font_size: 25.0,
+                            color: Color::BLACK,
+                            ..default()
+                        },
+                    )).insert(TagBackPack);
+                   
+                }).insert(LabelBackPack);
+        });
+        
 
     let main_scale = Vec3::new(0.1, 0.1, 1.0);
 
@@ -516,18 +595,36 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, shared_map: Res
 
 fn update_infos(
     resource: RobotInfo, // Query per trovare il Text da aggiornare
-    mut energy_query: Query<&mut Text, (With<TagEnergy>,Without<Roboto>,Without<TagTime>)>,
-    mut time_query: Query<&mut Text, (With<TagTime>,Without<TagEnergy>,Without<Roboto>)>,
+    mut energy_query: Query<&mut Text, (With<TagEnergy>,Without<Roboto>,Without<TagTime>, Without<TagBackPack>)>,
+    mut time_query: Query<&mut Text, (With<TagTime>,Without<TagEnergy>,Without<Roboto>, Without<TagBackPack>)>,
+    mut backpack_query: Query<&mut Text, (With<TagBackPack>, Without<TagEnergy>, Without<Roboto>, Without<TagTime>)>,
 ) {
 
 
     // Ora puoi utilizzare `energy_level` e `time` senza preoccuparti del mutex
+    //TESTO ENERGY
     for mut text in energy_query.iter_mut() {
         text.sections[0].value = format!("Energy: {}", resource.energy_level);
     }
-
+    //TESTO TIME
     for mut text in time_query.iter_mut() {
         text.sections[0].value = format!("Time: {}", resource.time);
+    }
+    //TESTO BACKPACK
+    for mut text in backpack_query.iter_mut(){
+        let mut formatted_string = format!("Backpack Size: {}\n\n", resource.bp_size);
+        let mut tot_value = 0;
+            for (key, value) in resource.bp_contents.iter() {
+                // Appendi ogni coppia chiave-valore come "key: value\n" alla stringa
+                formatted_string.push_str(&format!("{}: {}\n", key, value));
+                tot_value += value;
+                
+            }
+            if tot_value == 20{
+                formatted_string.push_str(&format!("MAX SIZE REACHED"));
+            }
+            
+        text.sections[0].value = formatted_string;
     }
 }
 
@@ -542,6 +639,7 @@ fn cursor_position(q_windows: Query<&Window, With<PrimaryWindow>>) {
     }
 }
 
+
 fn cursor_events(
     minimap_camera_query: Query<(&Camera, &Transform), (With<MyMinimapCamera>, Without<MainCamera>)>,
     mut main_camera_query: Query<&mut Transform, (With<MainCamera>, Without<MyMinimapCamera>)>,
@@ -549,33 +647,31 @@ fn cursor_events(
 ) {
     let window = q_windows.single();
     if let Some(cursor_position) = window.cursor_position() {
-        // Assumendo che la logica per determinare se il cursore Ã¨ sopra la minimappa sia simile a quella fornita precedentemente
         if let Ok((minimap_camera, minimap_transform)) = minimap_camera_query.get_single() {
             if let Some(viewport) = &minimap_camera.viewport {
-                let viewport_position = Vec2::new(viewport.physical_position.x as f32, viewport.physical_position.y as f32);
-                let viewport_size = Vec2::new(viewport.physical_size.x as f32, viewport.physical_size.y as f32);
-                let cursor_relative_to_viewport = cursor_position - viewport_position;
+                // Ottieni la posizione e la dimensione fisica della viewport della minimappa
+                let minimap_viewport_position = Vec2::new(viewport.physical_position.x as f32, viewport.physical_position.y as f32);
+                let minimap_viewport_size = Vec2::new(viewport.physical_size.x as f32 / 1.5, viewport.physical_size.y as f32/ 1.5);
+                // Calcola la posizione del cursore relativa alla minimappa
+                let cursor_relative_to_minimap = cursor_position - minimap_viewport_position;
 
-                if cursor_relative_to_viewport.x >= 0.0 && cursor_relative_to_viewport.x <= viewport_size.x &&
-                   cursor_relative_to_viewport.y >= 0.0 && cursor_relative_to_viewport.y <= viewport_size.y {
-                    // La logica per aggiornare la posizione della camera basata sulla posizione del cursore sopra la minimappa
-                    // rimane la stessa di quella fornita nella tua funzione precedente
+                // Verifica se il cursore è all'interno dei limiti della minimappa
+                if cursor_relative_to_minimap.x >= 0.0 && cursor_relative_to_minimap.x <= minimap_viewport_size.x &&
+                   cursor_relative_to_minimap.y >= 0.0 && cursor_relative_to_minimap.y <= minimap_viewport_size.y {
+                    // Il cursore si trova all'interno della minimappa, procedere con la logica del click
+                    
                     // Calcola le proporzioni del cursore all'interno della minimappa
-                    let click_proportions = cursor_relative_to_viewport / viewport_size;
-
-                    // Dimensione effettiva della minimappa nel mondo di gioco
-                    let minimap_world_size = Vec2::new(
-                        minimap_transform.scale.x * viewport.physical_size.x as f32, // Modifica qui per riflettere la dimensione corretta della minimappa
-                        minimap_transform.scale.y * viewport.physical_size.y as f32, // Modifica qui per riflettere la dimensione corretta della minimappa
-                    );
+                    let click_proportions = cursor_relative_to_minimap / minimap_viewport_size;
 
                     // Calcola la posizione nel mondo basata sulle proporzioni del click sulla minimappa
-                    let world_pos_x = minimap_transform.translation.x + (WORLD_SIZE as f32 -( WORLD_SIZE as f32 / 7.0)) + (click_proportions.x - 0.5) * minimap_world_size.x;
-                    let world_pos_y = minimap_transform.translation.y - (WORLD_SIZE as f32 -( WORLD_SIZE as f32 / 7.0))  + (0.5 - click_proportions.y) * minimap_world_size.y;
+                    let world_pos_x = minimap_transform.translation.x + (click_proportions.x - 0.5) * (WORLD_SIZE as f32 * TILE_SIZE);
+                    // Inverti l'asse y poiché l'origine dello schermo è in alto a sinistra
+                    let world_pos_y = minimap_transform.translation.y + (0.5 - click_proportions.y) * (WORLD_SIZE as f32 * TILE_SIZE);
 
                     // Sposta la main camera a questa posizione nel mondo
                     for mut transform in main_camera_query.iter_mut() {
                         transform.translation.x = world_pos_x;
+                        // Inverti l'asse y durante la traduzione della main camera
                         transform.translation.y = world_pos_y;
                     }
                 }
@@ -583,6 +679,8 @@ fn cursor_events(
         }
     }
 }
+
+
 
 // Funzione per aggiornare le dimensioni e la posizione del rettangolo sulla minimappa
 fn update_minimap_outline(
@@ -720,7 +818,13 @@ struct ZoomOut;
 struct DropdownMenu;
 
 #[derive(Component)]
+struct DropdownMenuBackpack;
+
+#[derive(Component)]
 struct Label;
+
+#[derive(Component)]
+struct LabelBackPack;
 
 #[derive(Component)]
 struct CloseAppButton;
@@ -735,16 +839,18 @@ fn button_system(
             Option<&ZoomIn>,
             Option<&ZoomOut>,
             Option<&DropdownMenu>,
+            Option<&DropdownMenuBackpack>,
             Option<&CloseAppButton>,
         ),
         (Changed<Interaction>, With<Button>),
     >,
     mut text_query: Query<&mut Text>,
     mut camera_query: Query<&mut Transform, With<MainCamera>>,
-    mut label_query: Query<&mut Style, With<Label>>,
+    mut label_query: Query<&mut Style, (With<Label>, Without<LabelBackPack>)>,
+    mut label_backpack_query: Query<&mut Style, (With<LabelBackPack>, Without<Label>)>,
     mut app_exit_events: EventWriter<AppExit>,
 ){
-    for (interaction, mut color, mut border_color, children,zoomin,zoomout,dropdown,closeapp) in &mut interaction_query {
+    for (interaction, mut color, mut border_color, children,zoomin,zoomout,dropdown,dropdownback, closeapp) in &mut interaction_query {
         let mut text = text_query.get_mut(children[0]).unwrap();
         match *interaction {
             Interaction::Pressed => {
@@ -769,7 +875,16 @@ fn button_system(
         
                 }else if closeapp.is_some() {
                     app_exit_events.send(AppExit);
+                }else if dropdownback.is_some() {
+                    for mut node_style in label_backpack_query.iter_mut() {
+                        if node_style.display == Display::None {
+                            node_style.display = Display::Flex;
+                        } else {
+                            node_style.display = Display::None;
+                        }
+                    }
                 }
+
                 *color = PRESSED_BUTTON.into();
                 border_color.0 = Color::RED;
             }
@@ -815,13 +930,14 @@ pub fn zoom_in(mut query: Query<&mut OrthographicProjection, With<Camera>>) {
 //movimento del robot in base alla grandezza di una tile
 fn robot_movement_system(
     mut commands: Commands,
-    mut query: Query<&mut Transform, (With<Roboto>,Without<TagEnergy>,Without<TagTime>)>,
+    mut query: Query<&mut Transform, (With<Roboto>,Without<TagEnergy>,Without<TagTime>, Without<TagBackPack>)>,
     tile_size: Res<TileSize>, // Utilizza la risorsa TileSize
     robot_resource: Res<RobotResource>,
     world: Res<MapResource>,
     mut old_world: ResMut<OldMapResource>,
-    energy_query: Query<&mut Text, (With<TagEnergy>,Without<Roboto>,Without<TagTime>)>,
-    time_query: Query<&mut Text, (With<TagTime>,Without<TagEnergy>,Without<Roboto>)>,
+    energy_query: Query<&mut Text, (With<TagEnergy>,Without<Roboto>,Without<TagTime>, Without<TagBackPack>)>,
+    time_query: Query<&mut Text, (With<TagTime>,Without<TagEnergy>,Without<Roboto>, Without<TagBackPack>)>,
+    backpack_query: Query<&mut Text, (With<TagBackPack>, Without<TagEnergy>, Without<Roboto>, Without<TagTime>)>,
 ) {
 
     
@@ -831,7 +947,7 @@ fn robot_movement_system(
     let tile_step = tile_size.tile_size; // Use the dimension of the tile from the resource
     let resource_copy = resource.clone();
     drop(resource);
-    update_infos(resource_copy.clone(), energy_query, time_query);
+    update_infos(resource_copy.clone(), energy_query, time_query, backpack_query);
     println!(
         "Energy Level: {}\nRow: {}\nColumn: {}\nBackpack Size: {}\nBackpack Contents: {:?}\nCurrent Weather: {:?}\nNext Weather: {:?}\nTicks Until Change: {}",
         resource_copy.energy_level,
