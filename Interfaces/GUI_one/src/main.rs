@@ -9,7 +9,7 @@
 
 
 use bevy::{ecs::system::FunctionSystem, prelude::*,render::view::RenderLayers, render::texture, transform::commands, utils::petgraph::dot};
-use robotics_lib::{world, world::{tile::{self, Tile, TileType, Content}, world_generator::Generator}};
+use robotics_lib::world::{self, environmental_conditions::WeatherType, tile::{self, Content, Tile, TileType}, world_generator::Generator};
 use bevy::render::camera::Viewport;
 use rand::Rng;
 use bevy::window::WindowResized;
@@ -25,14 +25,15 @@ use robotics_lib::interface::Direction::Up;
 use ohcrab_weather::weather_tool::WeatherPredictionTool;
 use arrusticini_destroy_zone::DestroyZone;
 use oxagaudiotool::OxAgAudioTool;
-use robotics_lib::interface::{ go, one_direction_view, robot_map, robot_view, Direction};
+use robotics_lib::interface::{ go, one_direction_view, robot_map, robot_view, Direction, look_at_sky};
 use robotics_lib::{
     energy::Energy,
     runner::{backpack::BackPack, Robot, Runnable, Runner},
     world::coordinates::Coordinate
 };
 
-const WORLD_SIZE: u32 = 60;
+
+const TILE_SIZE: f32 = 3.0; // Dimensione di ogni quadrato
 
 #[derive(Component, Debug)]
 struct Roboto;
@@ -76,7 +77,7 @@ struct MinimapOutline;
 
 // Puoi aggiungere altri campi se necessario, per esempio per memorizzare la posizione o altri parametri della camera.
 
-
+const WORLD_SIZE:u32 = 60;
 
 
 // Funzione per convertire un numero da 1 a 5 in un colore
@@ -129,6 +130,8 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, shared_map: Res
     sleep(std::time::Duration::from_secs(3));
     let world = shared_map.0.lock().unwrap();
     let mut count = 0;
+    let resource = robot_resource.0.lock().unwrap();
+
     //how many tile is not None
     for row in world.iter() {
         for tile in row.iter() {
@@ -140,51 +143,12 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, shared_map: Res
     println!("count mappaa viosualizzaaaaa {:?}", count);
 
     
-    let square_size = 3.0; // Dimensione di ogni quadrato
+// Dimensione di ogni quadrato
     //sotto funzione per telecamera
     //commands.spawn(Camera2dBundle::default()); 
 
-    for (y, row) in world.iter().enumerate() {
-        for (x, tile) in row.iter().enumerate() {
-            if let Some (tile) = tile {
-                let tile_color = get_color(tile.clone());
-                let content_color = get_content_color(tile.clone());
-            
-
-                // Create a base sprite for the tile
-                commands.spawn(SpriteBundle {
-                    sprite: Sprite {
-                        color: tile_color, // Use the tile color
-                        custom_size: Some(Vec2::new(square_size, square_size)),
-                        ..Default::default()
-                    },
-                    transform: Transform::from_xyz(
-                        x as f32 * square_size - WORLD_SIZE as f32, // X position with an offset
-                        y as f32 * square_size - WORLD_SIZE as f32, // Y position with an offset
-                        0.0,
-                    ),
-                    ..Default::default()
-                }).insert(RenderLayers::layer(0));
-
-                // Optionally spawn an additional sprite for the content if it's not None
-                if tile.content != Content::None {
-                    commands.spawn(SpriteBundle {
-                        sprite: Sprite {
-                            color: content_color, // Use the content color
-                            custom_size: Some(Vec2::new(square_size / 3.0, square_size / 3.0)), // Smaller than the tile for distinction
-                            ..Default::default()
-                        },
-                        transform: Transform::from_xyz(
-                            x as f32 * square_size - WORLD_SIZE as f32, // Centered on the tile
-                            y as f32 * square_size - WORLD_SIZE as f32, // Centered on the tile
-                            1.0, // Slightly above the tile layer
-                        ),
-                        ..Default::default()
-                    }).insert(RenderLayers::layer(0));
-                }
-            }
-        }
-    }
+    println!("Robot {:?} {:?}",resource.coordinate_column, resource.coordinate_row);    
+    update_show_tiles(&world, &mut commands);
 
 
     
@@ -194,7 +158,6 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, shared_map: Res
     let robot_size = 2.0;
     let sunny: Handle<Image> = asset_server.load("img/sunny.png");
 
-    let resource = robot_resource.0.lock().unwrap();
         //spawna il robot
     commands.spawn(SpriteBundle {
         sprite: Sprite {
@@ -202,7 +165,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, shared_map: Res
             custom_size: Some(Vec2::new(robot_size, robot_size)),
             ..Default::default()
         },
-        transform: Transform::from_xyz(square_size * resource.coordinate_column as f32, square_size * resource.coordinate_row as f32, 2.0), // asse z serve per metterlo sopra i tile e i conent
+        transform: Transform::from_xyz(TILE_SIZE * resource.coordinate_row as f32, TILE_SIZE * resource.coordinate_row as f32, 2.0), // asse z serve per metterlo sopra i tile e i conent
         ..Default::default()
     }).insert(Roboto)
     .insert(RenderLayers::layer(0));
@@ -374,7 +337,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, shared_map: Res
     // Right Camera
     commands.spawn((
         Camera2dBundle {
-            transform: Transform::from_xyz(square_size * resource.coordinate_column as f32, square_size * resource.coordinate_row as f32, 1.0) // Usa la posizione del punto rosso
+            transform: Transform::from_xyz(TILE_SIZE * resource.coordinate_row as f32, TILE_SIZE * resource.coordinate_row as f32, 1.0) // Usa la posizione del punto rosso
             .with_scale(main_scale),
             camera: Camera{
                 order: 0,
@@ -388,8 +351,8 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, shared_map: Res
 
 
     // Calcola le dimensioni complessive del mondo
-    let world_width: f32 = world.len() as f32 * square_size;
-    let world_height = world[0].len() as f32 * square_size;
+    let world_width: f32 = world.len() as f32 * TILE_SIZE;
+    let world_height = world[0].len() as f32 * TILE_SIZE;
 
     // Calcola il centro del mondo
     let world_center_x = world_width / 2.0 - WORLD_SIZE as f32; // Assumi che 300 sia l'offset usato
@@ -509,7 +472,51 @@ fn set_camera_viewports(
     }
 }
 
+fn update_show_tiles(world: &Vec<Vec<Option<Tile>>>, commands: &mut Commands){
 
+    for (x, row) in world.iter().enumerate() {
+        for (y, tile) in row.iter().enumerate() {
+            if let Some (tile) = tile {
+                println!("x: {:?}, y: {:?}, tile: {:?}", x, y, tile);
+                let tile_color = get_color(tile.clone());
+                let content_color = get_content_color(tile.clone());
+            
+
+                // Create a base sprite for the tile
+                commands.spawn(SpriteBundle {
+                    sprite: Sprite {
+                        color: tile_color, // Use the tile color
+                        custom_size: Some(Vec2::new(TILE_SIZE, TILE_SIZE)),
+                        ..Default::default()
+                    },
+                    transform: Transform::from_xyz(
+                        x as f32 * TILE_SIZE, // X position with an offset
+                        y as f32 * TILE_SIZE, // Y position with an offset
+                        0.0,
+                    ),
+                    ..Default::default()
+                }).insert(RenderLayers::layer(0));
+
+                // Optionally spawn an additional sprite for the content if it's not None
+                if tile.content != Content::None {
+                    commands.spawn(SpriteBundle {
+                        sprite: Sprite {
+                            color: content_color, // Use the content color
+                            custom_size: Some(Vec2::new(TILE_SIZE / 3.0, TILE_SIZE / 3.0)), // Smaller than the tile for distinction
+                            ..Default::default()
+                        },
+                        transform: Transform::from_xyz(
+                            x as f32 * TILE_SIZE, // Centered on the tile
+                            y as f32 * TILE_SIZE, // Centered on the tile
+                            1.0, // Slightly above the tile layer
+                        ),
+                        ..Default::default()
+                    }).insert(RenderLayers::layer(0));
+                }
+            }
+        }
+    }
+}
 
 #[derive(Component)]
 struct ZoomIn;
@@ -713,26 +720,33 @@ pub fn zoom_in(mut query: Query<&mut OrthographicProjection, With<Camera>>) {
 } */
 
 
-// Funzione per stampare la posizione del tile in cui si trova il robot
-fn print_robot_tile_position(robot_position: &Transform, tile_size: f32) {
-    // Calcola le coordinate del tile dividendo le coordinate del robot per la dimensione del tile
-    // e aggiungendo l'offset se necessario per allinearsi con l'origine della griglia dei tile
-    let tile_x = ((robot_position.translation.x + 300.0) / tile_size).floor() as i32;
-    let tile_y = ((robot_position.translation.y + 300.0) / tile_size).floor() as i32;
-
-    println!("Il robot si trova nel tile: ({}, {})", tile_x, tile_y);
-}
-
 
 
 //movimento del robot in base alla grandezza di una tile
 fn robot_movement_system(
+    mut commands: Commands,
     mut query: Query<&mut Transform, With<Roboto>>,
     tile_size: Res<TileSize>, // Utilizza la risorsa TileSize
     robot_resource: Res<RobotResource>,
+    world: Res<MapResource>,
 ) {
+
+    let world = world.0.lock().unwrap();
+    update_show_tiles(&world, &mut commands);
     let resource = robot_resource.0.lock().unwrap();
     let tile_step = tile_size.tile_size; // Usa la dimensione del tile dalla risorsa
+
+    println!(
+        "Energy Level: {}\nRow: {}\nColumn: {}\nBackpack Size: {}\nBackpack Contents: {:?}\nCurrent Weather: {:?}\nNext Weather: {:?}\nTicks Until Change: {}",
+        resource.energy_level,
+        resource.coordinate_row,
+        resource.coordinate_column,
+        resource.bp_size,
+        resource.bp_contents,
+        resource.current_weather,
+        resource.next_weather,
+        resource.ticks_until_change
+    );
     
     for mut transform in query.iter_mut() {
         transform.translation.y = tile_step * resource.coordinate_column as f32;
@@ -740,25 +754,7 @@ fn robot_movement_system(
     }
 }
 
-//NON WORKA PERCHE' LETTURA E SCRITTURA NELLO STESSO FRAME, LEGGERE POSIZIONE IN UNA FUNZIONE E SCRIVERE IN UN'ALTRA
-//SEPARARE:
-/* fn follow_robot_system(
-    mut camera_query: Query<&mut Transform, With<MainCamera>>,
-    robot_query: Query<&Transform, With<Robot>>,
-) {
-    // Ottiene la Transform del robot
-    if let Ok(robot_transform) = robot_query.get_single() {
-        // Ottiene la Transform della camera
-        if let Ok(mut camera_transform) = camera_query.get_single_mut() {
-            // Aggiorna la posizione della camera per centrarla sul robot
-            camera_transform.translation.x = robot_transform.translation.x;
-            camera_transform.translation.y = robot_transform.translation.y;
-            // Mantiene la camera in una posizione elevata per garantire una vista top-down
-            camera_transform.translation.z = 10.0; // Assicurati che questo sia abbastanza alto da vedere il robot
-        }
-    }
-}
- */
+
 
 
  //TODO: CAMBIARE LA POSIZIONE DEL ROBOT BASANDOLA SULLE RIGHE E COLONNE DELLA MATRICE 
@@ -828,6 +824,7 @@ fn print_position(query: Query<(Entity, &Position)>){
 fn moviment(robot_data: Arc<Mutex<RobotInfo>>, map: Arc<Mutex<Vec<Vec<Option<Tile>>>>>){
     println!("Hello, world!");
     let audio = get_audio_manager();
+    let background_music = OxAgSoundConfig::new_looped_with_volume("assets/audio/background.ogg", 2.0);
 
     let mut robot = Robottino {
         shared_map: map,
@@ -841,22 +838,24 @@ fn moviment(robot_data: Arc<Mutex<RobotInfo>>, map: Arc<Mutex<Vec<Vec<Option<Til
     let mut world_gen =
         ghost_amazeing_island::world_generator::WorldGenerator::new(WORLD_SIZE, false, 1, 1.1);
     // Runnable creation and start
+
     println!("Generating runnable (world + robot)...");
-    // match robot.audio.play_audio(&background_music) {
-    //     Ok(_) => {},
-    //     Err(e) => {
-    //         eprintln!("Failed to play audio: {}", e);
-    //         std::process::exit(1);
-    //     }
-    // }
+    match robot.audio.play_audio(&background_music) {
+        Ok(_) => {},
+        Err(e) => {
+            eprintln!("Failed to play audio: {}", e);
+            std::process::exit(1);
+        }
+    }
     let mut world_gen =
         ghost_amazeing_island::world_generator::WorldGenerator::new(WORLD_SIZE, false, 1, 1.1);
     let mut runner = Runner::new(Box::new(robot), &mut world_gen);
     println!("Runnable succesfully generated");
     //sleep 5 second
+    sleep(std::time::Duration::from_secs(5));
     for _i in 0..10000 {
         let rtn = runner.as_mut().unwrap().game_tick();
-        sleep(std::time::Duration::from_secs(50));
+        sleep(std::time::Duration::from_secs(1));
     }
      
 }
@@ -879,11 +878,14 @@ struct Position {
 }
 
 struct RobotInfo {
-    energy_level: usize,
-    coordinate_row : usize,
-    coordinate_column : usize,
-    bp_size: usize,
-    bp_contents: HashMap<Content, usize>
+    energy_level: usize, // livello di energia del robot
+    coordinate_row : usize, // posizione del robot
+    coordinate_column : usize, // posizione del robot
+    bp_size: usize, // dimensione dello zaino
+    bp_contents: HashMap<Content, usize>, // contenuto dello zaino
+    current_weather: Option<WeatherType>, // tempo attuale
+    next_weather: Option<WeatherType>, // prossima previsione del tempo
+    ticks_until_change: u32 // tempo per la prossima previsione del tempo2
 }
 
 fn main() {
@@ -894,8 +896,12 @@ fn main() {
         coordinate_row: 0,
         coordinate_column: 0,
         bp_size: 10,
-        bp_contents: HashMap::new()
+        bp_contents: HashMap::new(),
+        current_weather: None,
+        next_weather: None,
+        ticks_until_change: 0
     };
+    
     let robot_data = Arc::new(Mutex::new(robot_info));
     let robot_data_clone = robot_data.clone();
 
@@ -935,12 +941,12 @@ struct Robottino {
 impl Runnable for Robottino {
     fn process_tick(&mut self, world: &mut robotics_lib::world::World) {
         
-        sleep(std::time::Duration::from_millis(300));
+        sleep(std::time::Duration::from_millis(30));
         //se l'energia e' sotto il 300, la ricarico
         if self.robot.energy.get_energy_level() < 300 {
             self.robot.energy = rust_and_furious_dynamo::dynamo::Dynamo::update_energy();
         }
-        weather_check(self);
+        // weather_check(self);
         
         // sleep(std::time::Duration::from_millis(300));
         // bessie::bessie::road_paving_machine(self, world, Direction::Up, State::MakeRoad);
@@ -983,10 +989,19 @@ impl Runnable for Robottino {
         if let Some(new_map) = robot_map(world) {
             *shared_map = new_map;
         }
+
         
-
+        
+        let mut shared_robot = self.shared_robot.lock().unwrap();
+        shared_robot.current_weather = Some(look_at_sky(&world).get_weather_condition());
+        if let Some((prediction, ticks)) = weather_check(self) {
+            shared_robot.next_weather = Some(prediction);
+            shared_robot.ticks_until_change = ticks; 
+        }
+        
+        
     }
-
+    
     fn handle_event(&mut self, event: robotics_lib::event::events::Event) {
         self.weather_tool.process_event(&event);
         {
@@ -995,7 +1010,7 @@ impl Runnable for Robottino {
             shared_robot.coordinate_row = self.robot.coordinate.get_row();
             shared_robot.coordinate_column = self.robot.coordinate.get_col();
             shared_robot.bp_size = self.robot.backpack.get_size();
-            shared_robot.bp_contents = self.robot.backpack.get_contents().clone();
+            shared_robot.bp_contents = self.robot.backpack.get_contents().clone();   
         }
     }
 
@@ -1025,23 +1040,23 @@ impl Runnable for Robottino {
 }
 
 
-fn weather_check(robot: &Robottino) {
+fn weather_check(robot: &Robottino) ->Option<(WeatherType, u32)> {
     let ticks_until_weather = match robot.weather_tool.ticks_until_weather_change(100000000000) {
         Ok(ticks) => ticks,
         Err(e) => {
             eprintln!("Failed to get ticks until weather change: {:?}", e);
-            return;
+            return None; // Fix: Return None instead of ()
         }
     };
     let predict = match robot.weather_tool.predict(ticks_until_weather) {
         Ok(prediction) => prediction,
         Err(e) => {
             eprintln!("Failed to predict weather: {:?}", e);
-            return;
+            return None; // Fix: Return None instead of ()
         }
     };
-    println!("Ticks until change: {:?}", ticks_until_weather);
-    println!("into: {:?}", predict);
+    
+    Some((predict, ticks_until_weather as u32))
 }
 
 fn get_audio_manager() -> OxAgAudioTool {
