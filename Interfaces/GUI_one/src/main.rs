@@ -478,7 +478,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, shared_map: Res
                 }).insert(RenderLayers::layer(1));
             }
         }
-    }
+    }aso
 
 }
 
