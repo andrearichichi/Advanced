@@ -82,7 +82,7 @@ struct TagEnergy;
 struct TagTime;
 // Puoi aggiungere altri campi se necessario, per esempio per memorizzare la posizione o altri parametri della camera.
 
-const WORLD_SIZE:u32 = 300;
+const WORLD_SIZE:u32 = 150;
 
 
 // Funzione per convertire un numero da 1 a 5 in un colore
@@ -444,7 +444,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, shared_map: Res
             // Spawn del quadrato 3x3
             commands.spawn(SpriteBundle {
                 sprite: Sprite {
-                    color: Color::BLACK, // Imposta il colore su nero
+                    color: Color::GRAY, // Imposta il colore su nero
                     custom_size: Some(Vec2::new(TILE_SIZE, TILE_SIZE)), // Imposta la dimensione su 3x3 unità
                     ..default()
                 },
@@ -471,7 +471,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, shared_map: Res
                 // Spawn del quadrato del bordo
                 commands.spawn(SpriteBundle {
                     sprite: Sprite {
-                        color: Color::RED, // Colore rosso per il bordo
+                        color: Color::GREEN, // Colore rosso per il bordo
                         custom_size: Some(Vec2::new( TILE_SIZE, TILE_SIZE)), // Dimensione del quadrato
                         ..default()
                     },
