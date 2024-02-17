@@ -8,14 +8,15 @@
 //MODIFICA TILE QUANDO SI POSIZIONA LA ROCCIA
 
 
-use bevy::{ecs::system::FunctionSystem, prelude::*,render::view::RenderLayers, render::texture, transform::commands, utils::petgraph::dot};
-use robotics_lib::world::{self, environmental_conditions::WeatherType, tile::{self, Content, Tile, TileType}, world_generator::Generator};
+use bevy::{ecs::system::FunctionSystem, prelude::*, render::{texture, view::RenderLayers}, time, transform::commands, utils::petgraph::dot};
+use robotics_lib::{energy, world::{self, environmental_conditions::WeatherType, tile::{self, Content, Tile, TileType}, world_generator::Generator}};
 use bevy::render::camera::Viewport;
 use rand::Rng;
 use bevy::window::WindowResized;
 use bevy::core_pipeline::clear_color::ClearColorConfig;
-use std::{collections::HashMap, ptr::null};
+use std::{collections::HashMap, ptr::null, string, sync::MutexGuard};
 use std::thread::sleep;
+use bevy::window::PrimaryWindow;
 
 use bessie::bessie::State;
 use crab_rave_explorer::algorithm::{cheapest_border, move_to_cheapest_border};
@@ -74,10 +75,14 @@ struct MainCameraEntity {
 #[derive(Component, Debug)]
 struct MinimapOutline;
 
+#[derive(Component, Debug)]
+struct TagEnergy;
 
+#[derive(Component, Debug)]
+struct TagTime;
 // Puoi aggiungere altri campi se necessario, per esempio per memorizzare la posizione o altri parametri della camera.
 
-const WORLD_SIZE:u32 = 60;
+const WORLD_SIZE:u32 = 300;
 
 
 // Funzione per convertire un numero da 1 a 5 in un colore
@@ -120,6 +125,7 @@ fn get_content_color(content: Tile) -> Color {
 }
 
 
+
 // Funzione di setup che crea la scena
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>, shared_map: Res<MapResource>,robot_resource: Res<RobotResource>,) {
     // Matrice di esempio
@@ -128,9 +134,14 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, shared_map: Res
 //TODO: cabiare dimenzione con l'utilizzo della risorsa tile
     //sleep 3 secondi
     sleep(std::time::Duration::from_secs(3));
-    let world = shared_map.0.lock().unwrap();
+    let world1 = shared_map.0.lock().unwrap();
+    let resource1 = robot_resource.0.lock().unwrap();
+    let world = world1.clone();
+    let resource = resource1.clone();
+    drop(world1);
+    drop(resource1);
+
     let mut count = 0;
-    let resource = robot_resource.0.lock().unwrap();
 
     //how many tile is not None
     for row in world.iter() {
@@ -309,14 +320,13 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, shared_map: Res
                 .with_children(|parent| {
                     // Primo figlio: TextBundle
                     parent.spawn(TextBundle::from_section(
-                         "TIME \n", // Assumendo che questo generi il testo desiderato
+                        "Time \n", // Assumendo che questo generi il testo desiderato
                         TextStyle {
                             font_size: 25.0,
                             color: Color::BLACK,
                             ..default()
                         },
-                    ));
-                
+                    )).insert(TagTime);
                     // Secondo figlio: ImageBundle
                     parent.spawn(ImageBundle {
                         style: Style {
@@ -326,9 +336,27 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, shared_map: Res
                         },
                         image: UiImage::new(sunny), // Usa la texture caricata
                         ..default()
-                    });
+                    }).insert(TagEnergy);
+                    
+                    parent.spawn(TextBundle::from_section(
+                        "ENERGY \n", // Assumendo che questo generi il testo desiderato
+                       TextStyle {
+                           font_size: 25.0,
+                           color: Color::BLACK,
+                           ..default()
+                       },
+                    
+                    ));
+                    parent.spawn(TextBundle::from_section(
+                        "COORDINATE \n", // Assumendo che questo generi il testo desiderato
+                       TextStyle {
+                           font_size: 25.0,
+                           color: Color::BLACK,
+                           ..default()
+                       },
+                    
+                    ));
                 }).insert(Label);
-                
     });
 
     let main_scale = Vec3::new(0.1, 0.1, 1.0);
@@ -355,11 +383,15 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, shared_map: Res
     let world_height = world[0].len() as f32 * TILE_SIZE;
 
     // Calcola il centro del mondo
-    let world_center_x = world_width / 2.0 - WORLD_SIZE as f32; // Assumi che 300 sia l'offset usato
-    let world_center_y = world_height / 2.0 - WORLD_SIZE as f32;
+    let world_center_x = world_width / 2.0; // Assumi che 300 sia l'offset usato
+    let world_center_y = world_height / 2.0;
 
-    // Scala per la camera della minimappa (aggiusta questo valore in base alla necessitÃ )
-    let minimap_scale = Vec3::new(5.0, 5.0, 1.0); // Aumenta la scala per visualizzare l'intera matrice
+    // Definisci le dimensioni della minimappa e lo spessore del bordo
+    let minimap_width = 70.0; // Sostituisci con la larghezza effettiva della tua minimappa
+    let minimap_height = 70.0; // Sostituisci con l'altezza effettiva della tua minimappa
+
+    // Scala per la camera della minimappa (aggiusta questo valore in base alla necessita' )
+    let minimap_scale = Vec3::new(WORLD_SIZE as f32/minimap_width, WORLD_SIZE as f32/minimap_height, 1.0); // Aumenta la scala per visualizzare l'intera matrice
 
 
         //CAMERA PER LA MINIMAPPA
@@ -383,13 +415,14 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, shared_map: Res
     MyMinimapCamera,
     )).insert(RenderLayers::from_layers(&[0, 1]));
 
+    
 
 
-    // Crea l'entitÃ  per il contorno sulla minimappa
+    // Crea l'entita'  per il contorno sulla minimappa
     commands.spawn(SpriteBundle {
     sprite: Sprite {
         color: Color::rgba(1.0, 0.0, 0.0, 0.5), // Contorno rosso semitrasparente
-        custom_size: Some(Vec2::new(25.0, 25.0)), // Dimensione iniziale, sarÃ  aggiornata
+        custom_size: Some(Vec2::new(25.0, 25.0)), // Dimensione iniziale, sara'  aggiornata
         ..default()
     },
     transform: Transform::from_xyz(0.0, 0.0, 999.0), // Metti il contorno sopra a tutti gli altri elementi della minimappa
@@ -398,6 +431,126 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, shared_map: Res
     .insert(RenderLayers::layer(1)); 
 
 
+    //NERO SOTTO WORLD MAP
+    // Cicla attraverso per spawnare i quadrati 3x3
+    for x in 0..WORLD_SIZE {
+        for y in 0..WORLD_SIZE {
+            // Calcola la posizione di ogni quadrato 3x3
+            let pos_x = x as f32 * TILE_SIZE;
+            let pos_y = y as f32 * TILE_SIZE;
+
+            // Spawn del quadrato 3x3
+            commands.spawn(SpriteBundle {
+                sprite: Sprite {
+                    color: Color::BLACK, // Imposta il colore su nero
+                    custom_size: Some(Vec2::new(TILE_SIZE, TILE_SIZE)), // Imposta la dimensione su 3x3 unità
+                    ..default()
+                },
+                transform: Transform::from_xyz(pos_x, pos_y, 0.0), // Posiziona il quadrato
+                ..default()
+            });
+        }
+
+    }
+    
+
+    let border_thickness = 5.0; // Spessore del bordo
+    let effective_world_size = WORLD_SIZE as f32 + border_thickness * 2.0;
+
+    // Itera attorno al perimetro della mappa per creare il bordo
+    for x in 0..effective_world_size as u32 {
+        for y in 0..effective_world_size as u32 {
+            // Verifica se la posizione attuale è dentro l'area del bordo
+            if x < border_thickness as u32 || y < border_thickness as u32 || x >= (WORLD_SIZE as f32 + border_thickness) as u32 || y >= (WORLD_SIZE as f32 + border_thickness) as u32 {
+                // Calcola la posizione di ogni quadrato del bordo
+                let pos_x = (x as f32 - border_thickness) * TILE_SIZE;
+                let pos_y = (y as f32 - border_thickness) * TILE_SIZE;
+    
+                // Spawn del quadrato del bordo
+                commands.spawn(SpriteBundle {
+                    sprite: Sprite {
+                        color: Color::RED, // Colore rosso per il bordo
+                        custom_size: Some(Vec2::new( TILE_SIZE, TILE_SIZE)), // Dimensione del quadrato
+                        ..default()
+                    },
+                    transform: Transform::from_xyz(pos_x, pos_y, -1.0), // Posiziona il quadrato del bordo
+                    ..default()
+                }).insert(RenderLayers::layer(1));
+            }
+        }
+    }
+
+}
+
+
+fn update_infos(
+    resource: RobotInfo, // Query per trovare il Text da aggiornare
+    mut energy_query: Query<&mut Text, (With<TagEnergy>,Without<Roboto>,Without<TagTime>)>,
+    mut time_query: Query<&mut Text, (With<TagTime>,Without<TagEnergy>,Without<Roboto>)>,
+) {
+
+
+    // Ora puoi utilizzare `energy_level` e `time` senza preoccuparti del mutex
+    for mut text in energy_query.iter_mut() {
+        text.sections[0].value = format!("Energy: {}", resource.energy_level);
+    }
+
+    for mut text in time_query.iter_mut() {
+        text.sections[0].value = format!("Time: {}", resource.time);
+    }
+}
+
+
+fn cursor_position(q_windows: Query<&Window, With<PrimaryWindow>>) {
+    if let Ok(window) = q_windows.get_single() {
+        if let Some(position) = window.cursor_position() {
+            println!("Cursor is inside the primary window, at {:?}", position);
+        } else {
+            println!("Cursor is not in the game window.");
+        }
+    }
+}
+
+fn cursor_events(
+    minimap_camera_query: Query<(&Camera, &Transform), (With<MyMinimapCamera>, Without<MainCamera>)>,
+    mut main_camera_query: Query<&mut Transform, (With<MainCamera>, Without<MyMinimapCamera>)>,
+    q_windows: Query<&Window, With<PrimaryWindow>>,
+) {
+    let window = q_windows.single();
+    if let Some(cursor_position) = window.cursor_position() {
+        // Assumendo che la logica per determinare se il cursore Ã¨ sopra la minimappa sia simile a quella fornita precedentemente
+        if let Ok((minimap_camera, minimap_transform)) = minimap_camera_query.get_single() {
+            if let Some(viewport) = &minimap_camera.viewport {
+                let viewport_position = Vec2::new(viewport.physical_position.x as f32, viewport.physical_position.y as f32);
+                let viewport_size = Vec2::new(viewport.physical_size.x as f32, viewport.physical_size.y as f32);
+                let cursor_relative_to_viewport = cursor_position - viewport_position;
+
+                if cursor_relative_to_viewport.x >= 0.0 && cursor_relative_to_viewport.x <= viewport_size.x &&
+                   cursor_relative_to_viewport.y >= 0.0 && cursor_relative_to_viewport.y <= viewport_size.y {
+                    // La logica per aggiornare la posizione della camera basata sulla posizione del cursore sopra la minimappa
+                    // rimane la stessa di quella fornita nella tua funzione precedente
+                    // Calcola le proporzioni del cursore all'interno della minimappa
+                    let click_proportions = cursor_relative_to_viewport / viewport_size;
+
+                    // Dimensione effettiva della minimappa nel mondo di gioco
+                    let minimap_world_size = Vec2::new(
+                        minimap_transform.scale.x * viewport.physical_size.x as f32, // Modifica qui per riflettere la dimensione corretta della minimappa
+                        minimap_transform.scale.y * viewport.physical_size.y as f32, // Modifica qui per riflettere la dimensione corretta della minimappa
+                    );
+
+                    // Calcola la posizione nel mondo basata sulle proporzioni del click sulla minimappa
+                    let world_pos_x = minimap_transform.translation.x + (WORLD_SIZE as f32 -( WORLD_SIZE as f32 / 7.0)) + (click_proportions.x - 0.5) * minimap_world_size.x;
+                    let world_pos_y = minimap_transform.translation.y - (WORLD_SIZE as f32 -( WORLD_SIZE as f32 / 7.0))  + (0.5 - click_proportions.y) * minimap_world_size.y;
+
+                    // Sposta la main camera a questa posizione nel mondo
+                    for mut transform in main_camera_query.iter_mut() {
+                        transform.translation.x = world_pos_x;
+                        transform.translation.y = world_pos_y;
+                    }
+                }
+            }
+        }
+    }
 }
 
 // Funzione per aggiornare le dimensioni e la posizione del rettangolo sulla minimappa
@@ -471,6 +624,8 @@ fn set_camera_viewports(
         });
     }
 }
+
+
 
 fn update_show_tiles(world: &Vec<Vec<Option<Tile>>>, commands: &mut Commands){
 
@@ -586,40 +741,6 @@ fn button_system(
     }
 }
 
-//TODOOOOOOOOOOOOOO CREARE MINIMAPPA, VIEWPORT(?)
-//NON WORKA 
-//RIVEDERE PER CREARE MINIMAPPA 
-/* fn setup_minimap_camera(mut commands: Commands) {
-   
- 
-    commands.spawn((
-        Camera2dBundle {
-            projection: OrthographicProjection {
-                scale: camera_scale.x.min(camera_scale.y), // usa la scala minore per garantire che l'intera mappa sia visibile
-                ..Default::default()
-            },
-            transform: Transform::from_xyz(
-                WORLD_SIZE.x / 2.0, // centra la telecamera sull'asse X
-                WORLD_SIZE.y / 2.0, // centra la telecamera sull'asse Y
-                100.0,             // posiziona la telecamera sopra la mappa
-            ),
-            // Configura il viewport per posizionare la minimappa nell'angolo in alto a sinistra
-            camera: Camera {
-                viewport: Some(Viewport {
-                    physical_position: UVec2::new(0, 0), // in alto a sinistra
-                    physical_size: UVec2::new(256, 256), // dimensioni della viewport della minimappa
-                    ..Default::default()
-                }),
-                ..Default::default()
-            },
-            ..Default::default()
-        },
-        MyMinimapCamera,
-    ));
-}
- */
-// ...
-
 
 const NORMAL_BUTTON: Color = Color::rgb(0.15, 0.15, 0.15);
 const HOVERED_BUTTON: Color = Color::rgb(0.25, 0.25, 0.25);
@@ -645,112 +766,42 @@ pub fn zoom_in(mut query: Query<&mut OrthographicProjection, With<Camera>>) {
     }
 }
 
-//WORKA
-/* fn setup_main_camera(mut commands: Commands) {
-    commands.spawn((
-        Camera2dBundle {
-            transform: Transform::from_xyz(0.0, 0.0, 1.0)
-                .with_scale(Vec3::splat(0.1)), // Modifica questo valore per ottenere l'area desiderata
-            ..Default::default()
-        },
-        MainCamera,
-    ));
-} */
-
- 
-
-
-
-//WORKA
-//MUOVE LA CAM CON LA KEYBOARD
-/* fn camera_movement_system(
-    keyboard_input: Res<Input<KeyCode>>,
-    mut query: Query<&mut Transform, With<MainCamera>>,
-) {
-    // Scegli quanto spostare la telecamera per ogni pressione del tasto
-    let move_speed = 2.0; 
-
-    for mut transform in query.iter_mut() {
-        // Muovi verso sinistra
-        if keyboard_input.pressed(KeyCode::Left) {
-            transform.translation.x -= move_speed;
-        }
-        // Muovi verso destra
-        if keyboard_input.pressed(KeyCode::Right) {
-            transform.translation.x += move_speed;
-        }
-        // Muovi verso il basso
-        if keyboard_input.pressed(KeyCode::Down) {
-            transform.translation.y -= move_speed;
-        }
-        // Muovi verso l'alto
-        if keyboard_input.pressed(KeyCode::Up) {
-            transform.translation.y += move_speed;
-        }
-    }
-} */
-
-
-//MOVIMENTO LIBERO KEYBOARD
-//movimenti keyboard puntino rosso 
-/* fn robot_movement_system(
-    keyboard_input: Res<Input<KeyCode>>,
-    mut query: Query<&mut Transform, With<Robot>>,
-) {
-    let move_speed = 2.0;
-
-    for mut transform in query.iter_mut() {
-        if keyboard_input.pressed(KeyCode::Left) {
-            transform.translation.x -= move_speed;
-            println!("Mosso a sinistra");
-        }
-        if keyboard_input.pressed(KeyCode::Right) {
-            transform.translation.x += move_speed;
-            println!("Destra");
-        }
-        if keyboard_input.pressed(KeyCode::Down) {
-            transform.translation.y -= move_speed;
-            println!("Basso");
-        }
-        if keyboard_input.pressed(KeyCode::Up) {
-            transform.translation.y += move_speed;
-            println!("Alto");
-        }
-    }
-} */
-
-
 
 
 //movimento del robot in base alla grandezza di una tile
 fn robot_movement_system(
     mut commands: Commands,
-    mut query: Query<&mut Transform, With<Roboto>>,
+    mut query: Query<&mut Transform, (With<Roboto>,Without<TagEnergy>,Without<TagTime>)>,
     tile_size: Res<TileSize>, // Utilizza la risorsa TileSize
     robot_resource: Res<RobotResource>,
     world: Res<MapResource>,
+    energy_query: Query<&mut Text, (With<TagEnergy>,Without<Roboto>,Without<TagTime>)>,
+    time_query: Query<&mut Text, (With<TagTime>,Without<TagEnergy>,Without<Roboto>)>,
 ) {
 
+    
     let world = world.0.lock().unwrap();
     update_show_tiles(&world, &mut commands);
     let resource = robot_resource.0.lock().unwrap();
-    let tile_step = tile_size.tile_size; // Usa la dimensione del tile dalla risorsa
-
+    let tile_step = tile_size.tile_size; // Use the dimension of the tile from the resource
+    let resource_copy = resource.clone();
+    drop(resource);
+    update_infos(resource_copy.clone(), energy_query, time_query);
     println!(
         "Energy Level: {}\nRow: {}\nColumn: {}\nBackpack Size: {}\nBackpack Contents: {:?}\nCurrent Weather: {:?}\nNext Weather: {:?}\nTicks Until Change: {}",
-        resource.energy_level,
-        resource.coordinate_row,
-        resource.coordinate_column,
-        resource.bp_size,
-        resource.bp_contents,
-        resource.current_weather,
-        resource.next_weather,
-        resource.ticks_until_change
+        resource_copy.energy_level,
+        resource_copy.coordinate_row,
+        resource_copy.coordinate_column,
+        resource_copy.bp_size,
+        resource_copy.bp_contents,
+        resource_copy.current_weather,
+        resource_copy.next_weather,
+        resource_copy.ticks_until_change
     );
     
     for mut transform in query.iter_mut() {
-        transform.translation.y = tile_step * resource.coordinate_column as f32;
-        transform.translation.x = tile_step * resource.coordinate_row as f32;
+        transform.translation.y = tile_step * resource_copy.coordinate_column as f32;
+        transform.translation.x = tile_step * resource_copy.coordinate_row as f32;
     }
 }
 
@@ -786,45 +837,10 @@ fn follow_robot_system(
 
 
 
-//WORKA
-//CODICE DI PROVA
-/* 
-fn spawn_robot(mut commands: Commands){
-    //spawna l'entitiÃ  con componente posizione e componente velocitÃ  settate 
-    commands.spawn((Position{ x: 0.0, y: 0.0}, Velocity{x:1.0, y:1.0}));
-}
-
-//update della posizione di ogni entitÃ 
-fn update_position(robot_state: Res<RobotState>, mut query: Query<(&Velocity, &mut Position)>){
-    
-    //entra solo se il robot sta runnando(true)
-    if(robot_state.is_moving){
-    for(velocity, mut position) in query.iter_mut(){
-        position.x += velocity.x;
-        position.y += velocity.y;
-
-    }}
-
-}
-
-//printa la posizione di ogni entitÃ  
-fn print_position(query: Query<(Entity, &Position)>){
-    for (entity, position) in query.iter(){
-        info!("Entity {:?} is at position {:?},", entity, position);
-    }
-
-} */
-
-// fn main() {
-    
-// }
-
-
-
 fn moviment(robot_data: Arc<Mutex<RobotInfo>>, map: Arc<Mutex<Vec<Vec<Option<Tile>>>>>){
     println!("Hello, world!");
     let audio = get_audio_manager();
-    let background_music = OxAgSoundConfig::new_looped_with_volume("assets/audio/background.ogg", 2.0);
+    //let background_music = OxAgSoundConfig::new_looped_with_volume("assets/audio/background.ogg", 2.0);
 
     let mut robot = Robottino {
         shared_map: map,
@@ -840,28 +856,28 @@ fn moviment(robot_data: Arc<Mutex<RobotInfo>>, map: Arc<Mutex<Vec<Vec<Option<Til
     // Runnable creation and start
 
     println!("Generating runnable (world + robot)...");
-    match robot.audio.play_audio(&background_music) {
-        Ok(_) => {},
-        Err(e) => {
-            eprintln!("Failed to play audio: {}", e);
-            std::process::exit(1);
-        }
-    }
+    // match robot.audio.play_audio(&background_music) {
+    //     Ok(_) => {},
+    //     Err(e) => {
+    //         eprintln!("Failed to play audio: {}", e);
+    //         std::process::exit(1);
+    //     }
+    // }
     let mut world_gen =
         ghost_amazeing_island::world_generator::WorldGenerator::new(WORLD_SIZE, false, 1, 1.1);
     let mut runner = Runner::new(Box::new(robot), &mut world_gen);
     println!("Runnable succesfully generated");
     //sleep 5 second
-    sleep(std::time::Duration::from_secs(5));
+    sleep(std::time::Duration::from_secs(2));
     for _i in 0..10000 {
         let rtn = runner.as_mut().unwrap().game_tick();
-        sleep(std::time::Duration::from_secs(1));
+        // sleep(std::time::Duration::from_secs(1));
     }
-     
+    
+
 }
 
-//prova commit
-
+#[derive(Clone)]
 struct RobotResource(Arc<Mutex<RobotInfo>>);
 struct MapResource(Arc<Mutex<Vec<Vec<Option<Tile>>>>>);
 
@@ -879,6 +895,7 @@ struct Position {
     y: i32,
 }
 
+#[derive(Clone)]
 struct RobotInfo {
     energy_level: usize, // livello di energia del robot
     coordinate_row : usize, // posizione del robot
@@ -887,8 +904,10 @@ struct RobotInfo {
     bp_contents: HashMap<Content, usize>, // contenuto dello zaino
     current_weather: Option<WeatherType>, // tempo attuale
     next_weather: Option<WeatherType>, // prossima previsione del tempo
-    ticks_until_change: u32 // tempo per la prossima previsione del tempo2
+    ticks_until_change: u32, // tempo per la prossima previsione del tempo2
+    time: String
 }
+
 
 fn main() {
     
@@ -901,7 +920,8 @@ fn main() {
         bp_contents: HashMap::new(),
         current_weather: None,
         next_weather: None,
-        ticks_until_change: 0
+        ticks_until_change: 0,
+        time: "0".to_string()
     };
     
     let robot_data = Arc::new(Mutex::new(robot_info));
@@ -916,6 +936,7 @@ fn main() {
 
     let robot_resource = RobotResource(robot_data_clone);
     let map_resource = MapResource(map_clone);
+
     App::new()
     .init_resource::<RobotState>()// aggiunge la risorsa con default valure, usare per settare values (.insert_resource(RobotState{is_moving:true}))
     .init_resource::<RobotPosition>()//ricordarsi di metterlo quando si ha una risorsa 
@@ -924,7 +945,7 @@ fn main() {
     .insert_resource(map_resource)
     .add_systems(Startup,setup)
     //.add_systems(Startup, setup_minimap_camera)
-    .add_systems(Update, (robot_movement_system, update_robot_position, follow_robot_system, button_system,set_camera_viewports, update_minimap_outline)) //unpdate every frame
+    .add_systems(Update, (cursor_events, robot_movement_system, update_robot_position, follow_robot_system, button_system,set_camera_viewports, update_minimap_outline)) //unpdate every frame
     .add_plugins(DefaultPlugins)
     .run();  
 
@@ -943,7 +964,7 @@ struct Robottino {
 impl Runnable for Robottino {
     fn process_tick(&mut self, world: &mut robotics_lib::world::World) {
         
-        sleep(std::time::Duration::from_millis(30));
+        sleep(std::time::Duration::from_millis(150));
         //se l'energia e' sotto il 300, la ricarico
         if self.robot.energy.get_energy_level() < 300 {
             self.robot.energy = rust_and_furious_dynamo::dynamo::Dynamo::update_energy();
@@ -982,6 +1003,8 @@ impl Runnable for Robottino {
             }
         }
         //print coordinate
+
+        
         let actual_energy = self.get_energy().get_energy_level();
         println!("{:?}", actual_energy);
         let coordinates = self.get_coordinate();
@@ -993,9 +1016,11 @@ impl Runnable for Robottino {
         }
 
         
-        
         let mut shared_robot = self.shared_robot.lock().unwrap();
-        shared_robot.current_weather = Some(look_at_sky(&world).get_weather_condition());
+        let enviroment = look_at_sky(&world);
+
+        shared_robot.time = enviroment.get_time_of_day_string();
+        shared_robot.current_weather = Some(enviroment.get_weather_condition());
         if let Some((prediction, ticks)) = weather_check(self) {
             shared_robot.next_weather = Some(prediction);
             shared_robot.ticks_until_change = ticks; 
