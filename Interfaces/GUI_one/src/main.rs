@@ -8,7 +8,7 @@
 //MODIFICA TILE QUANDO SI POSIZIONA LA ROCCIA
 
 
-use bevy::{ecs::system::FunctionSystem, prelude::*, render::{texture, view::RenderLayers}, time, transform::commands, utils::petgraph::dot};
+use bevy::{app::AppExit, ecs::system::FunctionSystem, prelude::*, render::{texture, view::RenderLayers}, time, transform::commands, utils::petgraph::dot};
 use robotics_lib::{energy, world::{self, environmental_conditions::WeatherType, tile::{self, Content, Tile, TileType}, world_generator::Generator}};
 use bevy::render::camera::Viewport;
 use rand::Rng;
@@ -17,6 +17,7 @@ use bevy::core_pipeline::clear_color::ClearColorConfig;
 use std::{collections::HashMap, ptr::null, string, sync::MutexGuard};
 use std::thread::sleep;
 use bevy::window::PrimaryWindow;
+use bevy::window::WindowMode;
 
 use bessie::bessie::State;
 use crab_rave_explorer::algorithm::{cheapest_border, move_to_cheapest_border};
@@ -195,10 +196,10 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, shared_map: Res
                 flex_direction: FlexDirection::Row, // Disponi i figli in orizzontale
                 // Aggiungi padding per posizionare i bottoni un po' distanti dal bordo superiore e sinistro
                 padding: UiRect {
-                    left: Val::Px(10.0),
+                    left: Val::Auto,
                     top: Val::Px(10.0),
-                    right: Val::Auto,
-                    bottom: Val::Auto,
+                    right: Val::Px(50.0),
+                    bottom: Val::Px(50.0),
                 },
                 ..default()
             },
@@ -208,9 +209,9 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, shared_map: Res
             // Primo bottone
             parent.spawn(ButtonBundle {
                 style: Style {
-                    width: Val::Px(30.0),
-                    height: Val::Px(30.0),
-                    margin: UiRect::all(Val::Px(4.0)), // Spazio tra i bottoni
+                    width: Val::Px(60.0),
+                    height: Val::Px(40.0),
+                    margin: UiRect::all(Val::Px(10.0)), // Spazio tra i bottoni
                     border: UiRect::all(Val::Px(4.0)),
                     justify_content: JustifyContent::Center, // Centra orizzontalmente
                     align_items: AlignItems::Center, 
@@ -237,9 +238,9 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, shared_map: Res
             // Secondo bottone
             parent.spawn(ButtonBundle {
                 style: Style {
-                    width: Val::Px(30.0),
-                    height: Val::Px(30.0),
-                    margin: UiRect::all(Val::Px(4.0)), // Spazio tra i bottoni
+                    width: Val::Px(60.0),
+                    height: Val::Px(40.0),
+                    margin: UiRect::all(Val::Px(10.0)), // Spazio tra i bottoni
                     border: UiRect::all(Val::Px(4.0)),
                     justify_content: JustifyContent::Center, // Centra orizzontalmente
                     align_items: AlignItems::Center, 
@@ -259,6 +260,34 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, shared_map: Res
                     },
                 ));
             }).insert(ZoomOut);
+
+            //bottone chiusura
+            parent.spawn(ButtonBundle {
+                style: Style {
+                    width: Val::Px(60.0),
+                    height: Val::Px(40.0),
+                    margin: UiRect::all(Val::Px(10.0)), // Spazio tra i bottoni
+                    border: UiRect::all(Val::Px(4.0)),
+                    justify_content: JustifyContent::Center, // Centra orizzontalmente
+                    align_items: AlignItems::Center, 
+                    ..default()
+                },
+                border_color: BorderColor(Color::BLACK),
+                background_color: NORMAL_BUTTON.into(),
+                ..default()
+            })
+            .with_children(|parent| {
+                parent.spawn(TextBundle::from_section(
+                    "EXIT",
+                    TextStyle {
+                        font_size: 25.0,
+                        color: Color::rgb(0.9, 0.9, 0.9),
+                        ..default()
+                    },
+                ));
+            }).insert(CloseAppButton);
+
+
         }).insert(RenderLayers::layer(0));
 
         
@@ -570,8 +599,8 @@ fn update_minimap_outline(
             let camera_scale = main_camera_transform.scale.x;
             
             // Calcola la dimensione visibile basata sulle dimensioni del viewport e sulla scala della camera
-            let visible_width = viewport_width * camera_scale;
-            let visible_height = viewport_height * camera_scale;
+            let visible_width = viewport_width * camera_scale / 1.5;
+            let visible_height = viewport_height * camera_scale /1.5;
             
             // Calcola le dimensioni del rettangolo sulla minimappa
             let outline_size = Vec2::new(visible_width, visible_height);
@@ -693,6 +722,9 @@ struct DropdownMenu;
 #[derive(Component)]
 struct Label;
 
+#[derive(Component)]
+struct CloseAppButton;
+
 fn button_system(
     mut interaction_query: Query<
         (
@@ -703,14 +735,16 @@ fn button_system(
             Option<&ZoomIn>,
             Option<&ZoomOut>,
             Option<&DropdownMenu>,
+            Option<&CloseAppButton>,
         ),
         (Changed<Interaction>, With<Button>),
     >,
     mut text_query: Query<&mut Text>,
     mut camera_query: Query<&mut Transform, With<MainCamera>>,
     mut label_query: Query<&mut Style, With<Label>>,
+    mut app_exit_events: EventWriter<AppExit>,
 ){
-    for (interaction, mut color, mut border_color, children,zoomin,zoomout,dropdown) in &mut interaction_query {
+    for (interaction, mut color, mut border_color, children,zoomin,zoomout,dropdown,closeapp) in &mut interaction_query {
         let mut text = text_query.get_mut(children[0]).unwrap();
         match *interaction {
             Interaction::Pressed => {
@@ -733,6 +767,8 @@ fn button_system(
                         }
                     }
         
+                }else if closeapp.is_some() {
+                    app_exit_events.send(AppExit);
                 }
                 *color = PRESSED_BUTTON.into();
                 border_color.0 = Color::RED;
@@ -959,7 +995,13 @@ fn main() {
     .add_systems(Startup,setup)
     //.add_systems(Startup, setup_minimap_camera)
     .add_systems(Update, (cursor_events, robot_movement_system, update_robot_position, follow_robot_system, button_system,set_camera_viewports, update_minimap_outline)) //unpdate every frame
-    .add_plugins(DefaultPlugins)
+    .add_plugins(DefaultPlugins.set(WindowPlugin{
+        primary_window: Some(Window{
+            mode: WindowMode::Fullscreen,
+            ..default()
+        }),
+        ..Default::default()
+    }))
     .run();  
 
     moviment.join().unwrap();
