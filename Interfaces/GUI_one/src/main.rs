@@ -14,7 +14,7 @@ use bevy::render::camera::Viewport;
 use rand::Rng;
 use bevy::window::WindowResized;
 use bevy::core_pipeline::clear_color::ClearColorConfig;
-use std::{collections::HashMap, ptr::null, string, sync::MutexGuard};
+use std::{borrow::Borrow, collections::HashMap, ptr::null, string, sync::MutexGuard};
 use std::thread::sleep;
 use bevy::window::PrimaryWindow;
 use bevy::window::WindowMode;
@@ -87,9 +87,12 @@ struct TagTime;
 
 #[derive(Component, Debug)]
 struct TagBackPack;
+
+#[derive(Component, Debug)]
+struct EnergyBar;
 // Puoi aggiungere altri campi se necessario, per esempio per memorizzare la posizione o altri parametri della camera.
 
-const WORLD_SIZE:u32 = 100;
+const WORLD_SIZE:u32 = 150;
 
 
 // Funzione per convertire un numero da 1 a 5 in un colore
@@ -358,7 +361,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, shared_map: Res
                     ..default()
                 })
                 .with_children(|parent| {
-                    // Primo figlio: TextBundle
+                    // TIME
                     parent.spawn(TextBundle::from_section(
                         "Time \n", // Assumendo che questo generi il testo desiderato
                         TextStyle {
@@ -367,7 +370,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, shared_map: Res
                             ..default()
                         },
                     )).insert(TagTime);
-                    // Secondo figlio: ImageBundle
+                    // IMMAGINE
                     parent.spawn(ImageBundle {
                         style: Style {
                             width: Val::Px(100.0),
@@ -376,8 +379,8 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, shared_map: Res
                         },
                         image: UiImage::new(sunny), // Usa la texture caricata
                         ..default()
-                    }).insert(TagEnergy);
-                    
+                    });
+                    //ENERGY AND COORDINATE 
                     parent.spawn(TextBundle::from_section(
                         "ENERGY \n", // Assumendo che questo generi il testo desiderato
                        TextStyle {
@@ -386,16 +389,35 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, shared_map: Res
                            ..default()
                        },
                     
-                    ));
-                    parent.spawn(TextBundle::from_section(
-                        "COORDINATE \n", // Assumendo che questo generi il testo desiderato
-                       TextStyle {
-                           font_size: 25.0,
-                           color: Color::BLACK,
-                           ..default()
-                       },
-                    
-                    ));
+                    )).insert(TagEnergy);
+
+                    // BARRA DELL'ENERGIA
+                    // All'interno della funzione dove crei la UI
+                    parent.spawn(NodeBundle {
+                        style: Style {
+                            width: Val::Px(150.0), // Larghezza del container esterno
+                            height: Val::Px(30.0), // Altezza del container esterno
+                            border: UiRect::all(Val::Px(2.0)), // Bordi del container esterno
+                            ..Default::default()
+                        },
+                        background_color: Color::NONE.into(),
+                        border_color: Color::BLACK.into(), // Colore di sfondo del container esterno
+                        ..Default::default()
+                    })
+                    .with_children(|parent| {
+                        parent.spawn(NodeBundle {
+                            style: Style {
+                                width: Val::Percent(100.0), // Larghezza iniziale del container interno (0% del parent)
+                                height: Val::Percent(100.0), // Altezza del container interno (100% del parent)
+                                ..Default::default()
+                            },
+                            background_color: Color::GREEN.into(),
+                            border_color: Color::BLACK.into(), // Colore del container interno (livello di energia)
+                            ..Default::default()
+                        })
+                        .insert(EnergyBar); // Assumi che EnergyBar sia un componente che hai definito
+                    });
+                                        //COORDINATE ROBOT
                 }).insert(Label);
     });
 
@@ -407,7 +429,8 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, shared_map: Res
             style: Style {
                 width: Val::Percent(100.0),
                 height: Val::Percent(100.0),
-              justify_content: JustifyContent::FlexEnd,
+                justify_content: JustifyContent::FlexStart, // Sposta orizzontalmente gli elementi a sinistra
+                align_items: AlignItems::FlexEnd, // Sposta
                 ..default()
             },
             ..default()
@@ -416,13 +439,17 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, shared_map: Res
             parent
                 .spawn(ButtonBundle {
                     style: Style {
-                        width: Val::Px(100.0),
+                        width: Val::Px(120.0),
                         height: Val::Px(45.0),
                         border: UiRect::all(Val::Px(5.0)),
                         // horizontally center child text
-                        justify_content: JustifyContent::Center,
-                        // vertically center child text
+                        justify_content: JustifyContent::Center, // Centra orizzontalmente il testo del figlio
                         align_items: AlignItems::Center,
+                        margin: UiRect {
+                            left: Val::Px(10.0), // Distanzia il menu a tendina dal bordo sinistro
+                            bottom: Val::Px(10.0), // Distanzia il menu a tendina dal pulsante
+                            ..default()
+                        },
                         ..default()
                     },
                     border_color: BorderColor(Color::BLACK),
@@ -443,13 +470,18 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, shared_map: Res
             
                 parent.spawn(NodeBundle {
                     style: Style {
-                        width: Val::Px(250.0),
-                        height: Val::Px(500.0),
+                        width: Val::Px(350.0),
+                        height: Val::Px(700.0),
                         border: UiRect::all(Val::Px(1.0)),
                         justify_content: JustifyContent::FlexStart, // Centra orizzontalmente il contenuto
-                        align_items: AlignItems::Center, // Allinea il contenuto dall'inizio verticalmente
+                        align_items: AlignItems::FlexStart, // Allinea il contenuto a sinistra verticalmente
                         flex_direction: FlexDirection::Column, // Disponi i figli in colonna
-                        display: Display::None, // Assicurati che il display sia impostato su Flex
+                        display: Display::None, // Nasconde il menu a tendina inizialmente
+                        margin: UiRect {
+                            left: Val::Px(-120.0), // Distanzia il menu a tendina dal bordo sinistro
+                            bottom: Val::Px(55.0), // Distanzia il menu a tendina dal pulsante
+                            ..default()
+                        },
                         ..default()
                     },
                     visibility: Visibility::Visible,
@@ -601,20 +633,26 @@ fn update_infos(
     mut energy_query: Query<&mut Text, (With<TagEnergy>,Without<Roboto>,Without<TagTime>, Without<TagBackPack>)>,
     mut time_query: Query<&mut Text, (With<TagTime>,Without<TagEnergy>,Without<Roboto>, Without<TagBackPack>)>,
     mut backpack_query: Query<&mut Text, (With<TagBackPack>, Without<TagEnergy>, Without<Roboto>, Without<TagTime>)>,
+    mut battery_query: Query<(&mut Style, &mut BackgroundColor), With<EnergyBar>>,
 ) {
 
 
     // Ora puoi utilizzare `energy_level` e `time` senza preoccuparti del mutex
-    //TESTO ENERGY
+    //TESTO ENERGY E COORDINATE
     for mut text in energy_query.iter_mut() {
-        text.sections[0].value = format!("Energy: {}", resource.energy_level);
+        text.sections[0].value = format!("Energy: {}\n X: {}, Y: {}\n", resource.energy_level, resource.coordinate_column, resource.coordinate_row);
+
     }
     //TESTO TIME
     for mut text in time_query.iter_mut() {
-        text.sections[0].value = format!("Time: {}", resource.time);
+        if resource.current_weather.is_some(){
+        text.sections[0].value = format!("Time: {}\n Weather: {:?}\n", resource.time, resource.current_weather.unwrap());
+        }
+
     }
     //TESTO BACKPACK
     for mut text in backpack_query.iter_mut(){
+
         let mut formatted_string = format!("Backpack Size: {}\n\n", resource.bp_size);
         let mut tot_value = 0;
             for (key, value) in resource.bp_contents.iter() {
@@ -623,13 +661,35 @@ fn update_infos(
                 tot_value += value;
                 
             }
+            //controllare se sparisce dopo che si svuota lo zaino(dovrebbe)
             if tot_value == 20{
                 formatted_string.push_str(&format!("MAX SIZE REACHED"));
             }
             
         text.sections[0].value = formatted_string;
     }
+   
+
+
+    //UPDATE BATTERY SPRITE
+    for (mut style, mut back_color) in battery_query.iter_mut() {
+        
+        // Calcola la percentuale dell'energia
+        let percentage = resource.energy_level as f32 / 1000.0; // Assumendo 1000 come valore massimo dell'energia
+        // Aggiorna il colore in base alla percentuale
+        back_color.0 = match percentage {
+            p if p > 0.5 => Color::GREEN.into(),
+            p if p > 0.25 => Color::YELLOW.into(),
+            _ => Color::RED.into(),
+        };
+        // Aggiorna la larghezza in base alla percentuale dell'energia
+        style.width = Val::Percent(percentage * 100.0);
+
+        
+    }
+    
 }
+
 
 
 fn cursor_position(q_windows: Query<&Window, With<PrimaryWindow>>) {
@@ -902,6 +962,7 @@ fn button_system(
 
 
 // Funzione per aggiustare lo zoom e la posizione della camera
+//chiamata in button sistem
 fn adjust_camera_zoom_and_position(
     zoom_change: f32,
     mut camera_query: &mut Query<(&mut Transform, &Camera), With<MainCamera>>,
@@ -970,7 +1031,19 @@ pub fn zoom_in(mut query: Query<&mut OrthographicProjection, With<Camera>>) {
         println!("Current zoom scale: {}", projection.scale);
     }
 }
+/* 
+fn tryfunction(
+    mut command: Commands,
+    robot_resource: Res<RobotResource>,
+    battery_query: Query<(&mut Style, &mut Sprite), With<EnergyBar>>,
+) {
 
+    let resource = robot_resource.0.lock().unwrap();
+    let resource_copy = resource.clone();
+    drop(resource);
+    update_energy_bar_color(resource_copy.clone(), battery_query);
+}
+ */
 
 
 //movimento del robot in base alla grandezza di una tile
@@ -984,6 +1057,7 @@ fn robot_movement_system(
     energy_query: Query<&mut Text, (With<TagEnergy>,Without<Roboto>,Without<TagTime>, Without<TagBackPack>)>,
     time_query: Query<&mut Text, (With<TagTime>,Without<TagEnergy>,Without<Roboto>, Without<TagBackPack>)>,
     backpack_query: Query<&mut Text, (With<TagBackPack>, Without<TagEnergy>, Without<Roboto>, Without<TagTime>)>,
+    battery_query: Query<(&mut Style, &mut BackgroundColor), With<EnergyBar>>,
 ) {
 
     
@@ -993,7 +1067,8 @@ fn robot_movement_system(
     let tile_step = tile_size.tile_size; // Use the dimension of the tile from the resource
     let resource_copy = resource.clone();
     drop(resource);
-    update_infos(resource_copy.clone(), energy_query, time_query, backpack_query);
+    update_infos(resource_copy.clone(), energy_query, time_query, backpack_query, battery_query);
+   // update_energy_bar_color(resource_copy.clone(), battery_query);
     println!(
         "Energy Level: {}\nRow: {}\nColumn: {}\nBackpack Size: {}\nBackpack Contents: {:?}\nCurrent Weather: {:?}\nNext Weather: {:?}\nTicks Until Change: {}",
         resource_copy.energy_level,
@@ -1042,7 +1117,7 @@ fn follow_robot_system(
     }
 } */
 
-fn follow_robot_system(
+/* fn follow_robot_system(
     robot_position: Res<RobotPosition>,
     mut camera_query: Query<(&mut Transform, &Camera), With<MainCamera>>,
 ) {
@@ -1070,6 +1145,46 @@ fn follow_robot_system(
             camera_transform.translation.y = new_camera_y;
             // La z può rimanere invariata a meno che non si voglia modificare anche l'altezza della camera
             camera_transform.translation.z = 10.0; // Mantiene la camera elevata per una vista top-down
+        }
+    }
+} */
+
+//DINAMICA(?)
+fn follow_robot_system(
+    robot_position: Res<RobotPosition>,
+    mut camera_query: Query<(&mut Transform, &Camera), With<MainCamera>>,
+) {
+    if let Ok((mut camera_transform, camera)) = camera_query.get_single_mut() {
+        if let Some(viewport) = &camera.viewport {
+            let viewport_aspect_ratio = viewport.physical_size.x as f32 / viewport.physical_size.y as f32;
+            let world_aspect_ratio = (WORLD_SIZE as f32 * TILE_SIZE) / (WORLD_SIZE as f32 * TILE_SIZE);
+
+            // Calcola un fattore di scala basato sul rapporto tra l'aspect ratio della viewport e quello del mondo
+            let scale_factor = if viewport_aspect_ratio > world_aspect_ratio {
+                viewport.physical_size.y as f32 / (WORLD_SIZE as f32 * TILE_SIZE)
+            } else {
+                viewport.physical_size.x as f32 / (WORLD_SIZE as f32 * TILE_SIZE)
+            };
+
+            println!("SCALEFACTON: {}", scale_factor);
+
+            let camera_scale = camera_transform.scale.x;
+
+            // Utilizza il scale_factor per determinare la larghezza e l'altezza visibili della camera
+            let camera_half_width = (viewport.physical_size.x as f32 * camera_scale) / scale_factor;
+            let camera_half_height = (viewport.physical_size.y as f32 * camera_scale) / scale_factor;
+
+            // Resto della logica per limitare la camera ai bordi del mondo...
+            let world_min_x = camera_half_width;
+            let world_max_x = WORLD_SIZE as f32 * TILE_SIZE - camera_half_width;
+            let world_min_y = camera_half_height;
+            let world_max_y = WORLD_SIZE as f32 * TILE_SIZE - camera_half_height;
+
+            let new_camera_x = robot_position.x.clamp(world_min_x, world_max_x);
+            let new_camera_y = robot_position.y.clamp(world_min_y, world_max_y);
+
+            camera_transform.translation.x = new_camera_x;
+            camera_transform.translation.y = new_camera_y;
         }
     }
 }
@@ -1186,7 +1301,6 @@ fn main() {
     .insert_resource(robot_resource)
     .insert_resource(map_resource)
     .add_systems(Startup,setup)
-    //.add_systems(Startup, setup_minimap_camera)
     .add_systems(Update, (cursor_events, robot_movement_system, update_robot_position, follow_robot_system, button_system,set_camera_viewports, update_minimap_outline)) //unpdate every frame
     .add_plugins(DefaultPlugins.set(WindowPlugin{
         primary_window: Some(Window{
@@ -1211,8 +1325,12 @@ struct Robottino {
 
 impl Runnable for Robottino {
     fn process_tick(&mut self, world: &mut robotics_lib::world::World) {
+
+
+        //durata sleep in millisecondi per velocità robot
+        let sleep_time_milly = 30;
         
-        sleep(std::time::Duration::from_millis(30));
+        sleep(std::time::Duration::from_millis(sleep_time_milly));
         //se l'energia e' sotto il 300, la ricarico
         if self.robot.energy.get_energy_level() < 300 {
             self.robot.energy = rust_and_furious_dynamo::dynamo::Dynamo::update_energy();
