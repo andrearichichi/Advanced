@@ -8,7 +8,7 @@
 //MODIFICA TILE QUANDO SI POSIZIONA LA ROCCIA
 
 
-use bevy::{app::AppExit, ecs::system::FunctionSystem, prelude::*, render::{texture, view::RenderLayers}, time, transform::commands, utils::petgraph::dot};
+use bevy::{app::AppExit, pbr::CascadeShadowConfigBuilder, ecs::system::FunctionSystem, prelude::*, render::{texture, view::RenderLayers}, time, transform::commands, utils::petgraph::dot};
 use robotics_lib::{energy, world::{self, environmental_conditions::WeatherType, tile::{self, Content, Tile, TileType}, world_generator::Generator}};
 use bevy::render::camera::Viewport;
 use rand::Rng;
@@ -18,6 +18,7 @@ use std::{borrow::Borrow, collections::HashMap, ptr::null, string, sync::MutexGu
 use std::thread::sleep;
 use bevy::window::PrimaryWindow;
 use bevy::window::WindowMode;
+use std::f32::consts::PI;
 
 use bessie::bessie::State;
 use crab_rave_explorer::algorithm::{cheapest_border, move_to_cheapest_border};
@@ -90,7 +91,27 @@ struct TagBackPack;
 
 #[derive(Component, Debug)]
 struct EnergyBar;
-// Puoi aggiungere altri campi se necessario, per esempio per memorizzare la posizione o altri parametri della camera.
+
+#[derive(Component, Debug)]
+struct SunTime;
+
+#[derive(Component, Debug)]
+struct WeatherIcon;
+
+
+#[derive(Default, Resource)]
+struct WeatherIcons {
+    sunny_day: Handle<Image>,
+    sunny_night: Handle<Image>,
+    foggy_day: Handle<Image>,
+    foggy_night: Handle<Image>,
+    rainy_day: Handle<Image>,
+    rainy_night: Handle<Image>,
+    trentino_snow_day: Handle<Image>,
+    trentino_snow_night: Handle<Image>,
+    tropical_monsoon_day: Handle<Image>,
+    tropical_monsoon_night: Handle<Image>,
+}
 
 const WORLD_SIZE:u32 = 150;
 
@@ -138,7 +159,26 @@ fn get_content_color(content: Tile) -> Color {
 
 // Funzione di setup che crea la scena
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>, shared_map: Res<MapResource>,robot_resource: Res<RobotResource>,) {
-    // Matrice di esempio
+
+    //SPRITES
+    let weather_icons = WeatherIcons {
+        sunny_day: asset_server.load("img/sunny_day.png"),
+        sunny_night: asset_server.load("img/sunny_night.png"),
+        foggy_day: asset_server.load("/img/foggy_day.png"),
+        foggy_night: asset_server.load("/img/foggy_night.png"),
+        rainy_day: asset_server.load("img/rainy_day.png"),
+        rainy_night: asset_server.load("img/rainy_night.png"),
+        trentino_snow_day: asset_server.load("img/trentino_snow_day.png"),
+        trentino_snow_night: asset_server.load("img/trentino_snow_night.png"),
+        tropical_monsoon_day: asset_server.load("img/tropical_monsoon_day.png"),
+        tropical_monsoon_night: asset_server.load("img/tropical_monsoon_night.png"),
+    };
+
+    commands.insert_resource(weather_icons);
+    
+    
+
+
 
 //TODO: controllare se positioning si basa effettivamente sulla matrice
 //TODO: cabiare dimenzione con l'utilizzo della risorsa tile
@@ -377,9 +417,9 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, shared_map: Res
                             height: Val::Px(100.0),
                             ..default()
                         },
-                        image: UiImage::new(sunny), // Usa la texture caricata
+                        image: UiImage::new(asset_server.load("GUI_one/assets/img/sunny_day.png")), // Usa la texture caricata
                         ..default()
-                    });
+                    }).insert(WeatherIcon);
                     //ENERGY AND COORDINATE 
                     parent.spawn(TextBundle::from_section(
                         "ENERGY \n", // Assumendo che questo generi il testo desiderato
@@ -624,16 +664,43 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, shared_map: Res
             }
         }
     }
+            
+
+            // Cicla attraverso per spawnare i quadrati 3x3
+            for x in 0..WORLD_SIZE{
+                for y in 0..WORLD_SIZE{
+                    // Calcola la posizione di ogni quadrato 3x3
+                    let pos_x = x as f32 * TILE_SIZE;
+                    let pos_y = y as f32 * TILE_SIZE;
+
+                    // Spawn del quadrato 3x3
+                    commands.spawn(SpriteBundle {
+                        sprite: Sprite {
+                            color: Color::rgba(0.1, 0.1, 0.3, 0.5), // Colore blu scuro semi-trasparente
+                            custom_size: Some(Vec2::new(TILE_SIZE, TILE_SIZE)), // Imposta la dimensione su 3x3 unità
+                            ..default()
+                        },
+                        transform: Transform::from_xyz(pos_x, pos_y, 5.0), // Posiziona il quadrato
+                        ..default()
+                    }).insert(SunTime);
+                }
+            }
+
+            
+
 
 }
 
 
 fn update_infos(
     resource: RobotInfo, // Query per trovare il Text da aggiornare
+    weather_icons: Res<WeatherIcons>,
     mut energy_query: Query<&mut Text, (With<TagEnergy>,Without<Roboto>,Without<TagTime>, Without<TagBackPack>)>,
     mut time_query: Query<&mut Text, (With<TagTime>,Without<TagEnergy>,Without<Roboto>, Without<TagBackPack>)>,
     mut backpack_query: Query<&mut Text, (With<TagBackPack>, Without<TagEnergy>, Without<Roboto>, Without<TagTime>)>,
     mut battery_query: Query<(&mut Style, &mut BackgroundColor), With<EnergyBar>>,
+    mut sun_query: Query<&mut Sprite, With<SunTime>>,
+    mut weather_image_query: Query<&mut UiImage, With<WeatherIcon>>,
 ) {
 
 
@@ -643,7 +710,7 @@ fn update_infos(
         text.sections[0].value = format!("Energy: {}\n\n X: {}, Y: {}\n\n", resource.energy_level, resource.coordinate_column, resource.coordinate_row);
 
     }
-    //TESTO TIME
+    //TESTO TIME E WEATHER
     for mut text in time_query.iter_mut() {
         if resource.current_weather.is_some(){
         text.sections[0].value = format!("Time: {}\n\n Weather: {:?}\n\n", resource.time, resource.current_weather.unwrap());
@@ -687,8 +754,111 @@ fn update_infos(
 
         
     }
-    
+
+    //SUN MOVEMENT
+    for mut sprite in sun_query.iter_mut() {
+        let night_alpha = match parse_time(&resource.time) {
+            Ok(time) => {
+                if time >= 18.0 && time < 20.0 {
+                    // Tramonto: aumenta gradualmente l'alpha
+                    (time - 18.0) / 2.0 * 0.4 + 0.3
+                } else if (time >= 20.0 && time <= 24.0) || (time >= 0.0 && time < 4.0) {
+                    // Notte: alpha massimo, ma non completamente opaco
+                    0.7
+                } else if time >= 4.0 && time < 6.0 {
+                    // Alba: diminuisce gradualmente l'alpha
+                    (1.0 - (time - 4.0) / 2.0) * 0.4 + 0.3
+                } else {
+                    // Giorno: completamente trasparente
+                    0.0
+                }
+            },
+            Err(e) => {
+                eprintln!("Errore nel parsing del tempo: {}", e);
+                0.0 // valore predefinito per assenza di errore
+            }
+        };
+        
+        // Imposta l'alpha del colore dello sprite
+        sprite.color.set_a(night_alpha);
+    }
+
+    //WEATHER ICON
+    for mut image in weather_image_query.iter_mut() {
+    if let Ok(time_value) = parse_time(&resource.time) {
+        let image_handle = match resource.current_weather {
+            Some(WeatherType::Sunny) => {
+                if time_value >= 6.0 && time_value < 18.0 { 
+                    weather_icons.sunny_day.clone() 
+                } else { 
+                    weather_icons.sunny_night.clone() 
+                }
+            },
+            Some(WeatherType::Rainy) => {
+                if time_value >= 6.0 && time_value < 18.0 { 
+                    weather_icons.rainy_day.clone() 
+                } else { 
+                    weather_icons.rainy_night.clone() 
+                }
+            },
+            Some(WeatherType::Foggy) => {
+                if time_value >= 6.0 && time_value < 18.0 { 
+                    weather_icons.foggy_day.clone() 
+                } else { 
+                    weather_icons.foggy_night.clone() 
+                }
+            },
+            Some(WeatherType::TrentinoSnow) => {
+                if time_value >= 6.0 && time_value < 18.0 { 
+                    weather_icons.trentino_snow_day.clone() 
+                } else { 
+                    weather_icons.trentino_snow_night.clone() 
+                }
+            },
+            Some(WeatherType::TropicalMonsoon) => {
+                if time_value >= 6.0 && time_value < 18.0 { 
+                    weather_icons.tropical_monsoon_day.clone() 
+                } else { 
+                    weather_icons.tropical_monsoon_night.clone() 
+                }
+            },
+            
+            _ => continue, // Ignora se non c'è un tipo di tempo corrispondente
+        };
+
+        
+        image.texture = image_handle; // Aggiorna l'immagine
+    } else {
+        // Gestisci il caso in cui parse_time restituisce un errore
+        // Potresti voler loggare l'errore o prendere un'altra azione
+    }
 }
+
+
+}
+
+
+
+//funziona usata in Weather icon e sun movement
+//serve per cambiare il valore del tempo da stringa a f32
+fn parse_time(time_str: &str) -> Result<f32, &'static str> {
+    let parts: Vec<&str> = time_str.split(':').collect();
+    if parts.len() != 2 {
+        return Err("Formato del tempo non valido");
+    }
+
+    let hours = parts[0].parse::<f32>();
+    let minutes = parts[1].parse::<f32>();
+
+    match (hours, minutes) {
+        (Ok(h), Ok(m)) if h >= 0.0 && h < 24.0 && m >= 0.0 && m < 60.0 => {
+            Ok(h + m / 60.0)
+        },  
+        _ => Err("Valori di ore o minuti non validi"),
+    }
+}
+
+
 
 
 
@@ -1049,15 +1219,18 @@ fn tryfunction(
 //movimento del robot in base alla grandezza di una tile
 fn robot_movement_system(
     mut commands: Commands,
-    mut query: Query<&mut Transform, (With<Roboto>,Without<TagEnergy>,Without<TagTime>, Without<TagBackPack>)>,
+    mut query: Query<&mut Transform, (With<Roboto>,Without<TagEnergy>,Without<TagTime>, Without<TagBackPack>, Without<DirectionalLight>)>,
     tile_size: Res<TileSize>, // Utilizza la risorsa TileSize
     robot_resource: Res<RobotResource>,
     world: Res<MapResource>,
+    weather_icons: Res<WeatherIcons>,
     mut old_world: ResMut<OldMapResource>,
     energy_query: Query<&mut Text, (With<TagEnergy>,Without<Roboto>,Without<TagTime>, Without<TagBackPack>)>,
     time_query: Query<&mut Text, (With<TagTime>,Without<TagEnergy>,Without<Roboto>, Without<TagBackPack>)>,
     backpack_query: Query<&mut Text, (With<TagBackPack>, Without<TagEnergy>, Without<Roboto>, Without<TagTime>)>,
     battery_query: Query<(&mut Style, &mut BackgroundColor), With<EnergyBar>>,
+    sun_query: Query<&mut Sprite, With<SunTime>>,
+    mut weather_image_query: Query<&mut UiImage, With<WeatherIcon>>,
 ) {
 
     
@@ -1067,7 +1240,7 @@ fn robot_movement_system(
     let tile_step = tile_size.tile_size; // Use the dimension of the tile from the resource
     let resource_copy = resource.clone();
     drop(resource);
-    update_infos(resource_copy.clone(), energy_query, time_query, backpack_query, battery_query);
+    update_infos(resource_copy.clone(), weather_icons, energy_query, time_query, backpack_query, battery_query, sun_query, weather_image_query);
    // update_energy_bar_color(resource_copy.clone(), battery_query);
     println!(
         "Energy Level: {}\nRow: {}\nColumn: {}\nBackpack Size: {}\nBackpack Contents: {:?}\nCurrent Weather: {:?}\nNext Weather: {:?}\nTicks Until Change: {}",
