@@ -1221,7 +1221,7 @@ fn moviment(robot_data: Arc<Mutex<RobotInfo>>, map: Arc<Mutex<Vec<Vec<Option<Til
     let mut runner = Runner::new(Box::new(robot), &mut world_gen);
     println!("Runnable succesfully generated");
     //sleep 5 second
-    sleep(std::time::Duration::from_secs(3));
+    sleep(std::time::Duration::from_secs(5));
     for _i in 0..10000 {
         let rtn = runner.as_mut().unwrap().game_tick();
         // sleep(std::time::Duration::from_secs(1));
@@ -1328,7 +1328,7 @@ impl Runnable for Robottino {
 
 
         //durata sleep in millisecondi per velocità robot
-        let sleep_time_milly = 30;
+        let sleep_time_milly: u64 = 30;
         
         sleep(std::time::Duration::from_millis(sleep_time_milly));
         //se l'energia e' sotto il 300, la ricarico
@@ -1344,7 +1344,7 @@ impl Runnable for Robottino {
         print!("{:?}", a);
         
         //print coordinate
-        let coordinates = self.get_coordinate();
+        let coordinates: &Coordinate = self.get_coordinate();
         println!("{:?}", coordinates);
         robot_view(self, world);
         let tiles_option = cheapest_border(world, self);
