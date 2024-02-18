@@ -346,8 +346,8 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, shared_map: Res
             
                 parent.spawn(NodeBundle {
                     style: Style {
-                        width: Val::Px(250.0),
-                        height: Val::Px(500.0),
+                        width: Val::Px(350.0),
+                        height: Val::Px(700.0),
                         border: UiRect::all(Val::Px(1.0)),
                         justify_content: JustifyContent::FlexStart, // Centra orizzontalmente il contenuto
                         align_items: AlignItems::Center, // Allinea il contenuto dall'inizio verticalmente
@@ -640,13 +640,13 @@ fn update_infos(
     // Ora puoi utilizzare `energy_level` e `time` senza preoccuparti del mutex
     //TESTO ENERGY E COORDINATE
     for mut text in energy_query.iter_mut() {
-        text.sections[0].value = format!("Energy: {}\n X: {}, Y: {}\n", resource.energy_level, resource.coordinate_column, resource.coordinate_row);
+        text.sections[0].value = format!("Energy: {}\n\n X: {}, Y: {}\n\n", resource.energy_level, resource.coordinate_column, resource.coordinate_row);
 
     }
     //TESTO TIME
     for mut text in time_query.iter_mut() {
         if resource.current_weather.is_some(){
-        text.sections[0].value = format!("Time: {}\n Weather: {:?}\n", resource.time, resource.current_weather.unwrap());
+        text.sections[0].value = format!("Time: {}\n\n Weather: {:?}\n\n", resource.time, resource.current_weather.unwrap());
         }
 
     }
