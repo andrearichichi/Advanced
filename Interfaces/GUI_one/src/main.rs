@@ -8,27 +8,23 @@
 //MODIFICA TILE QUANDO SI POSIZIONA LA ROCCIA
 
 
-use bevy::{app::AppExit, pbr::CascadeShadowConfigBuilder, ecs::system::FunctionSystem, prelude::*, render::{texture, view::RenderLayers}, time, transform::commands, utils::petgraph::dot};
-use robotics_lib::{energy, world::{self, environmental_conditions::WeatherType, tile::{self, Content, Tile, TileType}, world_generator::Generator}};
+use bevy::{app::AppExit, prelude::*, render::view::RenderLayers};
+use robotics_lib::{interface::discover_tiles, world::{environmental_conditions::WeatherType, tile::{Content, Tile, TileType}}};
 use bevy::render::camera::Viewport;
-use rand::Rng;
 use bevy::window::WindowResized;
 use bevy::core_pipeline::clear_color::ClearColorConfig;
-use std::{borrow::Borrow, collections::HashMap, ptr::null, string, sync::MutexGuard};
+use std::collections::HashMap;
 use std::thread::sleep;
 use bevy::window::PrimaryWindow;
 use bevy::window::WindowMode;
-use std::f32::consts::PI;
 
-use bessie::bessie::State;
 use crab_rave_explorer::algorithm::{cheapest_border, move_to_cheapest_border};
-use oxagaudiotool::sound_config::{self, OxAgSoundConfig};
-use robotics_lib::event::events::Event;
-use robotics_lib::interface::Direction::Up;
+use oxagaudiotool::sound_config::OxAgSoundConfig;
+
 use ohcrab_weather::weather_tool::WeatherPredictionTool;
 use arrusticini_destroy_zone::DestroyZone;
 use oxagaudiotool::OxAgAudioTool;
-use robotics_lib::interface::{ go, one_direction_view, robot_map, robot_view, Direction, look_at_sky};
+use robotics_lib::interface::{ robot_map, robot_view, look_at_sky};
 use robotics_lib::{
     energy::Energy,
     runner::{backpack::BackPack, Robot, Runnable, Runner},
@@ -51,11 +47,7 @@ struct RobotPosition {
     y: f32,
 }
 
-#[derive(Resource, Debug, Default)]
-//risorsa generale per vedere/settare se il robot e' in pausa o meno(mettere in pausa il tutto)
-struct RobotState{
-    is_moving: bool,
-}
+
 
 #[derive(Resource, Debug, Default)]
 struct TileSize{
@@ -70,11 +62,6 @@ struct MainCamera;
 //componente per la minimappa
 struct MyMinimapCamera;
 
-#[derive(Component, Debug)]
-//componente per la minimappa
-struct MainCameraEntity {
-    entity: Entity,
-}
 
 //componente per la zona rossa della minimappa 
 #[derive(Component, Debug)]
@@ -843,7 +830,7 @@ fn update_infos(
 //serve per cambiare il valore del tempo da stringa a f32
 fn parse_time(time_str: &str) -> Result<f32, &'static str> {
     let parts: Vec<&str> = time_str.split(':').collect();
-    if parts.len() != 2 {
+    if parts.len() != 2{
         return Err("Formato del tempo non valido");
     }
 
@@ -1361,7 +1348,13 @@ fn follow_robot_system(
         }
     }
 }
-
+//enum per ai_logic (4 stringhe)
+enum AiLogic {
+    Falegname,
+    Asfaltatore,
+    Ricercatore,
+    Completo,
+}
 
 fn moviment(robot_data: Arc<Mutex<RobotInfo>>, map: Arc<Mutex<Vec<Vec<Option<Tile>>>>>){
     println!("Hello, world!");
@@ -1373,7 +1366,8 @@ fn moviment(robot_data: Arc<Mutex<RobotInfo>>, map: Arc<Mutex<Vec<Vec<Option<Til
         shared_robot: robot_data,
         robot: Robot::new(),
         audio: audio,
-        weather_tool: WeatherPredictionTool::new()
+        weather_tool: WeatherPredictionTool::new(),
+        ai_logic: AiLogic::Completo
     };
 
     // world generator initialization
@@ -1394,7 +1388,7 @@ fn moviment(robot_data: Arc<Mutex<RobotInfo>>, map: Arc<Mutex<Vec<Vec<Option<Til
     let mut runner = Runner::new(Box::new(robot), &mut world_gen);
     println!("Runnable succesfully generated");
     //sleep 5 second
-    sleep(std::time::Duration::from_secs(5));
+    sleep(std::time::Duration::from_secs(3));
     for _i in 0..10000 {
         let rtn = runner.as_mut().unwrap().game_tick();
         // sleep(std::time::Duration::from_secs(1));
@@ -1451,7 +1445,7 @@ fn main() {
         current_weather: None,
         next_weather: None,
         ticks_until_change: 0,
-        time: "0".to_string()
+        time: "00:00".to_string()
     };
     
     let robot_data = Arc::new(Mutex::new(robot_info));
@@ -1468,7 +1462,6 @@ fn main() {
     let map_resource = MapResource(map_clone);
 
     App::new()
-    .init_resource::<RobotState>()// aggiunge la risorsa con default valure, usare per settare values (.insert_resource(RobotState{is_moving:true}))
     .init_resource::<RobotPosition>()//ricordarsi di metterlo quando si ha una risorsa 
     .insert_resource(TileSize{tile_size: 3.0}) //setta la risorsa tile per la grandezza di esso
     .insert_resource(robot_resource)
@@ -1492,69 +1485,101 @@ struct Robottino {
     shared_map: Arc<Mutex<Vec<Vec<Option<Tile>>>>>,
     robot: Robot,
     audio: OxAgAudioTool,
-    weather_tool: WeatherPredictionTool
+    weather_tool: WeatherPredictionTool,
+    ai_logic: AiLogic
 }
 
-
-impl Runnable for Robottino {
-    fn process_tick(&mut self, world: &mut robotics_lib::world::World) {
-
-
-        //durata sleep in millisecondi per velocità robot
-        let sleep_time_milly: u64 = 30;
-        
-        sleep(std::time::Duration::from_millis(sleep_time_milly));
-        //se l'energia e' sotto il 300, la ricarico
-        if self.robot.energy.get_energy_level() < 300 {
-            self.robot.energy = rust_and_furious_dynamo::dynamo::Dynamo::update_energy();
+fn ai_labirint(robot: &mut Robottino, world: &mut robotics_lib::world::World){
+    //maze are 18*18 so we check every 9 tiles
+    //if robotmap some save it
+    
+    if let Some(map) = robot_map(world) {
+    
+        //quanto e' grande la mappa
+        let map_size = map.len();
+        let times_to_discover_map_for_side = map_size/9+1;
+        for i in 1..times_to_discover_map_for_side {
+            for j in 1..times_to_discover_map_for_side {
+                if robot.robot.energy.get_energy_level() < 300 {
+                    robot.robot.energy = rust_and_furious_dynamo::dynamo::Dynamo::update_energy();
+                }
+                let row = i*9;
+                let col = j*9;
+                println!("{:?}",discover_tiles(robot, world, &[(row-1, col), (row, col),(row-1, col-1),(row, col-1)]));
+            }
         }
-        // weather_check(self);
+    }
+}
+
+fn ai_taglialegna(robot: &mut Robottino, world: &mut robotics_lib::world::World){}
+fn ai_asfaltatore(robot: &mut Robottino, world: &mut robotics_lib::world::World){}
+fn ai_completo_con_tool(robot: &mut Robottino, world: &mut robotics_lib::world::World){
+    //durata sleep in millisecondi per velocità robot
+    let sleep_time_milly: u64 = 300;
         
-        // sleep(std::time::Duration::from_millis(300));
-        // bessie::bessie::road_paving_machine(self, world, Direction::Up, State::MakeRoad);
-        DestroyZone.execute(world, self, Content::Tree(0));
-        let a = self.get_backpack();
-        print!("{:?}", a);
-        
-        //print coordinate
-        let coordinates: &Coordinate = self.get_coordinate();
-        println!("{:?}", coordinates);
-        robot_view(self, world);
-        let tiles_option = cheapest_border(world, self);
-        let map= robot_map(world);
-        //count how many tiles are not None in map
-        let mut count = 0;
-        if let Some(unwrapped_map) = map {
-            for i in 0..unwrapped_map.len() {
-                for j in 0..unwrapped_map[i].len() {
-                    if unwrapped_map[i][j].is_some() {
-                        count += 1;
-                    }
+    sleep(std::time::Duration::from_millis(sleep_time_milly));
+    //se l'energia e' sotto il 300, la ricarico
+    
+    // weather_check(self);
+    
+    // sleep(std::time::Duration::from_millis(300));
+    // bessie::bessie::road_paving_machine(self, world, Direction::Up, State::MakeRoad);
+    DestroyZone.execute(world, robot, Content::Tree(0));
+    let a = robot.get_backpack();
+    print!("{:?}", a);
+    
+    //print coordinate
+    let coordinates: &Coordinate = robot.get_coordinate();
+    println!("{:?}", coordinates);
+    robot_view(robot, world);
+    let tiles_option = cheapest_border(world, robot);
+    let map= robot_map(world);
+    //count how many tiles are not None in map
+    let mut count = 0;
+    if let Some(unwrapped_map) = map {
+        for i in 0..unwrapped_map.len() {
+            for j in 0..unwrapped_map[i].len() {
+                if unwrapped_map[i][j].is_some() {
+                    count += 1;
                 }
             }
         }
-        println!("{:?}", count);
-        if let Some(tiles) = tiles_option {
-            //manage the return stat of move to cheapest border
-            let result = move_to_cheapest_border(world, self, tiles);
-            if let Err((_tiles, error)) = result {
-                println!("The robot cannot move due to a {:?}", error);
-            }
+    }
+    println!("{:?}", count);
+    if let Some(tiles) = tiles_option {
+        //manage the return stat of move to cheapest border
+        let result = move_to_cheapest_border(world, robot, tiles);
+        if let Err((_tiles, error)) = result {
+            println!("The robot cannot move due to a {:?}", error);
         }
-        //print coordinate
+    }
+    //print coordinate
+
+    
+    let actual_energy = robot.get_energy().get_energy_level();
+    println!("{:?}", actual_energy);
+    let coordinates = robot.get_coordinate();
+    println!("{:?}", coordinates);
+}
+
+impl Runnable for Robottino {
+    
+
+    fn process_tick(&mut self, world: &mut robotics_lib::world::World) {
+        // in base alla logica scelta, esegue la funzione corrispondente
+        match self.ai_logic {
+            AiLogic::Falegname => ai_taglialegna(self, world),
+            AiLogic::Asfaltatore => ai_asfaltatore(self, world),
+            AiLogic::Ricercatore => ai_labirint(self, world),
+            AiLogic::Completo => ai_completo_con_tool(self, world),
+        }
 
         
-        let actual_energy = self.get_energy().get_energy_level();
-        println!("{:?}", actual_energy);
-        let coordinates = self.get_coordinate();
-        println!("{:?}", coordinates);
-        
+        //update map
         let mut shared_map = self.shared_map.lock().unwrap();
         if let Some(new_map) = robot_map(world) {
             *shared_map = new_map;
         }
-
-        
         let mut shared_robot = self.shared_robot.lock().unwrap();
         let enviroment = look_at_sky(&world);
 
@@ -1564,12 +1589,12 @@ impl Runnable for Robottino {
             shared_robot.next_weather = Some(prediction);
             shared_robot.ticks_until_change = ticks; 
         }
-        
-        
     }
     
     fn handle_event(&mut self, event: robotics_lib::event::events::Event) {
         self.weather_tool.process_event(&event);
+
+        //update info
         {
             let mut shared_robot = self.shared_robot.lock().unwrap();
             shared_robot.energy_level = self.robot.energy.get_energy_level();
