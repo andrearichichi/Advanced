@@ -162,7 +162,7 @@ dependencies = [
 
 [[package]]
 name = "tiles_stats"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "robotics_lib",
 ]
