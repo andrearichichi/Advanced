@@ -44,11 +44,11 @@ use robotics_lib::{
 };
 
 const MIN_ZOOM: f32 = 0.05; // Sostituisci con il valore minimo desiderato
-const MAX_ZOOM: f32 = 0.25; //1.0 se 150, 0.25 se 250
+const MAX_ZOOM: f32 = 1.0; //1.0 se 150, 0.25 se 250
 
 
 const AI: AiLogic = AiLogic::Falegname;
-const WORLD_SIZE: u32 = 300;
+const WORLD_SIZE: u32 = 150;
 const TILE_SIZE: f32 = 3.0; // Dimensione di ogni quadrato
 
 #[derive(Component, Debug)]
@@ -474,8 +474,8 @@ fn setup(
             style: Style {
                 width: Val::Percent(100.0),
                 height: Val::Percent(100.0),
-                justify_content: JustifyContent::FlexStart, // Sposta orizzontalmente gli elementi a sinistra
-                align_items: AlignItems::FlexEnd,           // Sposta
+                justify_content: JustifyContent::FlexStart,
+                align_items: AlignItems::FlexEnd,           
                 ..default()
             },
             ..default()
@@ -517,8 +517,8 @@ fn setup(
             parent
                 .spawn(NodeBundle {
                     style: Style {
-                        width: Val::Px(350.0),
-                        height: Val::Px(700.0),
+                        width: Val::Px(250.0),
+                        height: Val::Px(500.0),
                         border: UiRect::all(Val::Px(1.0)),
                         justify_content: JustifyContent::FlexStart, // Centra orizzontalmente il contenuto
                         align_items: AlignItems::FlexStart, // Allinea il contenuto a sinistra verticalmente
@@ -1466,7 +1466,7 @@ enum AiLogic {
 
 fn moviment(robot_data: Arc<Mutex<RobotInfo>>, map: Arc<Mutex<Vec<Vec<Option<Tile>>>>>) {
     let audio = get_audio_manager();
-    //let background_music = OxAgSoundConfig::new_looped_with_volume("assets/audio/background.ogg", 2.0);
+    let background_music = OxAgSoundConfig::new_looped_with_volume("assets/audio/background.ogg", 2.0);
 
     let mut robot = Robottino {
         shared_map: map,
@@ -1485,13 +1485,13 @@ fn moviment(robot_data: Arc<Mutex<RobotInfo>>, map: Arc<Mutex<Vec<Vec<Option<Til
     // Runnable creation and start
 
     println!("Generating runnable (world + robot)...");
-    /*  match robot.audio.play_audio(&background_music) {
+     match robot.audio.play_audio(&background_music) {
          Ok(_) => {},
          Err(e) => {
              eprintln!("Failed to play audio: {}", e);
              std::process::exit(1);
          }
-     } */
+     }
     let mut world_gen =
         ghost_amazeing_island::world_generator::WorldGenerator::new(WORLD_SIZE, false, 1, 1.1);
     let mut runner = Runner::new(Box::new(robot), &mut world_gen);
@@ -1874,7 +1874,7 @@ fn ai_asfaltatore(robot: &mut Robottino, world: &mut robotics_lib::world::World)
 }
 fn ai_completo_con_tool(robot: &mut Robottino, world: &mut robotics_lib::world::World) {
     //durata sleep in millisecondi per velocità robot
-    let sleep_time_milly: u64 = 1000;
+    let sleep_time_milly: u64 = 30;
 
     sleep(std::time::Duration::from_millis(sleep_time_milly));
     //se l'energia e' sotto il 300, la ricarico
@@ -1923,24 +1923,8 @@ fn ai_completo_con_tool(robot: &mut Robottino, world: &mut robotics_lib::world::
 impl Runnable for Robottino {
     fn process_tick(&mut self, world: &mut robotics_lib::world::World) {
 
-        look_at_sky(&world).get_weather_condition();
-
-        let weather_type = match look_at_sky(&world).get_weather_condition() {
-            WeatherType::Rainy => "assets/audio/rainy.ogg",
-            WeatherType::Foggy => "assets/audio/foggy.ogg",
-            WeatherType::Sunny => "assets/audio/sunny.ogg",
-            WeatherType::TrentinoSnow => "assets/audio/trentino_snow.ogg",
-            WeatherType::TropicalMonsoon => "assets/audio/tropical_monsoon.ogg",
-    };
-    let sound_config = OxAgSoundConfig::new(weather_type);
-
-    match self.audio.play_audio(&sound_config) {
-        Ok(_) => {},
-        Err(e) => {
-            eprintln!("Failed to play audio: {}", e);
-            std::process::exit(1);
-        }
-    }
+        let new_weather = look_at_sky(world).get_weather_condition();
+    
 
         let sleep_time_milly: u64 = 30;
         sleep(std::time::Duration::from_millis(sleep_time_milly));
@@ -1961,8 +1945,7 @@ impl Runnable for Robottino {
 
     fn handle_event(&mut self, event: robotics_lib::event::events::Event) {
         self.weather_tool.process_event(&event);
-  
-
+        
         //update info
         {
             let mut shared_robot = self.shared_robot.lock().unwrap();
