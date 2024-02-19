@@ -9,11 +9,12 @@
 
 
 use bevy::{app::AppExit, prelude::*, render::view::RenderLayers};
-use robotics_lib::{interface::discover_tiles, world::{environmental_conditions::WeatherType, tile::{Content, Tile, TileType}}};
+use op_map::op_pathfinding::{get_best_action_to_element, OpActionInput, OpActionOutput, ShoppingList};
+use robotics_lib::{interface::{destroy, discover_tiles, go, put}, world::{environmental_conditions::WeatherType, tile::{Content, Tile, TileType}}};
 use bevy::render::camera::Viewport;
 use bevy::window::WindowResized;
 use bevy::core_pipeline::clear_color::ClearColorConfig;
-use std::collections::HashMap;
+use std::{collections::HashMap, ops::Range};
 use std::thread::sleep;
 use bevy::window::PrimaryWindow;
 use bevy::window::WindowMode;
@@ -1512,7 +1513,7 @@ fn follow_robot_system(
                 viewport.physical_size.x as f32 / (WORLD_SIZE as f32 * TILE_SIZE)
             };
 
-            println!("SCALEFACTON: {}", scale_factor);
+            // println!("SCALEFACTON: {}", scale_factor);
 
             let camera_scale = camera_transform.scale.x;
 
@@ -1552,7 +1553,7 @@ fn moviment(robot_data: Arc<Mutex<RobotInfo>>, map: Arc<Mutex<Vec<Vec<Option<Til
         robot: Robot::new(),
         audio: audio,
         weather_tool: WeatherPredictionTool::new(),
-        ai_logic: AiLogic::Completo
+        ai_logic: AiLogic::Falegname
     };
 
     // world generator initialization
@@ -1929,7 +1930,64 @@ fn ai_labirint(robot: &mut Robottino, world: &mut robotics_lib::world::World){
 }
 
 fn ai_taglialegna(robot: &mut Robottino, world: &mut robotics_lib::world::World){
+    let sleep_time_milly: u64 = 10;
+    sleep(std::time::Duration::from_millis(sleep_time_milly));
 
+    //se l'energia e' sotto il 300, la ricarico
+    if robot.robot.energy.get_energy_level() < 300 {
+        robot.robot.energy = rust_and_furious_dynamo::dynamo::Dynamo::update_energy();
+    }
+
+    let v = robot_view(robot, world);
+    for i in 0..v.len() {
+        for j in 0..v[i].len() {
+            if v[i][j].is_some() && v[i][j].clone().unwrap().content == Content::Crate(0..0) {
+                println!("{:?}", v[i][j]);
+                println!("sono un crate");
+            }
+            // println!("{:?}", v[i][j]);
+        }
+    }
+    let a = robot.get_backpack().get_size();
+    let b = robot.get_backpack().get_contents().values().sum::<usize>();
+    if ( a>b ){
+        let tiles_option = cheapest_border(world, robot);
+        if let Some(tiles) = tiles_option {
+        //manage the return stat of move to cheapest border
+            let result = move_to_cheapest_border(world, robot, tiles);
+
+            DestroyZone.execute(world, robot, Content::Tree(0));
+        }
+    } else {
+        let mut shopping_list = ShoppingList {
+            list: vec![
+                (Content::Crate(Range::default()), Some(OpActionInput::Put(Content::Tree(0), 20))),
+            ],
+        };
+        match get_best_action_to_element(robot, world, &mut shopping_list) {
+            None => {
+                // mmh, the content was not found or you specified no action. Handle this case!
+            }
+            Some(next_action) => {
+                // println!("{:?}", &rand);
+                match next_action {
+                    OpActionOutput::Move(dir) => {
+                        go(robot, world, dir);
+                    }
+                    OpActionOutput::Destroy(dir) => {
+                        // println!("Destroy");
+                        destroy(robot, world, dir);
+                    }
+                    OpActionOutput::Put(c, u, d) => {
+                        print!("depositandoooooooooooo");
+                        //print c u d
+                        println!("{:?} {:?} {:?}", c, u, d);
+                        put(robot, world, c, u, d);
+                    }
+                }
+            }
+        }
+    }
 }
 fn ai_asfaltatore(robot: &mut Robottino, world: &mut robotics_lib::world::World){}
 fn ai_completo_con_tool(robot: &mut Robottino, world: &mut robotics_lib::world::World){
