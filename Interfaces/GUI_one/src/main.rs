@@ -17,6 +17,7 @@ use std::collections::HashMap;
 use std::thread::sleep;
 use bevy::window::PrimaryWindow;
 use bevy::window::WindowMode;
+use bevy::log;
 
 use crab_rave_explorer::algorithm::{cheapest_border, move_to_cheapest_border};
 use oxagaudiotool::sound_config::OxAgSoundConfig;
@@ -100,6 +101,8 @@ struct WeatherIcons {
     tropical_monsoon_night: Handle<Image>,
 }
 
+
+
 const WORLD_SIZE:u32 = 150;
 
 
@@ -142,6 +145,182 @@ fn get_content_color(content: Tile) -> Color {
     }
 }
 
+    fn initial_menu_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
+        // Qui vai a definire lo stile dei bottoni e il testo, simile a quanto fatto in main_menu_setup
+        // Common style for all buttons on the screen
+         let button_style = Style {
+            width: Val::Px(250.0),
+            height: Val::Px(65.0),
+            margin: UiRect::all(Val::Px(20.0)),
+            justify_content: JustifyContent::Center,
+            align_items: AlignItems::Center,
+            ..default()
+        };
+        let button_icon_style = Style {
+            width: Val::Px(30.0),
+            // This takes the icons out of the flexbox flow, to be positioned exactly
+            position_type: PositionType::Absolute,
+            // The icon will be close to the left border of the button
+            left: Val::Px(10.0),
+            ..default()
+        };
+        let button_text_style = TextStyle {
+            font_size: 40.0,
+            color: Color::rgb(0.9, 0.9, 0.9),
+            ..default()
+        };
+
+    commands
+        .spawn((
+            NodeBundle {
+                style: Style {
+                    width: Val::Percent(100.0),
+                    height: Val::Percent(100.0),
+                    align_items: AlignItems::Center,
+                    justify_content: JustifyContent::Center,
+                    ..default()
+                },
+                ..default()
+            },
+            OnMainMenuScreen,
+        ))
+        .with_children(|parent| {
+            parent
+                .spawn(NodeBundle {
+                    style: Style {
+                        flex_direction: FlexDirection::Column,
+                        align_items: AlignItems::Center,
+                        ..default()
+                    },
+                    background_color: Color::CRIMSON.into(),
+                    ..default()
+                })
+                .with_children(|parent| {
+                    // Display the game name
+                    parent.spawn(
+                        TextBundle::from_section(
+                            "Bevy Game Menu UI",
+                            TextStyle {
+                                font_size: 80.0,
+                                color: Color::rgb(0.9, 0.9, 0.9),
+                                ..default()
+                            },
+                        )
+                        .with_style(Style {
+                            margin: UiRect::all(Val::Px(50.0)),
+                            ..default()
+                        }),
+                    );
+
+                    // Display three buttons for each action available from the main menu:
+                    // - new game
+                    // - settings
+                    // - quit
+                    parent
+                        .spawn((
+                            ButtonBundle {
+                                style: button_style.clone(),
+                                background_color: NORMAL_BUTTON.into(),
+                                ..default()
+                            },
+                            MenuButtonAction::AI1,
+                        ))
+                        .with_children(|parent| {
+                            let icon = asset_server.load("img/menu_rock_robot.png");
+                            parent.spawn(ImageBundle {
+                                style: button_icon_style.clone(),
+                                image: UiImage::new(icon),
+                                ..default()
+                            });
+                            parent.spawn(TextBundle::from_section(
+                                "AI1",
+                                button_text_style.clone(),
+                            ));
+                        });
+                    parent
+                        .spawn((
+                            ButtonBundle {
+                                style: button_style.clone(),
+                                background_color: NORMAL_BUTTON.into(),
+                                ..default()
+                            },
+                            MenuButtonAction::AI2,
+                        ))
+                        .with_children(|parent| {
+                            let icon = asset_server.load("img/menu_tree_robot.png");
+                            parent.spawn(ImageBundle {
+                                style: button_icon_style.clone(),
+                                image: UiImage::new(icon),
+                                ..default()
+                            });
+                            parent.spawn(TextBundle::from_section(
+                                "AI2",
+                                button_text_style.clone(),
+                            ));
+                        });
+                    parent
+                        .spawn((
+                            ButtonBundle {
+                                style: button_style.clone(),
+                                background_color: NORMAL_BUTTON.into(),
+                                ..default()
+                            },
+                            MenuButtonAction::AI3,
+                        ))
+                        .with_children(|parent| {
+                            let icon = asset_server.load("img/menu_maze_robot.png");
+                            parent.spawn(ImageBundle {
+                                style: button_icon_style.clone(),
+                                image: UiImage::new(icon),
+                                ..default()
+                            });
+                            parent.spawn(TextBundle::from_section("AI3", button_text_style.clone()));
+                        });
+
+                        parent
+                        .spawn((
+                            ButtonBundle {
+                                style: button_style.clone(),
+                                background_color: NORMAL_BUTTON.into(),
+                                ..default()
+                            },
+                            MenuButtonAction::UberAI,
+                        ))
+                        .with_children(|parent| {
+                            let icon = asset_server.load("img/menu_full_robot.png");
+                            parent.spawn(ImageBundle {
+                                style: button_icon_style.clone(),
+                                image: UiImage::new(icon),
+                                ..default()
+                            });
+                            parent.spawn(TextBundle::from_section("UberAI", button_text_style.clone()));
+                        });
+
+                        parent
+                        .spawn((
+                            ButtonBundle {
+                                style: button_style.clone(),
+                                background_color: NORMAL_BUTTON.into(),
+                                ..default()
+                            },
+                            MenuButtonAction::Exit,
+                        ))
+                        .with_children(|parent| {
+                            let icon = asset_server.load("img/exitRight.png");
+                            parent.spawn(ImageBundle {
+                                style: button_icon_style.clone(),
+                                image: UiImage::new(icon),
+                                ..default()
+                            });
+                            parent.spawn(TextBundle::from_section("EXIT", button_text_style));
+                        });
+                });
+                
+        });
+}
+
+
+
 
 
 // Funzione di setup che crea la scena
@@ -151,14 +330,14 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, shared_map: Res
     let weather_icons = WeatherIcons {
         sunny_day: asset_server.load("img/sunny_day.png"),
         sunny_night: asset_server.load("img/sunny_night.png"),
-        foggy_day: asset_server.load("/img/foggy_day.png"),
-        foggy_night: asset_server.load("/img/foggy_night.png"),
+        foggy_day: asset_server.load("img/foggy_day.png"),
+        foggy_night: asset_server.load("img/foggy_night.png"),
         rainy_day: asset_server.load("img/rainy_day.png"),
         rainy_night: asset_server.load("img/rainy_night.png"),
         trentino_snow_day: asset_server.load("img/trentino_snow_day.png"),
         trentino_snow_night: asset_server.load("img/trentino_snow_night.png"),
-        tropical_monsoon_day: asset_server.load("img/tropical_monsoon_day.png"),
-        tropical_monsoon_night: asset_server.load("img/tropical_monsoon_night.png"),
+        tropical_monsoon_day: asset_server.load("img/tropical_moonson_day.png"),
+        tropical_monsoon_night: asset_server.load("img/tropical_moonson_night.png"),
     };
 
     commands.insert_resource(weather_icons);
@@ -404,7 +583,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, shared_map: Res
                             height: Val::Px(150.0),
                             ..default()
                         },
-                        image: UiImage::new(asset_server.load("GUI_one/assets/img/sunny_day.png")), // Usa la texture caricata
+                        image: UiImage::new(asset_server.load("img/sunny_day.png")), // Usa la texture caricata
                         ..default()
                     }).insert(WeatherIcon);
                     //ENERGY AND COORDINATE 
@@ -1068,11 +1247,12 @@ fn button_system(
     mut camera_query: Query<(&mut Transform, &Camera), With<MainCamera>>,
     mut label_query: Query<&mut Style, (With<Label>, Without<LabelBackPack>)>,
     mut label_backpack_query: Query<&mut Style, (With<LabelBackPack>, Without<Label>)>,
-    mut app_exit_events: EventWriter<AppExit>,
     robot_position: Res<RobotPosition>,
+    mut menu_state: ResMut<NextState<MenuState>>,
+    mut game_state: ResMut<NextState<GameState>>,
 ){
     for (interaction, mut color, mut border_color, children,zoomin,zoomout,dropdown,dropdownback, closeapp) in &mut interaction_query {
-        let mut text = text_query.get_mut(children[0]).unwrap();
+        //let mut text = text_query.get_mut(children[0]).unwrap();
         match *interaction {
             Interaction::Pressed => {
                 if zoomin.is_some() {
@@ -1089,9 +1269,12 @@ fn button_system(
                         node_style.display = Display::None; // Cambia da None a Flex
                         }
                     }
+
         
                 }else if closeapp.is_some() {
-                    app_exit_events.send(AppExit);
+                    
+                    
+
                 }else if dropdownback.is_some() {
                     for mut node_style in label_backpack_query.iter_mut() {
                         if node_style.display == Display::None {
@@ -1167,6 +1350,7 @@ fn adjust_camera_zoom_and_position(
 
 const NORMAL_BUTTON: Color = Color::rgb(0.15, 0.15, 0.15);
 const HOVERED_BUTTON: Color = Color::rgb(0.25, 0.25, 0.25);
+const HOVERED_PRESSED_BUTTON: Color = Color::rgb(0.25, 0.65, 0.25);
 const PRESSED_BUTTON: Color = Color::rgb(0.35, 0.75, 0.35);
 
 
@@ -1210,25 +1394,28 @@ fn robot_movement_system(
     tile_size: Res<TileSize>, // Utilizza la risorsa TileSize
     robot_resource: Res<RobotResource>,
     world: Res<MapResource>,
-    weather_icons: Res<WeatherIcons>,
-    mut old_world: ResMut<OldMapResource>,
+    weather_icons: Option<Res<WeatherIcons>>,
+    mut old_world: Option<ResMut<OldMapResource>>,
     energy_query: Query<&mut Text, (With<TagEnergy>,Without<Roboto>,Without<TagTime>, Without<TagBackPack>)>,
     time_query: Query<&mut Text, (With<TagTime>,Without<TagEnergy>,Without<Roboto>, Without<TagBackPack>)>,
     backpack_query: Query<&mut Text, (With<TagBackPack>, Without<TagEnergy>, Without<Roboto>, Without<TagTime>)>,
     battery_query: Query<(&mut Style, &mut BackgroundColor), With<EnergyBar>>,
     sun_query: Query<&mut Sprite, With<SunTime>>,
-    mut weather_image_query: Query<&mut UiImage, With<WeatherIcon>>,
+    weather_image_query: Query<&mut UiImage, With<WeatherIcon>>,
 ) {
 
     
     let world = world.0.lock().unwrap();
-    update_show_tiles(&world, &mut commands, &mut old_world.world);
+    if let Some(ref mut old_world) = old_world {
+        update_show_tiles(&world, &mut commands, &mut old_world.world);
+    }
     let resource = robot_resource.0.lock().unwrap();
     let tile_step = tile_size.tile_size; // Use the dimension of the tile from the resource
     let resource_copy = resource.clone();
     drop(resource);
-    update_infos(resource_copy.clone(), weather_icons, energy_query, time_query, backpack_query, battery_query, sun_query, weather_image_query);
-   // update_energy_bar_color(resource_copy.clone(), battery_query);
+    if let Some(weather_icons) = weather_icons {
+        update_infos(resource_copy.clone(), weather_icons, energy_query, time_query, backpack_query, battery_query, sun_query, weather_image_query);
+    }
     println!(
         "Energy Level: {}\nRow: {}\nColumn: {}\nBackpack Size: {}\nBackpack Contents: {:?}\nCurrent Weather: {:?}\nNext Weather: {:?}\nTicks Until Change: {}",
         resource_copy.energy_level,
@@ -1432,10 +1619,234 @@ struct RobotInfo {
     time: String
 }
 
+//**************************** */
+//MENU CODE
+/**************************** */
+
+fn setup_menu_camera(mut commands: Commands) {
+    println!("SPAUNATAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
+    commands.spawn(Camera2dBundle::default())
+    .insert(OnMainMenuCamera);
+}
+
+fn update_camera_visibility_menu(
+    game_state: Res<State<GameState>>,
+    mut query: Query<(&mut Visibility, &OnMainMenuCamera)>,
+) {
+    let is_menu_active = matches!(game_state.get(), GameState::InMenu);
+
+    for (mut visibility, _) in query.iter_mut() {
+        *visibility = if is_menu_active {
+            Visibility::Visible
+        } else {
+            Visibility::Hidden
+        };
+    }
+}
+
+fn update_camera_visibility_game(
+    game_state: Res<State<GameState>>,
+    mut query: Query<(&mut Visibility, (&MyMinimapCamera, &MainCamera))>,
+) {
+    let is_menu_active = !matches!(game_state.get(), GameState::InMenu);
+
+    for (mut visibility, _) in query.iter_mut() {
+        *visibility = if is_menu_active {
+            Visibility::Visible
+        } else {
+            Visibility::Hidden
+        };
+    }
+}
+// Enum that will be used as a global state for the game
+#[derive(Clone, Copy, Default, Eq, PartialEq, Debug, Hash, States)]
+enum GameState {
+    #[default]
+    InMenu,
+    InAi1,
+    InAi2,
+    InAi3,
+    InUberAi
+}
+
+// Tag component used to mark which setting is currently selected
+#[derive(Component)]
+struct SelectedOption;
+
+
+//BOTTONI DEL MAIN MENU
+#[derive(Clone, Copy, Default, Eq, PartialEq, Debug, Hash, States)]
+enum MenuState {
+    Main,
+    #[default]
+    Disabled
+}
+
+//BOTTONI DEL MAIN MENU
+#[derive(Component)]
+enum MenuButtonAction {
+    AI1,
+    AI2,
+    AI3,
+    UberAI,
+    Exit,
+}
+
+fn menu_setup(mut menu_state: ResMut<NextState<MenuState>>) {
+    menu_state.set(MenuState::Main);
+}
+
+// Generic system that takes a component as a parameter, and will despawn all entities with that component
+fn despawn_screen<T: Component + std::fmt::Debug>(to_despawn: Query<Entity, With<T>>, mut commands: Commands) {
+    for entity in &to_despawn {
+        log::info!("Despawning entity with component: {:?}", entity);
+        commands.entity(entity).despawn_recursive();
+    }
+}
+
+
+fn menu_action(
+    interaction_query: Query<
+        (&Interaction, &MenuButtonAction),
+        (Changed<Interaction>, With<Button>),
+    >,
+    mut app_exit_events: EventWriter<AppExit>,
+    mut menu_state: ResMut<NextState<MenuState>>,
+    mut game_state: ResMut<NextState<GameState>>,
+) {
+    for (interaction, menu_button_action) in &interaction_query {
+        if *interaction == Interaction::Pressed {
+            match menu_button_action {
+                MenuButtonAction::Exit => app_exit_events.send(AppExit),
+                MenuButtonAction::AI1 => {
+                    game_state.set(GameState::InAi1);
+                    menu_state.set(MenuState::Disabled);
+                }
+                MenuButtonAction::AI2 => {
+                    game_state.set(GameState::InAi2);
+                    menu_state.set(MenuState::Disabled);
+                }
+                MenuButtonAction::AI3 => {
+                    game_state.set(GameState::InAi3);
+                    menu_state.set(MenuState::Disabled);
+                }
+                MenuButtonAction::UberAI => {
+                    game_state.set(GameState::InUberAi);
+                    menu_state.set(MenuState::Disabled);
+                }
+            }
+        }
+    }
+}
+
+        // This system handles changing all buttons color based on mouse interaction
+        fn button_system_menu(
+            mut interaction_query: Query<
+                (&Interaction, &mut BackgroundColor, Option<&SelectedOption>),
+                (Changed<Interaction>, With<Button>),
+            >,
+        ) {
+            for (interaction, mut color, selected) in &mut interaction_query {
+                *color = match (*interaction, selected) {
+                    (Interaction::Pressed, _) | (Interaction::None, Some(_)) => PRESSED_BUTTON.into(),
+                    (Interaction::Hovered, Some(_)) => HOVERED_PRESSED_BUTTON.into(),
+                    (Interaction::Hovered, None) => HOVERED_BUTTON.into(),
+                    (Interaction::None, None) => NORMAL_BUTTON.into(),
+                }
+            }
+        }
+
+
+
+    //PLUGIN MAIN MENU
+    pub struct MenuPlugin;
+
+    impl Plugin for MenuPlugin {
+        fn build(&self, app: &mut App) {
+            app
+                // At start, the menu is not enabled. This will be changed in `menu_setup` when
+                // entering the `GameState::Menu` state.
+                // Current screen in the menu is handled by an independent state from `GameState`
+                .add_state::<MenuState>()
+                .add_systems(OnEnter(GameState::InMenu), menu_setup)
+                // Systems to handle the main menu screen
+                .add_systems(OnEnter(MenuState::Main), initial_menu_setup)
+                .add_systems(OnExit(MenuState::Main), (despawn_screen::<OnMainMenuScreen>))
+                
+                // Common systems to all screens that handles buttons behavior
+                .add_systems(
+                    Update,
+                    (menu_action, button_system_menu).run_if(in_state(GameState::InMenu)),
+                );
+        }
+    }
+
+    
+
+
+    //PLUGIN AI1
+    pub struct Ai1Plugin;
+
+    impl Plugin for Ai1Plugin {
+        fn build(&self, app: &mut App) {
+            // Dati condivisi tra thread
+        let robot_info= RobotInfo{
+            energy_level: 1000,
+            coordinate_row: 0,
+            coordinate_column: 0,
+            bp_size: 10,
+            bp_contents: HashMap::new(),
+            current_weather: None,
+            next_weather: None,
+            ticks_until_change: 0,
+            time: "00:00".to_string()
+        };
+        
+        let robot_data = Arc::new(Mutex::new(robot_info));
+        let robot_data_clone = robot_data.clone();
+
+        let map: Arc<Mutex<Vec<Vec<Option<Tile>>>>> = Arc::new(Mutex::new(vec![vec![None; WORLD_SIZE as usize]; WORLD_SIZE as usize]));
+        let map_clone = map.clone();
+
+
+        let robot_resource = RobotResource(robot_data_clone);
+        let map_resource = MapResource(map_clone);
+
+        let moviment = thread::spawn(move || {
+            moviment(robot_data, map);
+        });
+
+
+            app
+            .init_resource::<RobotPosition>()
+            .insert_resource(TileSize { tile_size: 3.0 })
+            .insert_resource(robot_resource)
+            .insert_resource(map_resource)
+            .add_systems(OnEnter(GameState::InAi1),(despawn_screen::<OnMainMenuCamera>, setup))
+            .add_systems(Update, (cursor_events, robot_movement_system, update_robot_position, follow_robot_system, button_system,set_camera_viewports, update_minimap_outline).run_if(in_state(GameState::InAi1)));
+           
+
+            //PROBLEMA
+            //moviment.join().unwrap();
+        }
+    }
+
+
+
+
+
+
+ // Tag component used to tag entities added on the main menu screen
+    #[derive(Component, Debug)]
+    struct OnMainMenuScreen;
+
+    #[derive(Component, Debug)]
+    struct OnMainMenuCamera;
+
 
 fn main() {
     
-    // Dati condivisi tra thread
+    /* // Dati condivisi tra thread
     let robot_info= RobotInfo{
         energy_level: 1000,
         coordinate_row: 0,
@@ -1449,25 +1860,16 @@ fn main() {
     };
     
     let robot_data = Arc::new(Mutex::new(robot_info));
-    let robot_data_clone = robot_data.clone();
 
     let map: Arc<Mutex<Vec<Vec<Option<Tile>>>>> = Arc::new(Mutex::new(vec![vec![None; WORLD_SIZE as usize]; WORLD_SIZE as usize]));
-    let map_clone = map.clone();
 
     let moviment = thread::spawn(move || {
         moviment(robot_data, map);
-    });
+    }); */
 
-    let robot_resource = RobotResource(robot_data_clone);
-    let map_resource = MapResource(map_clone);
+    
 
     App::new()
-    .init_resource::<RobotPosition>()//ricordarsi di metterlo quando si ha una risorsa 
-    .insert_resource(TileSize{tile_size: 3.0}) //setta la risorsa tile per la grandezza di esso
-    .insert_resource(robot_resource)
-    .insert_resource(map_resource)
-    .add_systems(Startup,setup)
-    .add_systems(Update, (cursor_events, robot_movement_system, update_robot_position, follow_robot_system, button_system,set_camera_viewports, update_minimap_outline)) //unpdate every frame
     .add_plugins(DefaultPlugins.set(WindowPlugin{
         primary_window: Some(Window{
             mode: WindowMode::Fullscreen,
@@ -1475,9 +1877,17 @@ fn main() {
         }),
         ..Default::default()
     }))
-    .run();  
+    .add_state::<GameState>()
+    .add_systems(Startup, setup_menu_camera)
+    .add_systems(Update, (update_camera_visibility_menu))
+    .add_plugins((Ai1Plugin, MenuPlugin))
+    .run();
 
-    moviment.join().unwrap();
+    
+
+  
+
+    
 }
 
 struct Robottino {
@@ -1517,7 +1927,7 @@ fn ai_taglialegna(robot: &mut Robottino, world: &mut robotics_lib::world::World)
 fn ai_asfaltatore(robot: &mut Robottino, world: &mut robotics_lib::world::World){}
 fn ai_completo_con_tool(robot: &mut Robottino, world: &mut robotics_lib::world::World){
     //durata sleep in millisecondi per velocità robot
-    let sleep_time_milly: u64 = 10;
+    let sleep_time_milly: u64 = 30;
         
     sleep(std::time::Duration::from_millis(sleep_time_milly));
     //se l'energia e' sotto il 300, la ricarico
