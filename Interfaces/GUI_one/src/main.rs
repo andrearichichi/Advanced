@@ -47,8 +47,8 @@ const MIN_ZOOM: f32 = 0.05; // Sostituisci con il valore minimo desiderato
 const MAX_ZOOM: f32 = 0.25; //1.0 se 150, 0.25 se 250
 
 
-const AI: AiLogic = AiLogic::Ricercatore;
-const WORLD_SIZE: u32 = 250;
+const AI: AiLogic = AiLogic::Falegname;
+const WORLD_SIZE: u32 = 300;
 const TILE_SIZE: f32 = 3.0; // Dimensione di ogni quadrato
 
 #[derive(Component, Debug)]
@@ -1937,6 +1937,7 @@ impl Runnable for Robottino {
 
     fn handle_event(&mut self, event: robotics_lib::event::events::Event) {
         self.weather_tool.process_event(&event);
+        
 
         //update info
         {
@@ -2011,10 +2012,11 @@ fn weather_check(robot: &Robottino) -> Option<(WeatherType, u32)> {
 
 fn get_audio_manager() -> OxAgAudioTool {
     let background_music = OxAgSoundConfig::new_looped_with_volume("audio/background.ogg", 2.0);
+    
 
     let mut events = HashMap::new();
     // events.insert(Event::Ready, OxAgSoundConfig::new("assets/default/event/event_ready.ogg"));
-    // events.insert(Event::Terminated, OxAgSoundConfig::new("assets/default/event/event_terminated.ogg"));
+    //events.insert(Event::Terminated, OxAgSoundConfig::new("assets/default/event/event_terminated.ogg"));
     // // events.insert(Event::EnergyRecharged(0), OxAgSoundConfig::new_with_volume("assets/default/event/event_energy_recharged.ogg", 0.1));
     // events.insert(Event::AddedToBackpack(Content::None, 0), OxAgSoundConfig::new("assets/default/event/event_add_to_backpack.ogg"));
     // events.insert(Event::RemovedFromBackpack(Content::None, 0), OxAgSoundConfig::new("assets/default/event/event_remove_from_backpack.ogg"));
@@ -2032,11 +2034,11 @@ fn get_audio_manager() -> OxAgAudioTool {
     // tiles.insert(TileType::Street, OxAgSoundConfig::new("assets/default/tile/tile_street.ogg"));
 
     let mut weather = HashMap::new();
-    // weather.insert(WeatherType::Rainy, OxAgSoundConfig::new("assets/default/weather/weather_rainy.ogg"));
-    // weather.insert(WeatherType::Foggy, OxAgSoundConfig::new("assets/default/weather/weather_foggy.ogg"));
-    // weather.insert(WeatherType::Sunny, OxAgSoundConfig::new("assets/default/weather/weather_sunny.ogg"));
-    // weather.insert(WeatherType::TrentinoSnow, OxAgSoundConfig::new("assets/default/weather/weather_winter.ogg"));
-    // weather.insert(WeatherType::TropicalMonsoon, OxAgSoundConfig::new("assets/default/weather/weather_tropical.ogg"));
+    weather.insert(WeatherType::Rainy, OxAgSoundConfig::new("audio/rainy.ogg"));
+    weather.insert(WeatherType::Foggy, OxAgSoundConfig::new("audio/foggy.ogg"));
+    weather.insert(WeatherType::Sunny, OxAgSoundConfig::new("audio/sunny.ogg"));
+    weather.insert(WeatherType::TrentinoSnow, OxAgSoundConfig::new("audio/trentino_snow.ogg"));
+    weather.insert(WeatherType::TropicalMonsoon, OxAgSoundConfig::new("audio/tropical_monsoon.ogg")); 
 
     // Create the audio tool
     let audio = match OxAgAudioTool::new(events, tiles, weather) {
