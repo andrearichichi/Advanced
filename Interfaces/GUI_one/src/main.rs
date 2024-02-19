@@ -1926,11 +1926,11 @@ impl Runnable for Robottino {
         look_at_sky(&world).get_weather_condition();
 
         let weather_type = match look_at_sky(&world).get_weather_condition() {
-            WeatherType::Rainy => "audio/rainy.ogg",
-            WeatherType::Foggy => "audio/foggy.ogg",
-            WeatherType::Sunny => "audio/sunny.ogg",
-            WeatherType::TrentinoSnow => "audio/trentino_snow.ogg",
-            WeatherType::TropicalMonsoon => "audio/tropical_monsoon.ogg",
+            WeatherType::Rainy => "assets/audio/rainy.ogg",
+            WeatherType::Foggy => "assets/audio/foggy.ogg",
+            WeatherType::Sunny => "assets/audio/sunny.ogg",
+            WeatherType::TrentinoSnow => "assets/audio/trentino_snow.ogg",
+            WeatherType::TropicalMonsoon => "assets/audio/tropical_monsoon.ogg",
     };
     let sound_config = OxAgSoundConfig::new(weather_type);
 
