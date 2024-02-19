@@ -336,8 +336,8 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, shared_map: Res
         rainy_night: asset_server.load("img/rainy_night.png"),
         trentino_snow_day: asset_server.load("img/trentino_snow_day.png"),
         trentino_snow_night: asset_server.load("img/trentino_snow_night.png"),
-        tropical_monsoon_day: asset_server.load("img/tropical_moonson_day.png"),
-        tropical_monsoon_night: asset_server.load("img/tropical_moonson_night.png"),
+        tropical_monsoon_day: asset_server.load("img/tropical_monsoon_day.png"),
+        tropical_monsoon_night: asset_server.load("img/tropical_monsoon_night.png"),
     };
 
     commands.insert_resource(weather_icons);
@@ -385,7 +385,6 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, shared_map: Res
     // per la posizione centrale della tile
 
     let robot_size = 2.0;
-    let sunny: Handle<Image> = asset_server.load("img/sunny.png");
 
         //spawna il robot
     commands.spawn(SpriteBundle {
@@ -719,7 +718,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, shared_map: Res
             transform: Transform::from_xyz(TILE_SIZE * resource.coordinate_row as f32, TILE_SIZE * resource.coordinate_row as f32, 1.0) // Usa la posizione del punto rosso
             .with_scale(main_scale),
             camera: Camera{
-                order: 0,
+                order: 1,
                 ..default()
             },
             ..Default::default()
@@ -752,7 +751,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, shared_map: Res
         transform: Transform::from_xyz(world_center_x, world_center_y, 555.0)
         .with_scale(minimap_scale), //usa il centro del mondo come posizione e z alta
         camera: Camera{
-            order: 1,  //serve per mettere l'ordine di rendering delle camere, se non settato default a 0(MAINCAMERA)
+            order: 2,  //serve per mettere l'ordine di rendering delle camere, se non settato default a 0(MAINCAMERA)
             ..default()
         },
         camera_2d: Camera2d {
@@ -1831,7 +1830,7 @@ fn menu_action(
         .insert_resource(TileSize { tile_size: 3.0 })
         .insert_resource(robot_resource)
         .insert_resource(map_resource)
-        .add_systems(OnEnter(GameState::InAi1),(update_camera_visibility_menu, setup))
+        .add_systems(OnEnter(GameState::InAi1),(setup, update_camera_visibility_menu))
         .add_systems(Update, (cursor_events, robot_movement_system, update_robot_position, follow_robot_system, button_system,set_camera_viewports, update_minimap_outline).run_if(in_state(GameState::InAi1)));
            
 
