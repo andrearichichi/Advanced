@@ -1478,19 +1478,20 @@ fn moviment(robot_data: Arc<Mutex<RobotInfo>>, map: Arc<Mutex<Vec<Vec<Option<Til
         maze_discovered: None,
     };
 
+
     // world generator initialization
     let mut world_gen =
         ghost_amazeing_island::world_generator::WorldGenerator::new(WORLD_SIZE, false, 1, 1.1);
     // Runnable creation and start
 
     println!("Generating runnable (world + robot)...");
-    // match robot.audio.play_audio(&background_music) {
-    //     Ok(_) => {},
-    //     Err(e) => {
-    //         eprintln!("Failed to play audio: {}", e);
-    //         std::process::exit(1);
-    //     }
-    // }
+    /*  match robot.audio.play_audio(&background_music) {
+         Ok(_) => {},
+         Err(e) => {
+             eprintln!("Failed to play audio: {}", e);
+             std::process::exit(1);
+         }
+     } */
     let mut world_gen =
         ghost_amazeing_island::world_generator::WorldGenerator::new(WORLD_SIZE, false, 1, 1.1);
     let mut runner = Runner::new(Box::new(robot), &mut world_gen);
@@ -1921,6 +1922,26 @@ fn ai_completo_con_tool(robot: &mut Robottino, world: &mut robotics_lib::world::
 
 impl Runnable for Robottino {
     fn process_tick(&mut self, world: &mut robotics_lib::world::World) {
+
+        look_at_sky(&world).get_weather_condition();
+
+        let weather_type = match look_at_sky(&world).get_weather_condition() {
+            WeatherType::Rainy => "audio/rainy.ogg",
+            WeatherType::Foggy => "audio/foggy.ogg",
+            WeatherType::Sunny => "audio/sunny.ogg",
+            WeatherType::TrentinoSnow => "audio/trentino_snow.ogg",
+            WeatherType::TropicalMonsoon => "audio/tropical_monsoon.ogg",
+    };
+    let sound_config = OxAgSoundConfig::new(weather_type);
+
+    match self.audio.play_audio(&sound_config) {
+        Ok(_) => {},
+        Err(e) => {
+            eprintln!("Failed to play audio: {}", e);
+            std::process::exit(1);
+        }
+    }
+
         let sleep_time_milly: u64 = 30;
         sleep(std::time::Duration::from_millis(sleep_time_milly));
         // in base alla logica scelta, esegue la funzione corrispondente
@@ -1930,6 +1951,9 @@ impl Runnable for Robottino {
             AiLogic::Ricercatore => ai_labirint(self, world),
             AiLogic::Completo => ai_completo_con_tool(self, world),
         }
+        
+       
+        
 
         //update map
         update_map(self, world);
@@ -1937,7 +1961,7 @@ impl Runnable for Robottino {
 
     fn handle_event(&mut self, event: robotics_lib::event::events::Event) {
         self.weather_tool.process_event(&event);
-        
+  
 
         //update info
         {
@@ -1947,7 +1971,8 @@ impl Runnable for Robottino {
             shared_robot.coordinate_column = self.robot.coordinate.get_col();
             shared_robot.bp_size = self.robot.backpack.get_size();
             shared_robot.bp_contents = self.robot.backpack.get_contents().clone();
-        }
+
+             }
     }
 
     fn get_energy(&self) -> &Energy {
@@ -2034,11 +2059,11 @@ fn get_audio_manager() -> OxAgAudioTool {
     // tiles.insert(TileType::Street, OxAgSoundConfig::new("assets/default/tile/tile_street.ogg"));
 
     let mut weather = HashMap::new();
-    weather.insert(WeatherType::Rainy, OxAgSoundConfig::new("audio/rainy.ogg"));
-    weather.insert(WeatherType::Foggy, OxAgSoundConfig::new("audio/foggy.ogg"));
-    weather.insert(WeatherType::Sunny, OxAgSoundConfig::new("audio/sunny.ogg"));
-    weather.insert(WeatherType::TrentinoSnow, OxAgSoundConfig::new("audio/trentino_snow.ogg"));
-    weather.insert(WeatherType::TropicalMonsoon, OxAgSoundConfig::new("audio/tropical_monsoon.ogg")); 
+    //weather.insert(WeatherType::Rainy, OxAgSoundConfig::new("audio/rainy.ogg"));
+    //weather.insert(WeatherType::Foggy, OxAgSoundConfig::new("audio/foggy.ogg"));
+    //weather.insert(WeatherType::Sunny, OxAgSoundConfig::new("audio/sunny.ogg"));
+    //weather.insert(WeatherType::TrentinoSnow, OxAgSoundConfig::new("audio/trentino_snow.ogg"));
+    //weather.insert(WeatherType::TropicalMonsoon, OxAgSoundConfig::new("audio/tropical_monsoon.ogg")); 
 
     // Create the audio tool
     let audio = match OxAgAudioTool::new(events, tiles, weather) {
