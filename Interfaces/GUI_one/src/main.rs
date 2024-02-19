@@ -400,8 +400,8 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, shared_map: Res
                     // IMMAGINE
                     parent.spawn(ImageBundle {
                         style: Style {
-                            width: Val::Px(100.0),
-                            height: Val::Px(100.0),
+                            width: Val::Px(150.0),
+                            height: Val::Px(150.0),
                             ..default()
                         },
                         image: UiImage::new(asset_server.load("GUI_one/assets/img/sunny_day.png")), // Usa la texture caricata
@@ -1511,11 +1511,13 @@ fn ai_labirint(robot: &mut Robottino, world: &mut robotics_lib::world::World){
     }
 }
 
-fn ai_taglialegna(robot: &mut Robottino, world: &mut robotics_lib::world::World){}
+fn ai_taglialegna(robot: &mut Robottino, world: &mut robotics_lib::world::World){
+
+}
 fn ai_asfaltatore(robot: &mut Robottino, world: &mut robotics_lib::world::World){}
 fn ai_completo_con_tool(robot: &mut Robottino, world: &mut robotics_lib::world::World){
     //durata sleep in millisecondi per velocità robot
-    let sleep_time_milly: u64 = 300;
+    let sleep_time_milly: u64 = 10;
         
     sleep(std::time::Duration::from_millis(sleep_time_milly));
     //se l'energia e' sotto il 300, la ricarico
@@ -1555,7 +1557,6 @@ fn ai_completo_con_tool(robot: &mut Robottino, world: &mut robotics_lib::world::
     }
     //print coordinate
 
-    
     let actual_energy = robot.get_energy().get_energy_level();
     println!("{:?}", actual_energy);
     let coordinates = robot.get_coordinate();
