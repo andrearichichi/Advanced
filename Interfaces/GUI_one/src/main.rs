@@ -43,9 +43,10 @@ use robotics_lib::{
 };
 
 const MIN_ZOOM: f32 = 0.05; // Sostituisci con il valore minimo desiderato
-const MAX_ZOOM: f32 = 1.0; // Sostituisci con il valore massimo calcolato dinamicamente
+const MAX_ZOOM: f32 = 0.25; //1.0 se 150, 0.25 se 250
 
-const AI: AiLogic = AiLogic::Ricercatore;
+
+const AI: AiLogic = AiLogic::Falegname;
 const WORLD_SIZE: u32 = 250;
 const TILE_SIZE: f32 = 3.0; // Dimensione di ogni quadrato
 
@@ -1380,7 +1381,7 @@ fn follow_robot_system(
     }
 } */
 
-/* fn follow_robot_system(
+fn follow_robot_system(
     robot_position: Res<RobotPosition>,
     mut camera_query: Query<(&mut Transform, &Camera), With<MainCamera>>,
 ) {
@@ -1410,10 +1411,10 @@ fn follow_robot_system(
             camera_transform.translation.z = 10.0; // Mantiene la camera elevata per una vista top-down
         }
     }
-} */
+}
 
 //DINAMICA(?)
-fn follow_robot_system(
+/* fn follow_robot_system(
     robot_position: Res<RobotPosition>,
     mut camera_query: Query<(&mut Transform, &Camera), With<MainCamera>>,
 ) {
@@ -1441,10 +1442,10 @@ fn follow_robot_system(
                 (viewport.physical_size.y as f32 * camera_scale) / scale_factor;
 
             // Resto della logica per limitare la camera ai bordi del mondo...
-            let world_min_x = camera_half_width;
-            let world_max_x = WORLD_SIZE as f32 * TILE_SIZE - camera_half_width;
-            let world_min_y = camera_half_height;
-            let world_max_y = WORLD_SIZE as f32 * TILE_SIZE - camera_half_height;
+            let world_min_x = camera_half_width + SCHERMO;
+            let world_max_x = WORLD_SIZE as f32 * TILE_SIZE - camera_half_width + SCHERMO;
+            let world_min_y = camera_half_height + SCHERMO;
+            let world_max_y = WORLD_SIZE as f32 * TILE_SIZE - camera_half_height + SCHERMO;
 
             let new_camera_x = robot_position.x.clamp(world_min_x, world_max_x);
             let new_camera_y = robot_position.y.clamp(world_min_y, world_max_y);
@@ -1453,7 +1454,7 @@ fn follow_robot_system(
             camera_transform.translation.y = new_camera_y;
         }
     }
-}
+} */
 //enum per ai_logic (4 stringhe)
 enum AiLogic {
     Falegname,
@@ -1772,7 +1773,7 @@ fn ai_asfaltatore(robot: &mut Robottino, world: &mut robotics_lib::world::World)
 }
 fn ai_completo_con_tool(robot: &mut Robottino, world: &mut robotics_lib::world::World) {
     //durata sleep in millisecondi per velocità robot
-    let sleep_time_milly: u64 = 30;
+    let sleep_time_milly: u64 = 1000;
 
     sleep(std::time::Duration::from_millis(sleep_time_milly));
     //se l'energia e' sotto il 300, la ricarico
@@ -1820,7 +1821,7 @@ fn ai_completo_con_tool(robot: &mut Robottino, world: &mut robotics_lib::world::
 
 impl Runnable for Robottino {
     fn process_tick(&mut self, world: &mut robotics_lib::world::World) {
-        let sleep_time_milly: u64 = 10;
+        let sleep_time_milly: u64 = 30;
         sleep(std::time::Duration::from_millis(sleep_time_milly));
         // in base alla logica scelta, esegue la funzione corrispondente
         match self.ai_logic {
