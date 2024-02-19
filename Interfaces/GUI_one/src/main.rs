@@ -1380,6 +1380,7 @@ fn moviment(robot_data: Arc<Mutex<RobotInfo>>, map: Arc<Mutex<Vec<Vec<Option<Til
         audio: audio,
         weather_tool: WeatherPredictionTool::new(),
         ai_logic: AI,
+        maze_discovered: false,
     };
 
     // world generator initialization
@@ -1507,26 +1508,31 @@ struct Robottino {
     robot: Robot,
     audio: OxAgAudioTool,
     weather_tool: WeatherPredictionTool,
-    ai_logic: AiLogic
+    ai_logic: AiLogic,
+    maze_discovered: bool,
 }
 
 fn ai_labirint(robot: &mut Robottino, world: &mut robotics_lib::world::World){
     //maze are 18*18 so we check every 9 tiles
     //if robotmap some save it
-    
-    if let Some(map) = robot_map(world) {
-    
-        //quanto e' grande la mappa
-        let map_size = map.len();
-        let times_to_discover_map_for_side = map_size/9+1;
-        for i in 1..times_to_discover_map_for_side {
-            for j in 1..times_to_discover_map_for_side {
-                if robot.robot.energy.get_energy_level() < 300 {
-                    robot.robot.energy = rust_and_furious_dynamo::dynamo::Dynamo::update_energy();
+    if !robot.maze_discovered {
+        if let Some(map) = robot_map(world) {
+            
+            //quanto e' grande la mappa
+            let map_size = map.len();
+            let times_to_discover_map_for_side = map_size/9+1;
+            for i in 1..times_to_discover_map_for_side {
+                for j in 1..times_to_discover_map_for_side {
+                    if robot.robot.energy.get_energy_level() < 300 {
+                        robot.robot.energy = rust_and_furious_dynamo::dynamo::Dynamo::update_energy();
+                    }
+                    let row = i*9;
+                    let col = j*9;
+                    let tiles =  discover_tiles(robot, world, &[(row-1, col), (row, col),(row-1, col-1),(row, col-1)]);
+                    //check the 4 tiles if tiletype = wall
+                    //sleep 300 ms
+                    sleep(std::time::Duration::from_millis(300));
                 }
-                let row = i*9;
-                let col = j*9;
-                println!("{:?}",discover_tiles(robot, world, &[(row-1, col), (row, col),(row-1, col-1),(row, col-1)]));
             }
         }
     }
