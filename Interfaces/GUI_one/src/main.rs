@@ -1617,11 +1617,73 @@ struct Robottino {
     maze_discovered: Option<(usize, usize)>,
 }
 
+fn solve_labirint(
+    robot: &mut Robottino,
+    world: &mut robotics_lib::world::World,
+    mut last_direction: Direction,
+) { 
+    robot.robot.energy = rust_and_furious_dynamo::dynamo::Dynamo::update_energy();
+    let mut last_positions: Vec<Direction> = Vec::new();
+    let mut stack: Vec<Direction> = Vec::new();
+
+    loop {
+        go(robot, world, last_direction.clone());
+        //conta quanti muri ci sono intorno al robot
+        let view = robot_view(robot, world);
+        update_map(robot, world);
+        let mut walls = 0;
+        if view[0][1].as_ref().unwrap().tile_type==TileType::Wall {
+            walls += 1;
+        };//alto
+        if view[1][0].as_ref().unwrap().tile_type==TileType::Wall{ 
+            walls += 1;
+        };//sinistra
+        if view[1][2].as_ref().unwrap().tile_type==TileType::Wall {
+            walls += 1;
+        };//destra
+        if view[2][1].as_ref().unwrap().tile_type==TileType::Wall {
+            walls += 1;
+        };//basso
+        //se walls e' 2 allora vai nella direzione diversa da last direction
+        if walls == 2 {
+            if last_direction == Direction::Up {
+                if view[1][0].as_ref().unwrap().tile_type==TileType::Wall {
+                    last_direction = Direction::Right;
+                } else {
+                    last_direction = Direction::Left;
+                }
+            } else if last_direction == Direction::Down {
+                if view[1][0].as_ref().unwrap().tile_type==TileType::Wall {
+                    last_direction = Direction::Right;
+                } else {
+                    last_direction = Direction::Left;
+                }
+            } else if last_direction == Direction::Left {
+                if view[0][1].as_ref().unwrap().tile_type==TileType::Wall {
+                    last_direction = Direction::Down;
+                } else {
+                    last_direction = Direction::Up;
+                }
+            } else if last_direction == Direction::Right {
+                if view[0][1].as_ref().unwrap().tile_type==TileType::Wall {
+                    last_direction = Direction::Down;
+                } else {
+                    last_direction = Direction::Up;
+                }
+            }
+        } else {
+            // da gestire 2 strade quindi creazione di vec e push nella pila e gestione 3 wall 
+        }
+
+    }
+}
+
 fn find_entrance(
     robot: &mut Robottino,
     world: &mut robotics_lib::world::World,
     mut last_direction: Direction,
 ) {
+    robot.robot.energy = rust_and_furious_dynamo::dynamo::Dynamo::update_energy();
     loop {
         //sleep 300
         
@@ -1642,7 +1704,7 @@ fn find_entrance(
         println!("{:?}",view[1][0].as_ref().unwrap().tile_type==TileType::Wall);//sinistra
         println!("{:?}",view[1][2].as_ref().unwrap().tile_type==TileType::Wall);//destra
         println!("{:?}",view[2][1].as_ref().unwrap().tile_type==TileType::Wall);//basso
-        sleep(std::time::Duration::from_millis(1000));
+        sleep(std::time::Duration::from_millis(300));
 
         match last_direction {
             Direction::Up => {
@@ -1650,7 +1712,13 @@ fn find_entrance(
                     if tile.tile_type == TileType::Wall {
                         print!("su");
                     } else {
+                        println!("spostato su");
                         go(robot, world, Direction::Up);
+                        let view = robot_view(robot, world);
+                        if (view[1][0].as_ref().unwrap().tile_type==TileType::Wall && view[1][2].as_ref().unwrap().tile_type==TileType::Wall){
+                            solve_labirint(robot, world, last_direction.clone());
+                            break;
+                        }
                         last_direction = Direction::Right;
                     }
                 }
@@ -1660,7 +1728,13 @@ fn find_entrance(
                     if tile.tile_type == TileType::Wall {
                         print!("giu");
                     } else {
+                        println!("spostato giu");
                         go(robot, world, Direction::Down);
+                        let view = robot_view(robot, world);
+                        if (view[1][0].as_ref().unwrap().tile_type==TileType::Wall && view[1][2].as_ref().unwrap().tile_type==TileType::Wall){
+                            solve_labirint(robot, world, last_direction);
+                            break;
+                        }
                         last_direction = Direction::Left;
                     }
                 }
@@ -1670,8 +1744,14 @@ fn find_entrance(
                     if tile.tile_type == TileType::Wall {
                         print!("left");
                     } else {
+                        println!("spostato sinistra");
                         go(robot, world, Direction::Left);
-                        last_direction = Direction::Down;
+                        let view = robot_view(robot, world);
+                        if (view[0][1].as_ref().unwrap().tile_type==TileType::Wall && view[2][1].as_ref().unwrap().tile_type==TileType::Wall){
+                            solve_labirint(robot, world, last_direction);
+                            break;
+                        }
+                        last_direction = Direction::Up;
                     }
                 }
             }
@@ -1680,8 +1760,14 @@ fn find_entrance(
                     if tile.tile_type == TileType::Wall {
                         print!("right");
                     } else {
+                        println!("spostato destra");
                         go(robot, world, Direction::Right);
-                        last_direction = Direction::Up;
+                        let view = robot_view(robot, world);
+                        if (view[0][1].as_ref().unwrap().tile_type==TileType::Wall && view[2][1].as_ref().unwrap().tile_type==TileType::Wall){
+                            solve_labirint(robot, world, last_direction);
+                            break;
+                        }
+                        last_direction = Direction::Down;
                     }
                 }
             }
@@ -1874,7 +1960,7 @@ fn ai_asfaltatore(robot: &mut Robottino, world: &mut robotics_lib::world::World)
 }
 fn ai_completo_con_tool(robot: &mut Robottino, world: &mut robotics_lib::world::World) {
     //durata sleep in millisecondi per velocità robot
-    let sleep_time_milly: u64 = 30;
+    let sleep_time_milly: u64 = 1000;
 
     sleep(std::time::Duration::from_millis(sleep_time_milly));
     //se l'energia e' sotto il 300, la ricarico
