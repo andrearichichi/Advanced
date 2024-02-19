@@ -10,7 +10,8 @@
 
 use bevy::{app::AppExit, prelude::*, render::view::RenderLayers};
 use op_map::op_pathfinding::{get_best_action_to_element, OpActionInput, OpActionOutput, ShoppingList};
-use robotics_lib::{interface::{destroy, discover_tiles, go, put}, world::{environmental_conditions::WeatherType, tile::{Content, Tile, TileType}}};
+use rand::Rng;
+use robotics_lib::{interface::{destroy, discover_tiles, go, put, Direction}, utils::LibError, world::{environmental_conditions::WeatherType, tile::{Content, Tile, TileType}}};
 use bevy::render::camera::Viewport;
 use bevy::window::WindowResized;
 use bevy::core_pipeline::clear_color::ClearColorConfig;
@@ -1553,7 +1554,7 @@ fn moviment(robot_data: Arc<Mutex<RobotInfo>>, map: Arc<Mutex<Vec<Vec<Option<Til
         robot: Robot::new(),
         audio: audio,
         weather_tool: WeatherPredictionTool::new(),
-        ai_logic: AiLogic::Falegname
+        ai_logic: AiLogic::Ricercatore,
     };
 
     // world generator initialization
@@ -1923,31 +1924,20 @@ fn ai_labirint(robot: &mut Robottino, world: &mut robotics_lib::world::World){
                 }
                 let row = i*9;
                 let col = j*9;
-                // println!("{:?}",discover_tiles(robot, world, &[(row-1, col), (row, col),(row-1, col-1),(row, col-1)]));
+                println!("{:?}",discover_tiles(robot, world, &[(row-1, col), (row, col),(row-1, col-1),(row, col-1)]));
             }
         }
     }
 }
 
 fn ai_taglialegna(robot: &mut Robottino, world: &mut robotics_lib::world::World){
-    let sleep_time_milly: u64 = 10;
-    sleep(std::time::Duration::from_millis(sleep_time_milly));
-
     //se l'energia e' sotto il 300, la ricarico
     if robot.robot.energy.get_energy_level() < 300 {
         robot.robot.energy = rust_and_furious_dynamo::dynamo::Dynamo::update_energy();
     }
 
     let v = robot_view(robot, world);
-    for i in 0..v.len() {
-        for j in 0..v[i].len() {
-            if v[i][j].is_some() && v[i][j].clone().unwrap().content == Content::Crate(0..0) {
-                println!("{:?}", v[i][j]);
-                println!("sono un crate");
-            }
-            // println!("{:?}", v[i][j]);
-        }
-    }
+
     let a = robot.get_backpack().get_size();
     let b = robot.get_backpack().get_contents().values().sum::<usize>();
     if ( a>b ){
@@ -1989,7 +1979,39 @@ fn ai_taglialegna(robot: &mut Robottino, world: &mut robotics_lib::world::World)
         }
     }
 }
-fn ai_asfaltatore(robot: &mut Robottino, world: &mut robotics_lib::world::World){}
+fn ai_asfaltatore(robot: &mut Robottino, world: &mut robotics_lib::world::World){
+    if robot.robot.energy.get_energy_level() < 200 {
+        robot.robot.energy = rust_and_furious_dynamo::dynamo::Dynamo::update_energy();
+    }
+
+    robot_view(robot, world);
+
+    if ( robot.get_backpack().get_size()>robot.get_backpack().get_contents().values().sum::<usize>() ){
+        let tiles_option = cheapest_border(world, robot);
+        if let Some(tiles) = tiles_option {
+        //manage the return stat of move to cheapest border
+            let result = move_to_cheapest_border(world, robot, tiles);
+
+            DestroyZone.execute(world, robot, Content::Rock(0));
+        }
+    } else {
+        for _i in 0..20 {
+            sleep(std::time::Duration::from_millis(300));
+            let v = bessie::bessie::road_paving_machine(robot, world, Direction::Up, bessie::bessie::State::MakeRoad);
+            //if err
+            if v.is_err() {
+                //random da 0 a 3
+                let rand = rand::thread_rng().gen_range(0..4);
+                match rand {
+                    0 => go(robot, world, Direction::Up),
+                    1 => go(robot, world, Direction::Down),
+                    2 => go(robot, world, Direction::Left),
+                    _ => go(robot, world, Direction::Right),
+                };
+            }
+        }
+    }
+}
 fn ai_completo_con_tool(robot: &mut Robottino, world: &mut robotics_lib::world::World){
     //durata sleep in millisecondi per velocità robot
     let sleep_time_milly: u64 = 30;
@@ -2042,6 +2064,8 @@ impl Runnable for Robottino {
     
 
     fn process_tick(&mut self, world: &mut robotics_lib::world::World) {
+        let sleep_time_milly: u64 = 10;
+        sleep(std::time::Duration::from_millis(sleep_time_milly));
         // in base alla logica scelta, esegue la funzione corrispondente
         match self.ai_logic {
             AiLogic::Falegname => ai_taglialegna(self, world),
