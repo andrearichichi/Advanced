@@ -367,7 +367,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, shared_map: Res
             }
         }
     }
-    println!("count mappaa viosualizzaaaaa {:?}", count);
+    // println!("count mappaa viosualizzaaaaa {:?}", count);
     let mut old_map = OldMapResource{
         //world: vec![vec![None; WORLD_SIZE as usize]; WORLD_SIZE as usize],
         world: vec![vec![None; WORLD_SIZE as usize]; WORLD_SIZE as usize],
@@ -377,7 +377,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, shared_map: Res
     //sotto funzione per telecamera
     //commands.spawn(Camera2dBundle::default()); 
 
-    println!("Robot {:?} {:?}",resource.coordinate_column, resource.coordinate_row);    
+    // println!("Robot {:?} {:?}",resource.coordinate_column, resource.coordinate_row);    
     update_show_tiles(&world, &mut commands, &mut old_map.world);
     commands.insert_resource(old_map);
 
@@ -1163,7 +1163,7 @@ fn update_show_tiles(world: &Vec<Vec<Option<Tile>>>, commands: &mut Commands, ol
             // Se il nuovo tile non e' None e il vecchio tile e' None, spawnalo
             if tile.is_some() && (old_tile.is_none() || old_tile.clone().unwrap().content != tile.clone().unwrap().content) {
                 let tile = tile.clone().unwrap();
-                println!("x: {:?}, y: {:?}, tile: {:?}", x, y, tile);
+                // println!("x: {:?}, y: {:?}, tile: {:?}", x, y, tile);
                 let tile_color = get_color(tile.clone());
                 let content_color = get_content_color(tile.clone());
                 let mut z_value = 1.0;
@@ -1416,17 +1416,17 @@ fn robot_movement_system(
     if let Some(weather_icons) = weather_icons {
         update_infos(resource_copy.clone(), weather_icons, energy_query, time_query, backpack_query, battery_query, sun_query, weather_image_query);
     }
-    println!(
-        "Energy Level: {}\nRow: {}\nColumn: {}\nBackpack Size: {}\nBackpack Contents: {:?}\nCurrent Weather: {:?}\nNext Weather: {:?}\nTicks Until Change: {}",
-        resource_copy.energy_level,
-        resource_copy.coordinate_row,
-        resource_copy.coordinate_column,
-        resource_copy.bp_size,
-        resource_copy.bp_contents,
-        resource_copy.current_weather,
-        resource_copy.next_weather,
-        resource_copy.ticks_until_change
-    );
+    // println!(
+    //     "Energy Level: {}\nRow: {}\nColumn: {}\nBackpack Size: {}\nBackpack Contents: {:?}\nCurrent Weather: {:?}\nNext Weather: {:?}\nTicks Until Change: {}",
+    //     resource_copy.energy_level,
+    //     resource_copy.coordinate_row,
+    //     resource_copy.coordinate_column,
+    //     resource_copy.bp_size,
+    //     resource_copy.bp_contents,
+    //     resource_copy.current_weather,
+    //     resource_copy.next_weather,
+    //     resource_copy.ticks_until_change
+    // );
     
     for mut transform in query.iter_mut() {
         transform.translation.y = tile_step * resource_copy.coordinate_column as f32;
@@ -1544,7 +1544,6 @@ enum AiLogic {
 }
 
 fn moviment(robot_data: Arc<Mutex<RobotInfo>>, map: Arc<Mutex<Vec<Vec<Option<Tile>>>>>){
-    println!("Hello, world!");
     let audio = get_audio_manager();
     //let background_music = OxAgSoundConfig::new_looped_with_volume("assets/audio/background.ogg", 2.0);
 
@@ -1623,10 +1622,20 @@ struct RobotInfo {
 //MENU CODE
 /**************************** */
 
-fn setup_menu_camera(mut commands: Commands) {
-    println!("SPAUNATAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
-    commands.spawn(Camera2dBundle::default())
-    .insert(OnMainMenuCamera);
+fn setup_menu_camera(mut commands: Commands, query: Query<Entity, With<OnMainMenuCamera>>) {
+    // Verifica se esiste già una camera con il componente OnMainMenuCamera
+    let camera_exists = query.iter().next().is_some();
+
+    if !camera_exists {
+        commands.spawn(Camera2dBundle {
+            camera: Camera {
+                order: 0,
+                ..default()
+            },
+            ..default()
+        })
+        .insert(OnMainMenuCamera);
+    }
 }
 
 fn update_camera_visibility_menu(
@@ -1817,13 +1826,13 @@ fn menu_action(
         });
 
 
-            app
-            .init_resource::<RobotPosition>()
-            .insert_resource(TileSize { tile_size: 3.0 })
-            .insert_resource(robot_resource)
-            .insert_resource(map_resource)
-            .add_systems(OnEnter(GameState::InAi1),(despawn_screen::<OnMainMenuCamera>, setup))
-            .add_systems(Update, (cursor_events, robot_movement_system, update_robot_position, follow_robot_system, button_system,set_camera_viewports, update_minimap_outline).run_if(in_state(GameState::InAi1)));
+        app
+        .init_resource::<RobotPosition>()
+        .insert_resource(TileSize { tile_size: 3.0 })
+        .insert_resource(robot_resource)
+        .insert_resource(map_resource)
+        .add_systems(OnEnter(GameState::InAi1),(update_camera_visibility_menu, setup))
+        .add_systems(Update, (cursor_events, robot_movement_system, update_robot_position, follow_robot_system, button_system,set_camera_viewports, update_minimap_outline).run_if(in_state(GameState::InAi1)));
            
 
             //PROBLEMA
@@ -1872,14 +1881,13 @@ fn main() {
     App::new()
     .add_plugins(DefaultPlugins.set(WindowPlugin{
         primary_window: Some(Window{
-            mode: WindowMode::Fullscreen,
+            mode: WindowMode::Windowed,
             ..default()
         }),
         ..Default::default()
     }))
     .add_state::<GameState>()
     .add_systems(Startup, setup_menu_camera)
-    .add_systems(Update, (update_camera_visibility_menu))
     .add_plugins((Ai1Plugin, MenuPlugin))
     .run();
 
@@ -1915,7 +1923,7 @@ fn ai_labirint(robot: &mut Robottino, world: &mut robotics_lib::world::World){
                 }
                 let row = i*9;
                 let col = j*9;
-                println!("{:?}",discover_tiles(robot, world, &[(row-1, col), (row, col),(row-1, col-1),(row, col-1)]));
+                // println!("{:?}",discover_tiles(robot, world, &[(row-1, col), (row, col),(row-1, col-1),(row, col-1)]));
             }
         }
     }
@@ -1938,11 +1946,11 @@ fn ai_completo_con_tool(robot: &mut Robottino, world: &mut robotics_lib::world::
     // bessie::bessie::road_paving_machine(self, world, Direction::Up, State::MakeRoad);
     DestroyZone.execute(world, robot, Content::Tree(0));
     let a = robot.get_backpack();
-    print!("{:?}", a);
+    // print!("{:?}", a);
     
     //print coordinate
     let coordinates: &Coordinate = robot.get_coordinate();
-    println!("{:?}", coordinates);
+    // println!("{:?}", coordinates);
     robot_view(robot, world);
     let tiles_option = cheapest_border(world, robot);
     let map= robot_map(world);
@@ -1957,7 +1965,7 @@ fn ai_completo_con_tool(robot: &mut Robottino, world: &mut robotics_lib::world::
             }
         }
     }
-    println!("{:?}", count);
+    // println!("{:?}", count);
     if let Some(tiles) = tiles_option {
         //manage the return stat of move to cheapest border
         let result = move_to_cheapest_border(world, robot, tiles);
@@ -1968,9 +1976,9 @@ fn ai_completo_con_tool(robot: &mut Robottino, world: &mut robotics_lib::world::
     //print coordinate
 
     let actual_energy = robot.get_energy().get_energy_level();
-    println!("{:?}", actual_energy);
+    // println!("{:?}", actual_energy);
     let coordinates = robot.get_coordinate();
-    println!("{:?}", coordinates);
+    // println!("{:?}", coordinates);
 }
 
 impl Runnable for Robottino {
