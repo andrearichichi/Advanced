@@ -218,7 +218,7 @@ fn get_audio_manager() -> OxAgAudioTool {
     return audio;
 }
 
-pub fn moviment(robot_data: Arc<Mutex<RobotInfo>>, map: Arc<Mutex<Vec<Vec<Option<Tile>>>>>){
+pub fn start_script(robot_data: Arc<Mutex<RobotInfo>>, map: Arc<Mutex<Vec<Vec<Option<Tile>>>>>, ai_logic: AiLogic){
     println!("Hello, world!");
     let audio = get_audio_manager();
     //let background_music = OxAgSoundConfig::new_looped_with_volume("assets/audio/background.ogg", 2.0);
@@ -229,7 +229,7 @@ pub fn moviment(robot_data: Arc<Mutex<RobotInfo>>, map: Arc<Mutex<Vec<Vec<Option
         robot: Robot::new(),
         audio: audio,
         weather_tool: WeatherPredictionTool::new(),
-        ai_logic: AiLogic::Completo
+        ai_logic: ai_logic
     };
 
     // world generator initialization
@@ -260,7 +260,7 @@ pub fn moviment(robot_data: Arc<Mutex<RobotInfo>>, map: Arc<Mutex<Vec<Vec<Option
 }
 
 //enum per ai_logic (4 stringhe)
-enum AiLogic {
+pub enum AiLogic {
     Falegname,
     Asfaltatore,
     Ricercatore,

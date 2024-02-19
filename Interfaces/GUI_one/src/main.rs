@@ -8,7 +8,8 @@
 //MODIFICA TILE QUANDO SI POSIZIONA LA ROCCIA
 
 mod ai;
-use ai::moviment;
+use ai::start_script;
+use ai::AiLogic;
 use bevy::{app::AppExit, prelude::*, render::view::RenderLayers};
 use robotics_lib::{interface::discover_tiles, world::{environmental_conditions::WeatherType, tile::{Content, Tile, TileType}}};
 use bevy::render::camera::Viewport;
@@ -1743,6 +1744,12 @@ fn menu_action(
     impl Plugin for Ai1Plugin {
         fn build(&self, app: &mut App) {
             // Dati condivisi tra thread
+            setup_game(app, AiLogic::Falegname);
+        }
+    }
+
+
+    fn setup_game(app: &mut App, ai_logic: AiLogic) {
         let robot_info= RobotInfo{
             energy_level: 1000,
             coordinate_row: 0,
@@ -1766,7 +1773,7 @@ fn menu_action(
         let map_resource = MapResource(map_clone);
 
         let moviment = thread::spawn(move || {
-            moviment(robot_data, map);
+            start_script(robot_data, map, ai_logic);
         });
 
 
@@ -1781,10 +1788,7 @@ fn menu_action(
 
             //PROBLEMA
             //moviment.join().unwrap();
-        }
     }
-
-
 
 
 
