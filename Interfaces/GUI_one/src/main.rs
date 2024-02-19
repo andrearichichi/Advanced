@@ -1,11 +1,4 @@
-//TODO:
-//SISTEMARE POSITIONING/CONTROLLO MATRICE
-//MINIMAPPA
-//BOTTONE ZOOM MAPPA
-//INSERIRE TUTTE LE INFO(TEMPO, ENERGIA, COSTO, ECC..)
-//DESPAWN CONTENT QUANDO SI PRENDONO/DISTRUGGONO
-//CREAZIONE BACKPACK/INSERIMENTO VISUALIZZA OGGETTI
-//MODIFICA TILE QUANDO SI POSIZIONA LA ROCCIA
+
 
 use bevy::core_pipeline::clear_color::ClearColorConfig;
 use bevy::log;
@@ -43,18 +36,18 @@ use robotics_lib::{
     world::coordinates::Coordinate,
 };
 
-const MIN_ZOOM: f32 = 0.05; // Sostituisci con il valore minimo desiderato
+const MIN_ZOOM: f32 = 0.05; 
 const MAX_ZOOM: f32 = 1.0; //1.0 se 150, 0.25 se 250
 
 
 const AI: AiLogic = AiLogic::Falegname;
 const WORLD_SIZE: u32 = 150;
-const TILE_SIZE: f32 = 3.0; // Dimensione di ogni quadrato
+const TILE_SIZE: f32 = 3.0; 
 
 #[derive(Component, Debug)]
 struct Roboto;
 
-//aggiungere sempre le risorse nell'app del main
+
 #[derive(Default, Resource)]
 struct RobotPosition {
     x: f32,
@@ -110,7 +103,7 @@ struct WeatherIcons {
     tropical_monsoon_night: Handle<Image>,
 }
 
-// Funzione per convertire un numero da 1 a 5 in un colore
+
 fn get_color(tile: Tile) -> Color {
     match tile.tile_type {
         TileType::DeepWater => Color::rgb_u8(0x00, 0x00, 0x80), // Blu Scuro
@@ -144,8 +137,8 @@ fn get_content_color(content: Tile) -> Color {
         Content::Bush(_) => Color::rgb_u8(0x90, 0xEE, 0x90), // Light Green
         Content::JollyBlock(_) => Color::rgb_u8(0xFF, 0xC0, 0xCB), // Pink
         Content::Scarecrow => Color::rgb_u8(0xFF, 0xA5, 0x00), // Orange
-        Content::None => Color::NONE,                        // Transparent or keep the tile color
-        _ => Color::YELLOW_GREEN, // Fallback color for unspecified contents
+        Content::None => Color::NONE,                       
+        _ => Color::YELLOW_GREEN, 
     }
 }
 
@@ -172,8 +165,6 @@ fn setup(
 
     commands.insert_resource(weather_icons);
 
-    //TODO: controllare se positioning si basa effettivamente sulla matrice
-    //TODO: cabiare dimenzione con l'utilizzo della risorsa tile
     //sleep 3 secondi
     sleep(std::time::Duration::from_secs(3));
     let world1 = shared_map.0.lock().unwrap();
@@ -185,7 +176,7 @@ fn setup(
 
     let mut count = 0;
 
-    //how many tile is not None
+    
     for row in world.iter() {
         for tile in row.iter() {
             if tile.is_some() {
@@ -199,15 +190,11 @@ fn setup(
         world: vec![vec![None; WORLD_SIZE as usize]; WORLD_SIZE as usize],
     };
 
-    // Dimensione di ogni quadrato
-    //sotto funzione per telecamera
-    //commands.spawn(Camera2dBundle::default());
-
     // println!("Robot {:?} {:?}",resource.coordinate_column, resource.coordinate_row);
     update_show_tiles(&world, &mut commands, &mut old_map.world);
     commands.insert_resource(old_map);
 
-    // per la posizione centrale della tile
+
 
     let robot_size = 2.0;
 
@@ -233,14 +220,14 @@ fn setup(
     commands
         .spawn(NodeBundle {
             style: Style {
-                // Imposta le dimensioni del nodo contenitore per occupare l'intera finestra
+               
                 width: Val::Percent(100.0),
                 height: Val::Percent(100.0),
-                // Allinea i bottoni in alto a sinistra
-                align_items: AlignItems::FlexEnd, // Allinea verticalmente i figli all'inizio (alto)
-                justify_content: JustifyContent::FlexEnd, // Allinea orizzontalmente i figli all'inizio (sinistra)
-                flex_direction: FlexDirection::Row,       // Disponi i figli in orizzontale
-                // Aggiungi padding per posizionare i bottoni un po' distanti dal bordo superiore e sinistro
+                
+                align_items: AlignItems::FlexEnd, 
+                justify_content: JustifyContent::FlexEnd, 
+                flex_direction: FlexDirection::Row,      
+              
                 padding: UiRect {
                     left: Val::Auto,
                     top: Val::Px(10.0),
@@ -258,9 +245,9 @@ fn setup(
                     style: Style {
                         width: Val::Px(60.0),
                         height: Val::Px(40.0),
-                        margin: UiRect::all(Val::Px(10.0)), // Spazio tra i bottoni
+                        margin: UiRect::all(Val::Px(10.0)), 
                         border: UiRect::all(Val::Px(4.0)),
-                        justify_content: JustifyContent::Center, // Centra orizzontalmente
+                        justify_content: JustifyContent::Center, 
                         align_items: AlignItems::Center,
 
                         ..default()
@@ -273,7 +260,7 @@ fn setup(
                     parent.spawn(TextBundle::from_section(
                         "-",
                         TextStyle {
-                            // Allinea il testo al centro del bottone
+                            
                             font_size: 25.0,
                             color: Color::rgb(0.9, 0.9, 0.9),
                             ..default()
@@ -288,9 +275,9 @@ fn setup(
                     style: Style {
                         width: Val::Px(60.0),
                         height: Val::Px(40.0),
-                        margin: UiRect::all(Val::Px(10.0)), // Spazio tra i bottoni
+                        margin: UiRect::all(Val::Px(10.0)), 
                         border: UiRect::all(Val::Px(4.0)),
-                        justify_content: JustifyContent::Center, // Centra orizzontalmente
+                        justify_content: JustifyContent::Center, 
                         align_items: AlignItems::Center,
                         ..default()
                     },
@@ -316,9 +303,9 @@ fn setup(
                     style: Style {
                         width: Val::Px(60.0),
                         height: Val::Px(40.0),
-                        margin: UiRect::all(Val::Px(10.0)), // Spazio tra i bottoni
+                        margin: UiRect::all(Val::Px(10.0)), 
                         border: UiRect::all(Val::Px(4.0)),
-                        justify_content: JustifyContent::Center, // Centra orizzontalmente
+                        justify_content: JustifyContent::Center, 
                         align_items: AlignItems::Center,
                         ..default()
                     },
@@ -358,10 +345,8 @@ fn setup(
                     style: Style {
                         width: Val::Px(20.0),
                         height: Val::Px(65.0),
-                        border: UiRect::all(Val::Px(5.0)),
-                        // horizontally center child text
+                        border: UiRect::all(Val::Px(5.0)),                     
                         justify_content: JustifyContent::Center,
-                        // vertically center child text
                         align_items: AlignItems::Center,
                         ..default()
                     },
@@ -388,10 +373,10 @@ fn setup(
                         width: Val::Px(350.0),
                         height: Val::Px(700.0),
                         border: UiRect::all(Val::Px(1.0)),
-                        justify_content: JustifyContent::FlexStart, // Centra orizzontalmente il contenuto
-                        align_items: AlignItems::Center, // Allinea il contenuto dall'inizio verticalmente
-                        flex_direction: FlexDirection::Column, // Disponi i figli in colonna
-                        display: Display::None, // Assicurati che il display sia impostato su Flex
+                        justify_content: JustifyContent::FlexStart, 
+                        align_items: AlignItems::Center, 
+                        flex_direction: FlexDirection::Column, 
+                        display: Display::None, 
                         ..default()
                     },
                     visibility: Visibility::Visible,
@@ -403,7 +388,7 @@ fn setup(
                     // TIME
                     parent
                         .spawn(TextBundle::from_section(
-                            "Time \n", // Assumendo che questo generi il testo desiderato
+                            "Time \n", 
                             TextStyle {
                                 font_size: 25.0,
                                 color: Color::BLACK,
@@ -419,14 +404,14 @@ fn setup(
                                 height: Val::Px(150.0),
                                 ..default()
                             },
-                            image: UiImage::new(asset_server.load("img/sunny_day.png")), // Usa la texture caricata
+                            image: UiImage::new(asset_server.load("img/sunny_day.png")),
                             ..default()
                         })
                         .insert(WeatherIcon);
                     //ENERGY AND COORDINATE
                     parent
                         .spawn(TextBundle::from_section(
-                            "ENERGY \n", // Assumendo che questo generi il testo desiderato
+                            "ENERGY \n", 
                             TextStyle {
                                 font_size: 25.0,
                                 color: Color::BLACK,
@@ -436,32 +421,32 @@ fn setup(
                         .insert(TagEnergy);
 
                     // BARRA DELL'ENERGIA
-                    // All'interno della funzione dove crei la UI
+                    // All'interno del menu a tendina
                     parent
                         .spawn(NodeBundle {
                             style: Style {
-                                width: Val::Px(150.0),             // Larghezza del container esterno
-                                height: Val::Px(30.0),             // Altezza del container esterno
-                                border: UiRect::all(Val::Px(2.0)), // Bordi del container esterno
+                                width: Val::Px(150.0),             
+                                height: Val::Px(30.0),             
+                                border: UiRect::all(Val::Px(2.0)), 
                                 ..Default::default()
                             },
                             background_color: Color::NONE.into(),
-                            border_color: Color::BLACK.into(), // Colore di sfondo del container esterno
+                            border_color: Color::BLACK.into(), 
                             ..Default::default()
                         })
                         .with_children(|parent| {
                             parent
                                 .spawn(NodeBundle {
                                     style: Style {
-                                        width: Val::Percent(100.0), // Larghezza iniziale del container interno (0% del parent)
-                                        height: Val::Percent(100.0), // Altezza del container interno (100% del parent)
+                                        width: Val::Percent(100.0), 
+                                        height: Val::Percent(100.0), 
                                         ..Default::default()
                                     },
                                     background_color: Color::GREEN.into(),
-                                    border_color: Color::BLACK.into(), // Colore del container interno (livello di energia)
+                                    border_color: Color::BLACK.into(), 
                                     ..Default::default()
                                 })
-                                .insert(EnergyBar); // Assumi che EnergyBar sia un componente che hai definito
+                                .insert(EnergyBar); 
                         });
                     //COORDINATE ROBOT
                 })
@@ -486,13 +471,12 @@ fn setup(
                     style: Style {
                         width: Val::Px(120.0),
                         height: Val::Px(45.0),
-                        border: UiRect::all(Val::Px(5.0)),
-                        // horizontally center child text
-                        justify_content: JustifyContent::Center, // Centra orizzontalmente il testo del figlio
+                        border: UiRect::all(Val::Px(5.0)),       
+                        justify_content: JustifyContent::Center, 
                         align_items: AlignItems::Center,
                         margin: UiRect {
-                            left: Val::Px(10.0),   // Distanzia il menu a tendina dal bordo sinistro
-                            bottom: Val::Px(10.0), // Distanzia il menu a tendina dal pulsante
+                            left: Val::Px(10.0),   
+                            bottom: Val::Px(10.0), 
                             ..default()
                         },
                         ..default()
@@ -520,13 +504,13 @@ fn setup(
                         width: Val::Px(250.0),
                         height: Val::Px(500.0),
                         border: UiRect::all(Val::Px(1.0)),
-                        justify_content: JustifyContent::FlexStart, // Centra orizzontalmente il contenuto
-                        align_items: AlignItems::FlexStart, // Allinea il contenuto a sinistra verticalmente
-                        flex_direction: FlexDirection::Column, // Disponi i figli in colonna
-                        display: Display::None, // Nasconde il menu a tendina inizialmente
+                        justify_content: JustifyContent::FlexStart, 
+                        align_items: AlignItems::FlexStart, 
+                        flex_direction: FlexDirection::Column, 
+                        display: Display::None, 
                         margin: UiRect {
-                            left: Val::Px(-120.0), // Distanzia il menu a tendina dal bordo sinistro
-                            bottom: Val::Px(55.0), // Distanzia il menu a tendina dal pulsante
+                            left: Val::Px(-120.0), 
+                            bottom: Val::Px(55.0), 
                             ..default()
                         },
                         ..default()
@@ -540,7 +524,7 @@ fn setup(
                     // Primo figlio:
                     parent
                         .spawn(TextBundle::from_section(
-                            "BACKPACK", // Assumendo che questo generi il testo desiderato
+                            "BACKPACK", 
                             TextStyle {
                                 font_size: 25.0,
                                 color: Color::BLACK,
@@ -563,7 +547,7 @@ fn setup(
                     TILE_SIZE * resource.coordinate_row as f32,
                     TILE_SIZE * resource.coordinate_row as f32,
                     1.0,
-                ) // Usa la posizione del punto rosso
+                )
                 .with_scale(main_scale),
                 camera: Camera {
                     order: 1,
@@ -575,39 +559,39 @@ fn setup(
         ))
         .insert(RenderLayers::from_layers(&[0]));
 
-    // Calcola le dimensioni complessive del mondo
+    //dimensioni complessive del mondo
     let world_width: f32 = world.len() as f32 * TILE_SIZE;
     let world_height = world[0].len() as f32 * TILE_SIZE;
 
-    // Calcola il centro del mondo
-    let world_center_x = world_width / 2.0; // Assumi che 300 sia l'offset usato
+    //centro del mondo
+    let world_center_x = world_width / 2.0; 
     let world_center_y = world_height / 2.0;
 
-    // Definisci le dimensioni della minimappa e lo spessore del bordo
-    let minimap_width = 70.0; // Sostituisci con la larghezza effettiva della tua minimappa
-    let minimap_height = 70.0; // Sostituisci con l'altezza effettiva della tua minimappa
+    //pixel minimappa
+    let minimap_width = 70.0; 
+    let minimap_height = 70.0; 
 
-    // Scala per la camera della minimappa (aggiusta questo valore in base alla necessita' )
+    //scale minimappa
     let minimap_scale = Vec3::new(
         WORLD_SIZE as f32 / minimap_width,
         WORLD_SIZE as f32 / minimap_height,
         1.0,
-    ); // Aumenta la scala per visualizzare l'intera matrice
+    ); 
 
     //CAMERA PER LA MINIMAPPA
-    // Left Camera
+    //Left Camera
     commands
         .spawn((
             Camera2dBundle {
                 transform: Transform::from_xyz(world_center_x, world_center_y, 555.0)
-                    .with_scale(minimap_scale), //usa il centro del mondo come posizione e z alta
+                    .with_scale(minimap_scale), 
                 camera: Camera {
                     order: 2, //serve per mettere l'ordine di rendering delle camere, se non settato default a 0(MAINCAMERA)
                     ..default()
                 },
                 camera_2d: Camera2d {
-                    // don't clear on the second camera because the first camera already cleared the window
-                    clear_color: ClearColorConfig::None, //area di memoria dei pixel, senza None veniva pulita, si vedeva solo l'ultima camera
+                    
+                    clear_color: ClearColorConfig::None,
                     ..default()
                 },
                 ..default()
@@ -616,66 +600,66 @@ fn setup(
         ))
         .insert(RenderLayers::from_layers(&[0, 1]));
 
-    // Crea l'entita'  per il contorno sulla minimappa
+    // Crea l'entita' per il contorno sulla minimappa
     commands
         .spawn(SpriteBundle {
             sprite: Sprite {
-                color: Color::rgba(1.0, 0.0, 0.0, 0.5), // Contorno rosso semitrasparente
-                custom_size: Some(Vec2::new(25.0, 25.0)), // Dimensione iniziale, sara'  aggiornata
+                color: Color::rgba(1.0, 0.0, 0.0, 0.5), 
+                custom_size: Some(Vec2::new(25.0, 25.0)),
                 ..default()
             },
-            transform: Transform::from_xyz(0.0, 0.0, 999.0), // Metti il contorno sopra a tutti gli altri elementi della minimappa
+            transform: Transform::from_xyz(0.0, 0.0, 999.0), 
             ..default()
         })
         .insert(MinimapOutline)
         .insert(RenderLayers::layer(1));
 
     //NERO SOTTO WORLD MAP
-    // Cicla attraverso per spawnare i quadrati 3x3
+    
     for x in 0..WORLD_SIZE {
         for y in 0..WORLD_SIZE {
-            // Calcola la posizione di ogni quadrato 3x3
+           
             let pos_x = x as f32 * TILE_SIZE;
             let pos_y = y as f32 * TILE_SIZE;
 
             // Spawn del quadrato 3x3
             commands.spawn(SpriteBundle {
                 sprite: Sprite {
-                    color: Color::GRAY,                                 // Imposta il colore su nero
-                    custom_size: Some(Vec2::new(TILE_SIZE, TILE_SIZE)), // Imposta la dimensione su 3x3 unità
+                    color: Color::GRAY,                                 
+                    custom_size: Some(Vec2::new(TILE_SIZE, TILE_SIZE)), 
                     ..default()
                 },
-                transform: Transform::from_xyz(pos_x, pos_y, 0.0), // Posiziona il quadrato
+                transform: Transform::from_xyz(pos_x, pos_y, 0.0), 
                 ..default()
             });
         }
     }
 
-    let border_thickness = 5.0; // Spessore del bordo
+    let border_thickness = 5.0; 
     let effective_world_size = WORLD_SIZE as f32 + border_thickness * 2.0;
 
-    // Itera attorno al perimetro della mappa per creare il bordo
+    //bordo minimappa
     for x in 0..effective_world_size as u32 {
         for y in 0..effective_world_size as u32 {
-            // Verifica se la posizione attuale è dentro l'area del bordo
+           
             if x < border_thickness as u32
                 || y < border_thickness as u32
                 || x >= (WORLD_SIZE as f32 + border_thickness) as u32
                 || y >= (WORLD_SIZE as f32 + border_thickness) as u32
             {
-                // Calcola la posizione di ogni quadrato del bordo
+               
                 let pos_x = (x as f32 - border_thickness) * TILE_SIZE;
                 let pos_y = (y as f32 - border_thickness) * TILE_SIZE;
 
-                // Spawn del quadrato del bordo
+                
                 commands
                     .spawn(SpriteBundle {
                         sprite: Sprite {
-                            color: Color::GREEN,                                // Colore rosso per il bordo
-                            custom_size: Some(Vec2::new(TILE_SIZE, TILE_SIZE)), // Dimensione del quadrato
+                            color: Color::GREEN,                                
+                            custom_size: Some(Vec2::new(TILE_SIZE, TILE_SIZE)), 
                             ..default()
                         },
-                        transform: Transform::from_xyz(pos_x, pos_y, -1.0), // Posiziona il quadrato del bordo
+                        transform: Transform::from_xyz(pos_x, pos_y, -1.0), 
                         ..default()
                     })
                     .insert(RenderLayers::layer(1));
@@ -683,10 +667,10 @@ fn setup(
         }
     }
 
-    // Cicla attraverso per spawnare i quadrati 3x3
+   //TILES GIORNO NOTTE
     for x in 0..WORLD_SIZE {
         for y in 0..WORLD_SIZE {
-            // Calcola la posizione di ogni quadrato 3x3
+            
             let pos_x = x as f32 * TILE_SIZE;
             let pos_y = y as f32 * TILE_SIZE;
 
@@ -694,11 +678,11 @@ fn setup(
             commands
                 .spawn(SpriteBundle {
                     sprite: Sprite {
-                        color: Color::rgba(0.1, 0.1, 0.3, 0.5), // Colore blu scuro semi-trasparente
-                        custom_size: Some(Vec2::new(TILE_SIZE, TILE_SIZE)), // Imposta la dimensione su 3x3 unità
+                        color: Color::rgba(0.1, 0.1, 0.3, 0.5), 
+                        custom_size: Some(Vec2::new(TILE_SIZE, TILE_SIZE)), 
                         ..default()
                     },
-                    transform: Transform::from_xyz(pos_x, pos_y, 5.0), // Posiziona il quadrato
+                    transform: Transform::from_xyz(pos_x, pos_y, 5.0), 
                     ..default()
                 })
                 .insert(SunTime);
@@ -707,7 +691,7 @@ fn setup(
 }
 
 fn update_infos(
-    resource: RobotInfo, // Query per trovare il Text da aggiornare
+    resource: RobotInfo, 
     weather_icons: Res<WeatherIcons>,
     mut energy_query: Query<
         &mut Text,
@@ -740,7 +724,7 @@ fn update_infos(
     mut sun_query: Query<&mut Sprite, With<SunTime>>,
     mut weather_image_query: Query<&mut UiImage, With<WeatherIcon>>,
 ) {
-    // Ora puoi utilizzare `energy_level` e `time` senza preoccuparti del mutex
+    
     //TESTO ENERGY E COORDINATE
     for mut text in energy_query.iter_mut() {
         text.sections[0].value = format!(
@@ -763,11 +747,11 @@ fn update_infos(
         let mut formatted_string = format!("Backpack Size: {}\n\n", resource.bp_size);
         let mut tot_value = 0;
         for (key, value) in resource.bp_contents.iter() {
-            // Appendi ogni coppia chiave-valore come "key: value\n" alla stringa
+            
             formatted_string.push_str(&format!("{}: {}\n", key, value));
             tot_value += value;
         }
-        //controllare se sparisce dopo che si svuota lo zaino(dovrebbe)
+       
         if tot_value == 20 {
             formatted_string.push_str(&format!("\nMAX SIZE REACHED"));
         }
@@ -778,8 +762,8 @@ fn update_infos(
     //UPDATE BATTERY SPRITE
     for (mut style, mut back_color) in battery_query.iter_mut() {
         // Calcola la percentuale dell'energia
-        let percentage = resource.energy_level as f32 / 1000.0; // Assumendo 1000 come valore massimo dell'energia
-                                                                // Aggiorna il colore in base alla percentuale
+        let percentage = resource.energy_level as f32 / 1000.0; 
+                                                                
         back_color.0 = match percentage {
             p if p > 0.5 => Color::GREEN.into(),
             p if p > 0.25 => Color::YELLOW.into(),
@@ -794,26 +778,26 @@ fn update_infos(
         let night_alpha = match parse_time(&resource.time) {
             Ok(time) => {
                 if time >= 18.0 && time < 20.0 {
-                    // Tramonto: aumenta gradualmente l'alpha
+                    // Tramonto
                     (time - 18.0) / 2.0 * 0.4 + 0.3
                 } else if (time >= 20.0 && time <= 24.0) || (time >= 0.0 && time < 4.0) {
-                    // Notte: alpha massimo, ma non completamente opaco
+                    // Notte
                     0.7
                 } else if time >= 4.0 && time < 6.0 {
-                    // Alba: diminuisce gradualmente l'alpha
+                    // Alba
                     (1.0 - (time - 4.0) / 2.0) * 0.4 + 0.3
                 } else {
-                    // Giorno: completamente trasparente
+                    // Giorno
                     0.0
                 }
             }
             Err(e) => {
                 eprintln!("Errore nel parsing del tempo: {}", e);
-                0.0 // valore predefinito per assenza di errore
+                0.0 
             }
         };
 
-        // Imposta l'alpha del colore dello sprite
+        
         sprite.color.set_a(night_alpha);
     }
 
@@ -857,13 +841,12 @@ fn update_infos(
                     }
                 }
 
-                _ => continue, // Ignora se non c'è un tipo di tempo corrispondente
+                _ => continue, 
             };
 
-            image.texture = image_handle; // Aggiorna l'immagine
+            image.texture = image_handle;
         } else {
-            // Gestisci il caso in cui parse_time restituisce un errore
-            // Potresti voler loggare l'errore o prendere un'altra azione
+            
         }
     }
 }
@@ -885,6 +868,7 @@ fn parse_time(time_str: &str) -> Result<f32, &'static str> {
     }
 }
 
+//EXTRA
 fn cursor_position(q_windows: Query<&Window, With<PrimaryWindow>>) {
     if let Ok(window) = q_windows.get_single() {
         if let Some(position) = window.cursor_position() {
@@ -895,6 +879,7 @@ fn cursor_position(q_windows: Query<&Window, With<PrimaryWindow>>) {
     }
 }
 
+//MOVIMENTO MINIMAPPA
 fn cursor_events(
     minimap_camera_query: Query<
         (&Camera, &Transform),
@@ -907,7 +892,7 @@ fn cursor_events(
     if let Some(cursor_position) = window.cursor_position() {
         if let Ok((minimap_camera, minimap_transform)) = minimap_camera_query.get_single() {
             if let Some(viewport) = &minimap_camera.viewport {
-                // Ottieni la posizione e la dimensione fisica della viewport della minimappa
+                //posizione e la dimensione fisica della viewport della minimappa
                 let minimap_viewport_position = Vec2::new(
                     viewport.physical_position.x as f32,
                     viewport.physical_position.y as f32,
@@ -916,31 +901,29 @@ fn cursor_events(
                     viewport.physical_size.x as f32 / 1.5,
                     viewport.physical_size.y as f32 / 1.5,
                 );
-                // Calcola la posizione del cursore relativa alla minimappa
+                //posizione del cursore relativa alla minimappa
                 let cursor_relative_to_minimap = cursor_position - minimap_viewport_position;
 
-                // Verifica se il cursore è all'interno dei limiti della minimappa
+                //controllo se il cursore è all'interno della minimappa
                 if cursor_relative_to_minimap.x >= 0.0
                     && cursor_relative_to_minimap.x <= minimap_viewport_size.x
                     && cursor_relative_to_minimap.y >= 0.0
                     && cursor_relative_to_minimap.y <= minimap_viewport_size.y
                 {
-                    // Il cursore si trova all'interno della minimappa, procedere con la logica del click
 
-                    // Calcola le proporzioni del cursore all'interno della minimappa
+                    //proporzioni del cursore all'interno della minimappa
                     let click_proportions = cursor_relative_to_minimap / minimap_viewport_size;
 
-                    // Calcola la posizione nel mondo basata sulle proporzioni del click sulla minimappa
+                    //posizione nel mondo basata sulle proporzioni della minimappa
                     let world_pos_x = minimap_transform.translation.x
                         + (click_proportions.x - 0.5) * (WORLD_SIZE as f32 * TILE_SIZE);
-                    // Inverti l'asse y poiché l'origine dello schermo è in alto a sinistra
+            
                     let world_pos_y = minimap_transform.translation.y
                         + (0.5 - click_proportions.y) * (WORLD_SIZE as f32 * TILE_SIZE);
 
-                    // Sposta la main camera a questa posizione nel mondo
+                    //trasform finale della maincamera in base alla posizione del cursore sulla minimappa
                     for mut transform in main_camera_query.iter_mut() {
                         transform.translation.x = world_pos_x;
-                        // Inverti l'asse y durante la traduzione della main camera
                         transform.translation.y = world_pos_y;
                     }
                 }
@@ -967,41 +950,40 @@ fn update_minimap_outline(
             let viewport_width = viewport.physical_size.x as f32;
             let viewport_height = viewport.physical_size.y as f32;
 
-            // Usa la scala della camera per calcolare la dimensione visibile
+            //dimensione visibile
             let camera_scale = main_camera_transform.scale.x;
 
-            // Calcola la dimensione visibile basata sulle dimensioni del viewport e sulla scala della camera
+            //dimensione visibile basata sulle dimensioni del viewport e sulla scala della maincamera
             let visible_width = viewport_width * camera_scale / 1.5;
             let visible_height = viewport_height * camera_scale / 1.5;
 
-            // Calcola le dimensioni del rettangolo sulla minimappa
+            //dimensioni del rettangolo sulla minimappa
             let outline_size = Vec2::new(visible_width, visible_height);
 
             for (mut sprite, mut transform) in minimap_outline_query.iter_mut() {
-                // Aggiorna le dimensioni del rettangolo sulla minimappa
+
                 sprite.custom_size = Some(outline_size);
 
-                // Aggiorna la posizione del rettangolo sulla minimappa per corrispondere alla posizione della camera principale
+                //aggiorna la posizione del rettangolo sulla minimappa che corrisponde a quella della maincamera
                 transform.translation.x = main_camera_transform.translation.x;
                 transform.translation.y = main_camera_transform.translation.y;
-                // Assicurati che il rettangolo rimanga sempre sopra agli altri elementi della minimappa
                 transform.translation.z = 999.0;
             }
         }
     }
 }
 
+
+//SETUP VIEWPORT(COME SCHERMO CONDIVISO)
 fn set_camera_viewports(
     windows: Query<&Window>,
     mut resize_events: EventReader<WindowResized>,
     mut minimappa_camera: Query<&mut Camera, (With<MyMinimapCamera>, Without<MainCamera>)>,
     mut main_camera: Query<&mut Camera, With<MainCamera>>,
 ) {
-    // We need to dynamically resize the camera's viewports whenever the window size changes
-    // so then each camera always takes up half the screen.
-    // A resize_event is sent when the window is first created, allowing us to reuse this system for initial setup.
+
     for resize_event in resize_events.read() {
-        //parte sinistra
+        //parte sinistra (MINIMAPPA)
         let window = windows.get(resize_event.window).unwrap();
         let mut minimappa_camera = minimappa_camera.single_mut();
         minimappa_camera.viewport = Some(Viewport {
@@ -1013,7 +995,7 @@ fn set_camera_viewports(
             ..default()
         });
 
-        //parte destra
+        //parte destra (MAINCAMERA)
         let mut main_camera = main_camera.single_mut();
         main_camera.viewport = Some(Viewport {
             physical_position: UVec2::new(0, 0),
@@ -1026,6 +1008,7 @@ fn set_camera_viewports(
     }
 }
 
+//SPAWN DEI TILE
 fn update_show_tiles(
     world: &Vec<Vec<Option<Tile>>>,
     commands: &mut Commands,
@@ -1034,7 +1017,7 @@ fn update_show_tiles(
     for (x, row) in world.iter().enumerate() {
         for (y, tile) in row.iter().enumerate() {
             let old_tile = &old_world[x][y];
-            // Se il nuovo tile non e' None e il vecchio tile e' None, spawnalo
+          
             if tile.is_some()
                 && (old_tile.is_none()
                     || old_tile.clone().unwrap().content != tile.clone().unwrap().content)
@@ -1044,19 +1027,19 @@ fn update_show_tiles(
                 let tile_color = get_color(tile.clone());
                 let content_color = get_content_color(tile.clone());
                 let mut z_value = 1.0;
-                // Optionally spawn an additional sprite for the content if it's not None
+               
                 if tile.content != Content::None {
                     commands
                         .spawn(SpriteBundle {
                             sprite: Sprite {
-                                color: content_color, // Use the content color
-                                custom_size: Some(Vec2::new(TILE_SIZE / 3.0, TILE_SIZE / 3.0)), // Smaller than the tile for distinction
+                                color: content_color, 
+                                custom_size: Some(Vec2::new(TILE_SIZE / 3.0, TILE_SIZE / 3.0)), 
                                 ..Default::default()
                             },
                             transform: Transform::from_xyz(
-                                x as f32 * TILE_SIZE, // Centered on the tile
-                                y as f32 * TILE_SIZE, // Centered on the tile
-                                z_value,              // Slightly above the tile layer
+                                x as f32 * TILE_SIZE, 
+                                y as f32 * TILE_SIZE, 
+                                z_value,              
                             ),
                             ..Default::default()
                         })
@@ -1064,17 +1047,17 @@ fn update_show_tiles(
                     z_value = 0.0;
                 }
 
-                // Create a base sprite for the tile
+                
                 commands
                     .spawn(SpriteBundle {
                         sprite: Sprite {
-                            color: tile_color, // Use the tile color
+                            color: tile_color, 
                             custom_size: Some(Vec2::new(TILE_SIZE, TILE_SIZE)),
                             ..Default::default()
                         },
                         transform: Transform::from_xyz(
-                            x as f32 * TILE_SIZE, // X position with an offset
-                            y as f32 * TILE_SIZE, // Y position with an offset
+                            x as f32 * TILE_SIZE, 
+                            y as f32 * TILE_SIZE, 
                             z_value,
                         ),
                         ..Default::default()
@@ -1107,6 +1090,8 @@ struct LabelBackPack;
 #[derive(Component)]
 struct CloseAppButton;
 
+
+//BOTTONI
 fn button_system(
     mut interaction_query: Query<
         (
@@ -1141,7 +1126,7 @@ fn button_system(
         closeapp,
     ) in &mut interaction_query
     {
-        //let mut text = text_query.get_mut(children[0]).unwrap();
+        ;
         match *interaction {
             Interaction::Pressed => {
                 if zoomin.is_some() {
@@ -1152,9 +1137,9 @@ fn button_system(
                 } else if dropdown.is_some() {
                     for mut node_style in label_query.iter_mut() {
                         if node_style.display == Display::None {
-                            node_style.display = Display::Flex; // Cambia da None a Flex
+                            node_style.display = Display::Flex; 
                         } else {
-                            node_style.display = Display::None; // Cambia da None a Flex
+                            node_style.display = Display::None; 
                         }
                     }
                 } else if closeapp.is_some() {
@@ -1197,36 +1182,36 @@ fn adjust_camera_zoom_and_position(
             let max_scale_height =
                 (WORLD_SIZE as f32 * TILE_SIZE) / viewport.physical_size.y as f32;
 
-            // Usa il minore dei due per garantire che nessun bordo vada oltre il mondo
+           
             let max_scale = max_scale_width.min(max_scale_height);
 
-            // Aggiorna il valore di MAX_ZOOM in base al calcolo
+         
             let max_zoom = MAX_ZOOM.min(max_scale);
 
-            // Aggiusta lo zoom e assicurati che sia nel range consentito
+            //controlla che lo zoom sia nello scale
             let new_scale = (transform.scale.x + zoom_change).clamp(MIN_ZOOM, max_zoom);
             transform.scale.x = new_scale;
             transform.scale.y = new_scale;
 
-            // Assicurati che la vista della camera non sia mai più grande del mondo di gioco
+            //controlla che la vista della camera non sia mai più grande del mondo di gioco
             let camera_half_width = ((viewport.physical_size.x as f32 / new_scale) / 2.0)
                 .min(WORLD_SIZE as f32 * TILE_SIZE / 2.0);
             let camera_half_height = ((viewport.physical_size.y as f32 / new_scale) / 2.0)
                 .min(WORLD_SIZE as f32 * TILE_SIZE / 2.0);
 
-            // Calcola i confini del mondo di gioco
+            
             let world_min_x = camera_half_width;
             let world_max_x = WORLD_SIZE as f32 * TILE_SIZE - camera_half_width;
             let world_min_y = camera_half_height;
             let world_max_y = WORLD_SIZE as f32 * TILE_SIZE - camera_half_height;
 
-            // Clamp può fallire se min è maggiore di max, quindi aggiungiamo un controllo qui
+            
             if world_min_x > world_max_x || world_min_y > world_max_y {
                 eprintln!("Il mondo di gioco è troppo piccolo per il livello di zoom attuale!");
                 return;
             }
 
-            // Calcola la nuova posizione della camera limitata dai confini del mondo di gioco
+            
             transform.translation.x = robot_position.x.clamp(world_min_x, world_max_x);
             transform.translation.y = robot_position.y.clamp(world_min_y, world_max_y);
         }
@@ -1238,7 +1223,7 @@ const HOVERED_BUTTON: Color = Color::rgb(0.25, 0.25, 0.25);
 const HOVERED_PRESSED_BUTTON: Color = Color::rgb(0.25, 0.65, 0.25);
 const PRESSED_BUTTON: Color = Color::rgb(0.35, 0.75, 0.35);
 
-// Modifica setup_main_camera per accettare posizione x, y del punto rosso
+//extra
 fn setup_main_camera(commands: &mut Commands, x: f32, y: f32) {
     commands
         .spawn(Camera2dBundle {
@@ -1256,21 +1241,10 @@ pub fn zoom_in(mut query: Query<&mut OrthographicProjection, With<Camera>>) {
         println!("Current zoom scale: {}", projection.scale);
     }
 }
-/*
-fn tryfunction(
-    mut command: Commands,
-    robot_resource: Res<RobotResource>,
-    battery_query: Query<(&mut Style, &mut Sprite), With<EnergyBar>>,
-) {
 
-    let resource = robot_resource.0.lock().unwrap();
-    let resource_copy = resource.clone();
-    drop(resource);
-    update_energy_bar_color(resource_copy.clone(), battery_query);
-}
- */
 
 //movimento del robot in base alla grandezza di una tile
+//UPDATES
 fn robot_movement_system(
     mut commands: Commands,
     mut query: Query<
@@ -1283,7 +1257,7 @@ fn robot_movement_system(
             Without<DirectionalLight>,
         ),
     >,
-    tile_size: Res<TileSize>, // Utilizza la risorsa TileSize
+    tile_size: Res<TileSize>, 
     robot_resource: Res<RobotResource>,
     world: Res<MapResource>,
     weather_icons: Option<Res<WeatherIcons>>,
@@ -1324,7 +1298,7 @@ fn robot_movement_system(
         update_show_tiles(&world, &mut commands, &mut old_world.world);
     }
     let resource = robot_resource.0.lock().unwrap();
-    let tile_step = tile_size.tile_size; // Use the dimension of the tile from the resource
+    let tile_step = tile_size.tile_size; 
     let resource_copy = resource.clone();
     drop(resource);
     if let Some(weather_icons) = weather_icons {
@@ -1357,7 +1331,6 @@ fn robot_movement_system(
     }
 }
 
-//TODO: CAMBIARE LA POSIZIONE DEL ROBOT BASANDOLA SULLE RIGHE E COLONNE DELLA MATRICE
 //serve per avere la posizione del puntino rosso ad ogni movimento
 fn update_robot_position(
     mut robot_position: ResMut<RobotPosition>,
@@ -1369,47 +1342,36 @@ fn update_robot_position(
     }
 }
 
-/* //serve per far muovere la camera sopra il puntino rosso, prenderndo le sue coordinate
-fn follow_robot_system(
-    robot_position: Res<RobotPosition>,
-    mut camera_query: Query<&mut Transform, With<MainCamera>>,
-) {
-    if let Ok(mut camera_transform) = camera_query.get_single_mut() {
-        camera_transform.translation.x = robot_position.x;
-        camera_transform.translation.y = robot_position.y;
-        //serve per la distanza dall'alto dal punto rosso
-        camera_transform.translation.z = 10.0; // Mantiene la camera elevata per una vista top-down
-    }
-} */
 
+//CAMERA CHE FOLLOWA IL ROBOT
 fn follow_robot_system(
     robot_position: Res<RobotPosition>,
     mut camera_query: Query<(&mut Transform, &Camera), With<MainCamera>>,
 ) {
     if let Ok((mut camera_transform, camera)) = camera_query.get_single_mut() {
         if let Some(viewport) = &camera.viewport {
-            // Prendi la scala dalla camera transform
+           
             let camera_scale = camera_transform.scale;
 
-            // Calcola la larghezza e l'altezza visibili dalla camera
+            //larghezza e altezza visibili dalla camera
             let camera_half_width = (viewport.physical_size.x as f32 * camera_scale.x) / 3.1;
             let camera_half_height = (viewport.physical_size.y as f32 * camera_scale.y) / 3.1;
 
-            // Definisci i confini del mondo di gioco
+        
             let world_min_x = camera_half_width;
             let world_max_x = WORLD_SIZE as f32 * TILE_SIZE - camera_half_width;
             let world_min_y = camera_half_height;
             let world_max_y = WORLD_SIZE as f32 * TILE_SIZE - camera_half_height;
 
-            // Calcola la nuova posizione della camera limitata dai confini del mondo di gioco
+            //nuova posizione della camera
             let new_camera_x = robot_position.x.clamp(world_min_x, world_max_x);
             let new_camera_y = robot_position.y.clamp(world_min_y, world_max_y);
 
-            // Aggiorna la posizione della camera
+            //cambio transform in base alla nuova posizione
             camera_transform.translation.x = new_camera_x;
             camera_transform.translation.y = new_camera_y;
-            // La z può rimanere invariata a meno che non si voglia modificare anche l'altezza della camera
-            camera_transform.translation.z = 10.0; // Mantiene la camera elevata per una vista top-down
+            
+            camera_transform.translation.z = 10.0; 
         }
     }
 }
@@ -1456,7 +1418,7 @@ fn follow_robot_system(
         }
     }
 } */
-//enum per ai_logic (4 stringhe)
+
 enum AiLogic {
     Falegname,
     Asfaltatore,
@@ -1519,7 +1481,7 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
 
-// Definire una struttura di dati condivisa; ad esempio, una posizione condivisa (x, y)
+
 #[derive(Debug)]
 struct Position {
     x: i32,
@@ -1539,12 +1501,6 @@ struct RobotInfo {
     time: String,
 }
 
-// Tag component used to tag entities added on the main menu screen
-#[derive(Component, Debug)]
-struct OnMainMenuScreen;
-
-#[derive(Component, Debug)]
-struct OnMainMenuCamera;
 
 fn main() {
     // Dati condivisi tra thread
