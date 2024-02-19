@@ -18,6 +18,7 @@ use op_map::op_pathfinding::{
     get_best_action_to_element, OpActionInput, OpActionOutput, ShoppingList,
 };
 use rand::Rng;
+use robotics_lib::world::coordinates;
 use robotics_lib::{
     interface::{destroy, discover_tiles, go, put, Direction},
     utils::LibError,
@@ -46,7 +47,7 @@ const MIN_ZOOM: f32 = 0.05; // Sostituisci con il valore minimo desiderato
 const MAX_ZOOM: f32 = 0.25; //1.0 se 150, 0.25 se 250
 
 
-const AI: AiLogic = AiLogic::Falegname;
+const AI: AiLogic = AiLogic::Ricercatore;
 const WORLD_SIZE: u32 = 250;
 const TILE_SIZE: f32 = 3.0; // Dimensione di ogni quadrato
 
@@ -1615,6 +1616,103 @@ struct Robottino {
     maze_discovered: Option<(usize, usize)>,
 }
 
+fn find_entrance(
+    robot: &mut Robottino,
+    world: &mut robotics_lib::world::World,
+    mut last_direction: Direction,
+) {
+    loop {
+        //sleep 300
+        
+        if last_direction == Direction::Up {
+            go(robot, world, Direction::Left);
+        } else if last_direction == Direction::Down {
+            go(robot, world, Direction::Right);
+        } else if last_direction == Direction::Left {
+            go(robot, world, Direction::Down);
+        } else if last_direction == Direction::Right {
+            go(robot, world, Direction::Up);
+        }
+
+        let view = robot_view(robot, world);
+        update_map(robot, world);
+        //get tile 1 unwrap if some
+        println!("{:?}",view[0][1].as_ref().unwrap().tile_type==TileType::Wall);//alto
+        println!("{:?}",view[1][0].as_ref().unwrap().tile_type==TileType::Wall);//sinistra
+        println!("{:?}",view[1][2].as_ref().unwrap().tile_type==TileType::Wall);//destra
+        println!("{:?}",view[2][1].as_ref().unwrap().tile_type==TileType::Wall);//basso
+        sleep(std::time::Duration::from_millis(1000));
+
+        match last_direction {
+            Direction::Up => {
+                if let Some(tile) = &view[0][1] {
+                    if tile.tile_type == TileType::Wall {
+                        print!("su");
+                    } else {
+                        go(robot, world, Direction::Up);
+                        last_direction = Direction::Right;
+                    }
+                }
+            }
+            Direction::Down => {
+                if let Some(tile) = &view[2][1] {
+                    if tile.tile_type == TileType::Wall {
+                        print!("giu");
+                    } else {
+                        go(robot, world, Direction::Down);
+                        last_direction = Direction::Left;
+                    }
+                }
+            }
+            Direction::Left => {
+                if let Some(tile) = &view[1][0] {
+                    if tile.tile_type == TileType::Wall {
+                        print!("left");
+                    } else {
+                        go(robot, world, Direction::Left);
+                        last_direction = Direction::Down;
+                    }
+                }
+            }
+            Direction::Right => {
+                if let Some(tile) = &view[1][2] {
+                    if tile.tile_type == TileType::Wall {
+                        print!("right");
+                    } else {
+                        go(robot, world, Direction::Right);
+                        last_direction = Direction::Up;
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn go_to_maze(robot: &mut Robottino, world: &mut robotics_lib::world::World, maze: (usize, usize)) {
+    //reach the maze
+    let cord_r = robot.get_coordinate();
+    let mut res: Result<(Vec<Vec<Option<Tile>>>, (usize, usize)), LibError> =
+        Err(LibError::CannotWalk);
+    let mut last_direction = Direction::Up;
+    if cord_r.get_row() < maze.0 {
+        res = go(robot, world, Direction::Down);
+        last_direction = Direction::Down;
+    } else if cord_r.get_row() > maze.0 {
+        res = go(robot, world, Direction::Up);
+        last_direction = Direction::Up;
+    } else if cord_r.get_col() < maze.1 {
+        res = go(robot, world, Direction::Right);
+        last_direction = Direction::Right;
+    } else if cord_r.get_col() > maze.1 {
+        res = go(robot, world, Direction::Left);
+        last_direction = Direction::Left;
+    }
+    if res.is_err() {
+        //if wall is up go left
+        find_entrance(robot, world, last_direction)
+    }
+}
+
 fn ai_labirint(robot: &mut Robottino, world: &mut robotics_lib::world::World) {
     //maze are 18*18 so we check every 9 tiles
     //if robotmap some save it
@@ -1648,27 +1746,26 @@ fn ai_labirint(robot: &mut Robottino, world: &mut robotics_lib::world::World) {
                     if let Ok(tiles) = tiles {
                         //check if a Tile is Some and is a wall
                         //fai if let some tiles[&(row, col)].is_some();
-                        if let Some(tile) = &tiles[&(row, col)]{
+                        if let Some(tile) = &tiles[&(row, col)] {
                             if tile.tile_type == TileType::Wall {
                                 robot.maze_discovered = Some((row, col));
                             }
                         }
-                        if let Some(tile) = &tiles[&(row-1, col)]{
+                        if let Some(tile) = &tiles[&(row - 1, col)] {
                             if tile.tile_type == TileType::Wall {
-                                robot.maze_discovered = Some((row-1, col));
+                                robot.maze_discovered = Some((row - 1, col));
                             }
                         }
-                        if let Some(tile) = &tiles[&(row, col-1)]{
+                        if let Some(tile) = &tiles[&(row, col - 1)] {
                             if tile.tile_type == TileType::Wall {
-                                robot.maze_discovered = Some((row, col-1));
+                                robot.maze_discovered = Some((row, col - 1));
                             }
                         }
-                        if let Some(tile) = &tiles[&(row-1, col-1)]{
+                        if let Some(tile) = &tiles[&(row - 1, col - 1)] {
                             if tile.tile_type == TileType::Wall {
-                                robot.maze_discovered = Some((row-1, col-1));
+                                robot.maze_discovered = Some((row - 1, col - 1));
                             }
                         }
-                            
                     }
                 }
             }
@@ -1678,7 +1775,10 @@ fn ai_labirint(robot: &mut Robottino, world: &mut robotics_lib::world::World) {
         robot.robot.energy = rust_and_furious_dynamo::dynamo::Dynamo::update_energy();
     }
     robot_view(robot, world);
-    
+    //move robot to the maze with go function i can move up down left right
+    if let Some((row, col)) = robot.maze_discovered {
+        go_to_maze(robot, world, (row, col));
+    }
 }
 
 fn ai_taglialegna(robot: &mut Robottino, world: &mut robotics_lib::world::World) {
@@ -1832,19 +1932,7 @@ impl Runnable for Robottino {
         }
 
         //update map
-        let mut shared_map = self.shared_map.lock().unwrap();
-        if let Some(new_map) = robot_map(world) {
-            *shared_map = new_map;
-        }
-        let mut shared_robot = self.shared_robot.lock().unwrap();
-        let enviroment = look_at_sky(&world);
-
-        shared_robot.time = enviroment.get_time_of_day_string();
-        shared_robot.current_weather = Some(enviroment.get_weather_condition());
-        if let Some((prediction, ticks)) = weather_check(self) {
-            shared_robot.next_weather = Some(prediction);
-            shared_robot.ticks_until_change = ticks;
-        }
+        update_map(self, world);
     }
 
     fn handle_event(&mut self, event: robotics_lib::event::events::Event) {
@@ -1883,6 +1971,22 @@ impl Runnable for Robottino {
 
     fn get_backpack_mut(&mut self) -> &mut BackPack {
         &mut self.robot.backpack
+    }
+}
+
+fn update_map(robot: &mut Robottino, world: &mut robotics_lib::world::World) {
+    let mut shared_map = robot.shared_map.lock().unwrap();
+    if let Some(new_map) = robot_map(world) {
+        *shared_map = new_map;
+    }
+    let mut shared_robot = robot.shared_robot.lock().unwrap();
+    let enviroment = look_at_sky(&world);
+
+    shared_robot.time = enviroment.get_time_of_day_string();
+    shared_robot.current_weather = Some(enviroment.get_weather_condition());
+    if let Some((prediction, ticks)) = weather_check(robot) {
+        shared_robot.next_weather = Some(prediction);
+        shared_robot.ticks_until_change = ticks;
     }
 }
 
