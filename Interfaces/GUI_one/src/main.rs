@@ -1597,7 +1597,7 @@ fn main() {
         ) //unpdate every frame
         .add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
-                mode: WindowMode::Windowed,
+                mode: WindowMode::Fullscreen,
                 ..default()
             }),
             ..Default::default()
