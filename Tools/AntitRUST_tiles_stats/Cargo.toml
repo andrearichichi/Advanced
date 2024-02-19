@@ -12,7 +12,7 @@
 [package]
 edition = "2021"
 name = "tiles_stats"
-version = "0.1.3"
+version = "0.1.4"
 authors = [
     "Andrea Richichi <andrea.richichi@studenti.unitn.it>",
     "Martin Perosa <Martin.Perosa@studenti.unitn.it>",

@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use robotics_lib::world::tile::TileType;
+use robotics_lib::world::tile::Tile;
 
 // The `tiles_stats` function provides statistics on all the tiles that have been discovered so far
 // in a world map (`world`), considering the tiles already visited (`visited_tiles`). It returns a single value:
@@ -20,7 +21,7 @@ use robotics_lib::world::tile::TileType;
 
 
 pub fn discovered_tiles_stats(
-    visited_tiles: &Option<Vec<Vec<TileType>>>,
+    visited_tiles: &Option<Vec<Vec<Tile>>>,
 ) -> HashMap<TileType, f64> {
     match visited_tiles {
         None => HashMap::new(),
@@ -31,7 +32,7 @@ pub fn discovered_tiles_stats(
             // Conta le occorrenze di ogni TileType
             for row in tiles {
                 for tile in row {
-                    *tile_counts.entry(tile.clone()).or_insert(0) += 1;
+                    *tile_counts.entry(tile.clone().tile_type).or_insert(0) += 1;
                     total_tiles += 1.0;
                 }
             }
