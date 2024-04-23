@@ -22,6 +22,8 @@ use robotics_lib::{
 };
 use std::thread::sleep;
 use std::{collections::HashMap, ops::Range};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::AtomicU64;
 
 use crab_rave_explorer::algorithm::{cheapest_border, move_to_cheapest_border};
 use oxagaudiotool::sound_config::OxAgSoundConfig;
@@ -36,16 +38,22 @@ use robotics_lib::{
     world::coordinates::Coordinate,
 };
 
+
 const MIN_ZOOM: f32 = 0.05; 
 const MAX_ZOOM: f32 = 1.0; //1.0 se 150, 0.25 se 250
 
-
-const AI: AiLogic = AiLogic::Falegname;
-const WORLD_SIZE: u32 = 150;
-const TILE_SIZE: f32 = 3.0; 
+const WORLD_SIZE: u32 = 200; //A 200 TROVA IL MAZE
+const TILE_SIZE: f32 = 3.0; //LASCIARE A 3!
 
 #[derive(Component, Debug)]
 struct Roboto;
+
+
+#[derive(Component, Debug)]
+struct Explode;
+
+#[derive(Component, Debug)]
+struct Explodetry;
 
 
 #[derive(Default, Resource)]
@@ -103,44 +111,316 @@ struct WeatherIcons {
     tropical_monsoon_night: Handle<Image>,
 }
 
+#[derive(Default, Resource)]
+struct TileIcons {
+    deepWater: Handle<Image>,
+    grass: Handle<Image>,
+    hill: Handle<Image>,
+    lava: Handle<Image>,
+    mountain: Handle<Image>,
+    sand: Handle<Image>,
+    shallowWater: Handle<Image>,
+    snow: Handle<Image>,
+    street: Handle<Image>,
+    teleport: Handle<Image>,
+    wall: Handle<Image>,
+}
 
-fn get_color(tile: Tile) -> Color {
+#[derive(Default, Resource)]
+struct ContentIcons {
+    rock: Handle<Image>,
+    tree: Handle<Image>,
+    garbage: Handle<Image>,
+    fire: Handle<Image>,
+    coin: Handle<Image>,
+    water: Handle<Image>,
+    bin: Handle<Image>,
+    c_crate: Handle<Image>,
+    bank: Handle<Image>,
+    market: Handle<Image>,
+    fish: Handle<Image>,
+    building: Handle<Image>,
+    bush: Handle<Image>,
+    jollyBlock: Handle<Image>,
+    scarecrow: Handle<Image>,
+}
+
+
+fn load_texture_tile_assets(commands: &mut Commands, asset_server: &Res<AssetServer>) {
+
+    let tile_icons = TileIcons{
+    deepWater: asset_server.load("img/DeepWater.png"),
+    grass: asset_server.load("img/Grass.png"),
+    hill: asset_server.load("img/Hill.png"),
+    lava: asset_server.load("img/Lava.png"),
+    mountain: asset_server.load("img/Mountain.png"),
+    sand: asset_server.load("img/Sand.png"),
+    shallowWater: asset_server.load("img/ShallowWater.png"),
+    snow: asset_server.load("img/Snow1.png"),
+    street: asset_server.load("img/Street.png"),
+    teleport: asset_server.load("img/Teleport.png"),
+    wall: asset_server.load("img/Wall.png"),
+
+};
+
+    commands.insert_resource(tile_icons);
+}
+
+fn load_texture_content_assets(commands: &mut Commands, asset_server: &Res<AssetServer>) {
+
+    let content_icons = ContentIcons{
+
+    rock: asset_server.load("img/Rock.png"),
+    tree: asset_server.load("img/Tree.png"),
+    garbage: asset_server.load("img/Trash.png"),
+    fire: asset_server.load("img/Fire.png"),
+    coin: asset_server.load("img/Coin.png"),
+    water: asset_server.load("img/WaterObject.png"),
+    bin: asset_server.load("img/Bin.png"),
+    c_crate: asset_server.load("img/Crate.png"),
+    bank: asset_server.load("img/Bank.png"),
+    market: asset_server.load("img/Market.png"),
+    fish: asset_server.load("img/Fish.png"),
+    building: asset_server.load("img/Building.png"),
+    bush: asset_server.load("img/Bush.png"),
+    jollyBlock: asset_server.load("img/JollyBlock.png"),
+    scarecrow: asset_server.load("img/ScareCrow.png"),
+
+    };
+
+    commands.insert_resource(content_icons);
+
+}
+
+
+
+
+
+fn get_tile_icons(tile: &Tile, tile_icons: &TileIcons ) -> Handle<Image> {
     match tile.tile_type {
-        TileType::DeepWater => Color::rgb_u8(0x00, 0x00, 0x80), // Blu Scuro
-        TileType::Grass => Color::rgb_u8(0x00, 0xFF, 0x00),     // Verde Vivo
-        TileType::Hill => Color::rgb_u8(0x7C, 0xFC, 0x00),      // Verde Chiaro
-        TileType::Lava => Color::rgb_u8(0xFF, 0x45, 0x00),      // Arancione-Rosso
-        TileType::Mountain => Color::rgb_u8(0x8B, 0x45, 0x13),  // Marrone
-        TileType::Sand => Color::rgb_u8(0xFF, 0xF0, 0x80),      // Sabbia
-        TileType::ShallowWater => Color::rgb_u8(0x00, 0xFF, 0xFF), // Azzurro
-        TileType::Snow => Color::rgb_u8(0xFF, 0xFF, 0xFF),      // Bianco
-        TileType::Street => Color::rgb_u8(0x69, 0x69, 0x69),    // Grigio Scuro
-        TileType::Teleport(_) => Color::rgb_u8(0x94, 0x00, 0xD3), // Viola
-        TileType::Wall => Color::rgb_u8(0x8B, 0x00, 0x00),      // Rosso Scuro
+        TileType::DeepWater => tile_icons.deepWater.clone(), // Blu Scuro
+        TileType::Grass => tile_icons.grass.clone(),     // Verde Vivo
+        TileType::Hill => tile_icons.hill.clone(),      // Verde Chiaro
+        TileType::Lava => tile_icons.lava.clone(),      // Arancione-Rosso
+        TileType::Mountain => tile_icons.mountain.clone(),  // Marrone
+        TileType::Sand => tile_icons.sand.clone(),      // Sabbia
+        TileType::ShallowWater => tile_icons.shallowWater.clone(), // Azzurro
+        TileType::Snow => tile_icons.snow.clone(),      // Bianco
+        TileType::Street => tile_icons.street.clone(),    // Grigio Scuro
+        TileType::Teleport(_) => tile_icons.teleport.clone(), // Viola
+        TileType::Wall => tile_icons.wall.clone(),      // Rosso Scuro
     }
 }
 
-fn get_content_color(content: Tile) -> Color {
+
+fn get_content_icons(content: &Tile, content_icons: &ContentIcons) -> Option<Handle<Image>> {
     match content.content {
-        Content::Rock(_) => Color::rgb_u8(0xB0, 0xC4, 0xDE), // Light Steel Blue
-        Content::Tree(_) => Color::rgb_u8(0x00, 0x64, 0x00), // Dark Green
-        Content::Garbage(_) => Color::rgb_u8(0x8B, 0x45, 0x13), // Saddle Brown
-        Content::Fire => Color::rgb_u8(0xFF, 0x45, 0x00),    // Orange Red
-        Content::Coin(_) => Color::rgb_u8(0xFF, 0xD7, 0x00), // Gold
-        Content::Water(_) => Color::rgb_u8(0x87, 0xCE, 0xEB), // Sky Blue
-        Content::Bin(_) => Color::rgb_u8(0x70, 0x80, 0x90),  // Slate Gray
-        Content::Crate(_) => Color::rgb_u8(0xF5, 0xF5, 0xDC), // Beige
-        Content::Bank(_) => Color::rgb_u8(0x85, 0xBB, 0x65), // Dollar Bill
-        Content::Market(_) => Color::rgb_u8(0xB2, 0x22, 0x22), // Firebrick
-        Content::Fish(_) => Color::rgb_u8(0x00, 0xFF, 0xFF), // Aqua
-        Content::Building => Color::rgb_u8(0x80, 0x00, 0x80), // Purple
-        Content::Bush(_) => Color::rgb_u8(0x90, 0xEE, 0x90), // Light Green
-        Content::JollyBlock(_) => Color::rgb_u8(0xFF, 0xC0, 0xCB), // Pink
-        Content::Scarecrow => Color::rgb_u8(0xFF, 0xA5, 0x00), // Orange
-        Content::None => Color::NONE,                       
-        _ => Color::YELLOW_GREEN, 
+        Content::Rock(_) => Some(content_icons.rock.clone()), // Light Steel Blue
+        Content::Tree(_) => Some(content_icons.tree.clone()), // Dark Green
+        Content::Garbage(_) => Some(content_icons.garbage.clone()), // Saddle Brown
+        Content::Fire => Some(content_icons.fire.clone()),    // Orange Red
+        Content::Coin(_) => Some(content_icons.coin.clone()), // Gold
+        Content::Water(_) => Some(content_icons.water.clone()), // Sky Blue
+        Content::Bin(_) => Some(content_icons.bin.clone()),  // Slate Gray
+        Content::Crate(_) => Some(content_icons.c_crate.clone()), // Beige
+        Content::Bank(_) => Some(content_icons.bank.clone()), // Dollar Bill
+        Content::Market(_) => Some(content_icons.market.clone()), // Firebrick
+        Content::Fish(_) => Some(content_icons.fish.clone()), // Aqua
+        Content::Building => Some(content_icons.building.clone()), // Purple
+        Content::Bush(_) => Some(content_icons.bush.clone()), // Light Green
+        Content::JollyBlock(_) => Some(content_icons.jollyBlock.clone()), // Pink
+        Content::Scarecrow => Some(content_icons.scarecrow.clone()), // Orange
+        Content::None => None,                       
     }
 }
+
+
+//setup main menu
+fn initial_menu_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
+    
+    // Qui vai a definire lo stile dei bottoni e il testo, simile a quanto fatto in main_menu_setup
+    // Common style for all buttons on the screen
+     let button_style = Style {
+        width: Val::Px(250.0),
+        height: Val::Px(65.0),
+        margin: UiRect::all(Val::Px(20.0)),
+        justify_content: JustifyContent::Center,
+        align_items: AlignItems::Center,
+        ..default()
+    };
+    let button_icon_style = Style {
+        width: Val::Px(30.0),
+        // This takes the icons out of the flexbox flow, to be positioned exactly
+        position_type: PositionType::Absolute,
+        // The icon will be close to the left border of the button
+        left: Val::Px(10.0),
+        ..default()
+    };
+    let button_text_style = TextStyle {
+        font_size: 40.0,
+        color: Color::rgb(0.9, 0.9, 0.9),
+        ..default()
+    };
+
+commands
+    .spawn((
+        NodeBundle {
+            style: Style {
+                width: Val::Percent(100.0),
+                height: Val::Percent(100.0),
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::Center,
+                ..default()
+            },
+            ..default()
+        },
+        OnMainMenuScreen,
+    ))
+    .with_children(|parent| {
+        parent
+            .spawn(NodeBundle {
+                style: Style {
+                    flex_direction: FlexDirection::Column,
+                    align_items: AlignItems::Center,
+                    ..default()
+                },
+                background_color: Color::CRIMSON.into(),
+                ..default()
+            })
+            .with_children(|parent| {
+                // Display the game name
+                parent.spawn(
+                    TextBundle::from_section(
+                        "AntitRust Project",
+                        TextStyle {
+                            font_size: 80.0,
+                            color: Color::rgb(0.9, 0.9, 0.9),
+                            ..default()
+                        },
+                    )
+                    .with_style(Style {
+                        margin: UiRect::all(Val::Px(50.0)),
+                        ..default()
+                    }),
+                );
+
+                // Display three buttons for each action available from the main menu:
+                // - new game
+                // - settings
+                // - quit
+                parent
+                    .spawn((
+                        ButtonBundle {
+                            style: button_style.clone(),
+                            background_color: NORMAL_BUTTON.into(),
+                            ..default()
+                        },
+                        MenuButtonAction::AI1,
+                    ))
+                    .with_children(|parent| {
+                        let icon = asset_server.load("img/menu_rock_robot.png");
+                        parent.spawn(ImageBundle {
+                            style: button_icon_style.clone(),
+                            image: UiImage::new(icon),
+                            ..default()
+                        });
+                        parent.spawn(TextBundle::from_section(
+                            "AI1",
+                            button_text_style.clone(),
+                        ));
+                    });
+                parent
+                    .spawn((
+                        ButtonBundle {
+                            style: button_style.clone(),
+                            background_color: NORMAL_BUTTON.into(),
+                            ..default()
+                        },
+                        MenuButtonAction::AI2,
+                    ))
+                    .with_children(|parent| {
+                        let icon = asset_server.load("img/menu_tree_robot.png");
+                        parent.spawn(ImageBundle {
+                            style: button_icon_style.clone(),
+                            image: UiImage::new(icon),
+                            ..default()
+                        });
+                        parent.spawn(TextBundle::from_section(
+                            "AI2",
+                            button_text_style.clone(),
+                        ));
+                    });
+                parent
+                    .spawn((
+                        ButtonBundle {
+                            style: button_style.clone(),
+                            background_color: NORMAL_BUTTON.into(),
+                            ..default()
+                        },
+                        MenuButtonAction::AI3,
+                    ))
+                    .with_children(|parent| {
+                        let icon = asset_server.load("img/menu_maze_robot.png");
+                        parent.spawn(ImageBundle {
+                            style: button_icon_style.clone(),
+                            image: UiImage::new(icon),
+                            ..default()
+                        });
+                        parent.spawn(TextBundle::from_section("AI3", button_text_style.clone()));
+                    });
+
+                    parent
+                    .spawn((
+                        ButtonBundle {
+                            style: button_style.clone(),
+                            background_color: NORMAL_BUTTON.into(),
+                            ..default()
+                        },
+                        MenuButtonAction::UberAI,
+                    ))
+                    .with_children(|parent| {
+                        let icon = asset_server.load("img/menu_full_robot.png");
+                        parent.spawn(ImageBundle {
+                            style: button_icon_style.clone(),
+                            image: UiImage::new(icon),
+                            ..default()
+                        });
+                        parent.spawn(TextBundle::from_section("UberAI", button_text_style.clone()));
+                    });
+
+                    parent
+                    .spawn((
+                        ButtonBundle {
+                            style: button_style.clone(),
+                            background_color: NORMAL_BUTTON.into(),
+                            ..default()
+                        },
+                        MenuButtonAction::Exit,
+                    ))
+                    .with_children(|parent| {
+                        let icon = asset_server.load("img/exitRight.png");
+                        parent.spawn(ImageBundle {
+                            style: button_icon_style.clone(),
+                            image: UiImage::new(icon),
+                            ..default()
+                        });
+                        parent.spawn(TextBundle::from_section("EXIT", button_text_style));
+                    });
+            });
+            
+    });
+
+
+    commands.spawn(Camera2dBundle {
+        camera: Camera {
+            order: 0,
+            ..default()
+        },
+        ..default()
+    })
+    .insert(OnMainMenuScreen);
+}
+
 
 // Funzione di setup che crea la scena
 fn setup(
@@ -149,6 +429,12 @@ fn setup(
     shared_map: Res<MapResource>,
     robot_resource: Res<RobotResource>,
 ) {
+
+
+    load_texture_content_assets(&mut commands, &asset_server);
+    load_texture_tile_assets(&mut commands, &asset_server);
+
+   // sleep(std::time::Duration::from_secs(3));
     //SPRITES
     let weather_icons = WeatherIcons {
         sunny_day: asset_server.load("img/sunny_day.png"),
@@ -165,8 +451,23 @@ fn setup(
 
     commands.insert_resource(weather_icons);
 
+    let texture_border1_handle: Handle<Image> = asset_server.load("img/border1.png");
+    let texture_border2_handle: Handle<Image> = asset_server.load("img/border2.png");
+    let texture_border3_handle: Handle<Image> = asset_server.load("img/border3.png");
+
+    let texture_decrease_handle: Handle<Image> = asset_server.load("img/decrease.png");
+    let texture_increase_handle: Handle<Image> = asset_server.load("img/increase.png");
+    let texture_play_handle: Handle<Image> = asset_server.load("img/pause.png");
+    let texture_pause_handle: Handle<Image> = asset_server.load("img/play.png");
+
+
+    let texture_robot_handle: Handle<Image> = asset_server.load("img/Robot.png");
+    
+    
+    
+
     //sleep 3 secondi
-    sleep(std::time::Duration::from_secs(3));
+    //sleep(std::time::Duration::from_secs(10));
     let world1 = shared_map.0.lock().unwrap();
     let resource1 = robot_resource.0.lock().unwrap();
     let world = world1.clone();
@@ -185,14 +486,19 @@ fn setup(
         }
     }
     // println!("count mappaa viosualizzaaaaa {:?}", count);
-    let mut old_map = OldMapResource {
+    /* let mut old_map = OldMapResource {
         //world: vec![vec![None; WORLD_SIZE as usize]; WORLD_SIZE as usize],
         world: vec![vec![None; WORLD_SIZE as usize]; WORLD_SIZE as usize],
-    };
+    }; */
+
+    commands.spawn(()).insert(OldMapResource {
+        world: vec![vec![None; WORLD_SIZE as usize]; WORLD_SIZE as usize],
+    })
+    .insert(Explodetry);
 
     // println!("Robot {:?} {:?}",resource.coordinate_column, resource.coordinate_row);
-    update_show_tiles(&world, &mut commands, &mut old_map.world);
-    commands.insert_resource(old_map);
+    // update_show_tiles(&world, &mut commands, &mut old_map.world);
+    //commands.insert_resource(old_map);
 
 
 
@@ -202,21 +508,23 @@ fn setup(
     commands
         .spawn(SpriteBundle {
             sprite: Sprite {
-                color: Color::RED,
+                color: Color::GRAY,
                 custom_size: Some(Vec2::new(robot_size, robot_size)),
                 ..Default::default()
             },
+            texture: texture_robot_handle,
             transform: Transform::from_xyz(
                 TILE_SIZE * resource.coordinate_row as f32,
                 TILE_SIZE * resource.coordinate_row as f32,
-                2.0,
+                15.0,
             ), // asse z serve per metterlo sopra i tile e i conent
             ..Default::default()
         })
         .insert(Roboto)
-        .insert(RenderLayers::layer(0));
+        .insert(RenderLayers::layer(2))
+        .insert(Explode);
 
-    //BUTTONS
+    //BUTTONS RIGHT
     commands
         .spawn(NodeBundle {
             style: Style {
@@ -238,6 +546,7 @@ fn setup(
             },
             ..default()
         })
+        .insert(Explode)
         .with_children(|parent| {
             // Primo bottone
             parent
@@ -268,6 +577,7 @@ fn setup(
                     ));
                 })
                 .insert(ZoomIn);
+               
 
             // Secondo bottone
             parent
@@ -296,6 +606,7 @@ fn setup(
                     ));
                 })
                 .insert(ZoomOut);
+                
 
             //bottone chiusura
             parent
@@ -324,8 +635,126 @@ fn setup(
                     ));
                 })
                 .insert(CloseAppButton);
+
+                
         })
-        .insert(RenderLayers::layer(0));
+        .insert(RenderLayers::layer(1));
+
+    //BUTTONS CENTER
+    commands
+        .spawn(NodeBundle {
+            style: Style {
+               
+                width: Val::Percent(100.0),
+                height: Val::Percent(100.0),
+                
+                align_items: AlignItems::FlexEnd, 
+                justify_content: JustifyContent::Center, 
+                flex_direction: FlexDirection::Row,      
+              
+                padding: UiRect {
+                    left: Val::Auto,
+                    top: Val::Px(10.0),
+                    right: Val::Px(50.0),
+                    bottom: Val::Px(50.0),
+                },
+                ..default()
+            },
+            ..default()
+        })
+        .insert(Explode)
+        .with_children(|parent| {
+
+        //BOTTONE STOP
+        parent
+        .spawn(ButtonBundle {
+            style: Style {
+                width: Val::Px(60.0),
+                height: Val::Px(40.0),
+                margin: UiRect::all(Val::Px(10.0)), 
+                border: UiRect::all(Val::Px(4.0)),
+                justify_content: JustifyContent::Center, 
+                align_items: AlignItems::Center,
+                ..default()
+            },
+            border_color: BorderColor(Color::BLACK),
+            background_color: NORMAL_BUTTON2.into(),
+            ..default()
+        })
+        .with_children(|parent| {
+            parent.spawn(TextBundle::from_section(
+                "STOP",
+                TextStyle {
+                    font_size: 25.0,
+                    color: Color::rgb(0.9, 0.9, 0.9),
+                    ..default()
+                },
+            ));
+        })
+        .insert(PauseButton);
+
+        //Bottone aumenta velocità
+        parent
+        .spawn(ButtonBundle {
+            style: Style {
+                width: Val::Px(70.0),
+                height: Val::Px(50.0),
+                margin: UiRect::all(Val::Px(10.0)), 
+                border: UiRect::all(Val::Px(4.0)),
+                justify_content: JustifyContent::Center, 
+                align_items: AlignItems::Center,
+                ..default()
+            },
+            border_color: BorderColor(Color::BLACK),
+            background_color: NORMAL_BUTTON2.into(),
+            ..default()
+        })
+        .with_children(|parent| {
+            parent.spawn(ImageBundle {
+                image: texture_decrease_handle.clone().into(),
+                background_color: BackgroundColor(Color::WHITE),
+                style: Style {
+                    width: Val::Px(40.0),
+                    height: Val::Px(40.0),
+                    justify_content: JustifyContent::Center, 
+                    align_items: AlignItems::Center,
+                    ..default()
+                },
+                ..default()
+              });
+            })
+            .insert(IncreaseSpeed);
+
+     //Bottone aumenta velocità
+     parent
+     .spawn(ButtonBundle {
+         style: Style {
+             width: Val::Px(60.0),
+             height: Val::Px(40.0),
+             margin: UiRect::all(Val::Px(10.0)), 
+             border: UiRect::all(Val::Px(4.0)),
+             justify_content: JustifyContent::Center, 
+             align_items: AlignItems::Center,
+             ..default()
+         },
+         border_color: BorderColor(Color::BLACK),
+         background_color: NORMAL_BUTTON2.into(),
+         ..default()
+     })
+     .with_children(|parent| {
+         parent.spawn(TextBundle::from_section(
+             "SPEED +",
+             TextStyle {
+                 font_size: 25.0,
+                 color: Color::rgb(0.9, 0.9, 0.9),
+                 ..default()
+             },
+         ));
+     })
+     .insert(DecreaseSpeed);
+    })
+      .insert(RenderLayers::layer(1));
+        
 
     //menu a tendina parte destra
     commands
@@ -339,6 +768,7 @@ fn setup(
             },
             ..default()
         })
+        .insert(Explode)
         .with_children(|parent| {
             parent
                 .spawn(ButtonBundle {
@@ -366,6 +796,7 @@ fn setup(
                     ));
                 })
                 .insert(DropdownMenu);
+              
 
             parent
                 .spawn(NodeBundle {
@@ -384,6 +815,7 @@ fn setup(
                     background_color: BackgroundColor(Color::rgba(255.0, 255.0, 255.0, 0.8)),
                     ..default()
                 })
+                .insert(Explode)
                 .with_children(|parent| {
                     // TIME
                     parent
@@ -446,11 +878,12 @@ fn setup(
                                     border_color: Color::BLACK.into(), 
                                     ..Default::default()
                                 })
-                                .insert(EnergyBar); 
+                                .insert(EnergyBar);
                         });
                     //COORDINATE ROBOT
                 })
                 .insert(Label);
+                
         });
 
     //menu' a tendina BACKPACK
@@ -465,6 +898,7 @@ fn setup(
             },
             ..default()
         })
+        .insert(Explode)
         .with_children(|parent| {
             parent
                 .spawn(ButtonBundle {
@@ -557,7 +991,8 @@ fn setup(
             },
             MainCamera,
         ))
-        .insert(RenderLayers::from_layers(&[0]));
+        .insert(RenderLayers::from_layers(&[1, 2, 3]))
+        .insert(Explode);
 
     //dimensioni complessive del mondo
     let world_width: f32 = world.len() as f32 * TILE_SIZE;
@@ -598,7 +1033,8 @@ fn setup(
             },
             MyMinimapCamera,
         ))
-        .insert(RenderLayers::from_layers(&[0, 1]));
+        .insert(RenderLayers::from_layers(&[0, 2, 3]))
+        .insert(Explode);
 
     // Crea l'entita' per il contorno sulla minimappa
     commands
@@ -608,11 +1044,12 @@ fn setup(
                 custom_size: Some(Vec2::new(25.0, 25.0)),
                 ..default()
             },
-            transform: Transform::from_xyz(0.0, 0.0, 999.0), 
+            transform: Transform::from_xyz(0.0, 0.0, 857.0), 
             ..default()
         })
+        .insert(RenderLayers::layer(0))
         .insert(MinimapOutline)
-        .insert(RenderLayers::layer(1));
+        .insert(Explode);
 
     //NERO SOTTO WORLD MAP
     
@@ -631,7 +1068,8 @@ fn setup(
                 },
                 transform: Transform::from_xyz(pos_x, pos_y, 0.0), 
                 ..default()
-            });
+            })
+            .insert(Explode);
         }
     }
 
@@ -662,10 +1100,50 @@ fn setup(
                         transform: Transform::from_xyz(pos_x, pos_y, -1.0), 
                         ..default()
                     })
-                    .insert(RenderLayers::layer(1));
+                    .insert(RenderLayers::layer(0))
+                    .insert(Explode);
             }
         }
     }
+
+    let mut texture_counter = 0;
+
+
+    //bordo main camera
+     for x in 0..effective_world_size as u32  {
+    for y in 0..effective_world_size as u32  {
+        if x < border_thickness as u32
+            || y < border_thickness as u32
+            || x >= (WORLD_SIZE as f32 + border_thickness) as u32
+            || y >= (WORLD_SIZE as f32 + border_thickness) as u32
+        {
+            let pos_x = (x as f32 - border_thickness) * TILE_SIZE;
+            let pos_y = (y as f32 - border_thickness) * TILE_SIZE;
+
+            let texture_handle = match texture_counter % 3 {
+                0 => texture_border1_handle.clone(),
+                1 => texture_border2_handle.clone(),
+                _ => texture_border3_handle.clone(),
+            };
+
+            commands.spawn(SpriteBundle {
+                sprite: Sprite {
+                    color: Color::WHITE,
+                    custom_size: Some(Vec2::new(TILE_SIZE, TILE_SIZE)), 
+                    ..default()
+                },
+                texture: texture_handle, 
+                transform: Transform::from_xyz(pos_x, pos_y, -1.0),
+                ..default()
+            })
+            .insert(RenderLayers::layer(1))
+            .insert(Explode);
+
+            texture_counter += 1;
+        }
+    }
+} 
+
 
    //TILES GIORNO NOTTE
     for x in 0..WORLD_SIZE {
@@ -685,7 +1163,8 @@ fn setup(
                     transform: Transform::from_xyz(pos_x, pos_y, 5.0), 
                     ..default()
                 })
-                .insert(SunTime);
+                .insert(SunTime)
+                .insert(Explode);
         }
     }
 }
@@ -880,7 +1359,7 @@ fn cursor_position(q_windows: Query<&Window, With<PrimaryWindow>>) {
 }
 
 //MOVIMENTO MINIMAPPA
-fn cursor_events(
+/* fn cursor_events(
     minimap_camera_query: Query<
         (&Camera, &Transform),
         (With<MyMinimapCamera>, Without<MainCamera>),
@@ -892,6 +1371,7 @@ fn cursor_events(
     if let Some(cursor_position) = window.cursor_position() {
         if let Ok((minimap_camera, minimap_transform)) = minimap_camera_query.get_single() {
             if let Some(viewport) = &minimap_camera.viewport {
+                println!("Entrato nel cursor");
                 //posizione e la dimensione fisica della viewport della minimappa
                 let minimap_viewport_position = Vec2::new(
                     viewport.physical_position.x as f32,
@@ -910,6 +1390,7 @@ fn cursor_events(
                     && cursor_relative_to_minimap.y >= 0.0
                     && cursor_relative_to_minimap.y <= minimap_viewport_size.y
                 {
+                    println!("entrato nell'if");
 
                     //proporzioni del cursore all'interno della minimappa
                     let click_proportions = cursor_relative_to_minimap / minimap_viewport_size;
@@ -930,6 +1411,77 @@ fn cursor_events(
             }
         }
     }
+    println!("CURSOR");
+} */
+
+fn cursor_events(
+    minimap_camera_query: Query<
+        (&Camera, &Transform),
+        (With<MyMinimapCamera>, Without<MainCamera>),
+    >,
+    mut main_camera_query: Query<&mut Transform, (With<MainCamera>, Without<MyMinimapCamera>)>,
+    q_windows: Query<&Window, With<PrimaryWindow>>,
+) {
+    let window = q_windows.single();
+    //println!("Funzione cursor_events avviata");
+
+    if let Some(cursor_position) = window.cursor_position() {
+        //println!("Posizione del cursore: {:?}", cursor_position);
+
+        if let Ok((minimap_camera, minimap_transform)) = minimap_camera_query.get_single() {
+            //println!("Minimappa trovata con trasformazione: {:?}", minimap_transform);
+
+            if let Some(viewport) = &minimap_camera.viewport {
+                //println!("Viewport trovata: {:?}", viewport);
+
+                let minimap_viewport_position = Vec2::new(
+                    viewport.physical_position.x as f32,
+                    viewport.physical_position.y as f32,
+                );
+                let minimap_viewport_size = Vec2::new(
+                    viewport.physical_size.x as f32 / 1.5,
+                    viewport.physical_size.y as f32 / 1.5,
+                );
+                //println!("Posizione viewport minimappa: {:?}", minimap_viewport_position);
+                //println!("Dimensione viewport minimappa: {:?}", minimap_viewport_size);
+
+                let cursor_relative_to_minimap = cursor_position - minimap_viewport_position;
+                //println!("Posizione relativa del cursore sulla minimappa: {:?}", cursor_relative_to_minimap);
+
+                if cursor_relative_to_minimap.x >= 0.0
+                    && cursor_relative_to_minimap.x <= minimap_viewport_size.x
+                    && cursor_relative_to_minimap.y >= 0.0
+                    && cursor_relative_to_minimap.y <= minimap_viewport_size.y
+                {
+                    //println!("Il cursore è all'interno della minimappa");
+
+                    let click_proportions = cursor_relative_to_minimap / minimap_viewport_size;
+                    //println!("Proporzioni del click sulla minimappa: {:?}", click_proportions);
+
+                    let world_pos_x = minimap_transform.translation.x
+                        + (click_proportions.x - 0.5) * (WORLD_SIZE as f32 * TILE_SIZE);
+                    let world_pos_y = minimap_transform.translation.y
+                        + (0.5 - click_proportions.y) * (WORLD_SIZE as f32 * TILE_SIZE);
+                    //println!("Posizione calcolata nel mondo: x = {}, y = {}", world_pos_x, world_pos_y);
+
+                    for mut transform in main_camera_query.iter_mut() {
+                        //println!("Aggiornamento della trasformazione della camera principale");
+                        transform.translation.x = world_pos_x;
+                        transform.translation.y = world_pos_y;
+                    }
+                } else {
+                   // println!("Il cursore NON è all'interno della minimappa");
+                }
+            } else {
+                //println!("Viewport non trovato nella minimappa");
+            }
+        } else {
+            //println!("Query sulla minimappa non riuscita o minimappa non trovata");
+        }
+    } else {
+        //println!("Posizione del cursore non disponibile");
+    }
+    //println!("Fine della funzione cursor_events");
 }
 
 // Funzione per aggiornare le dimensioni e la posizione del rettangolo sulla minimappa
@@ -975,13 +1527,13 @@ fn update_minimap_outline(
 
 
 //SETUP VIEWPORT(COME SCHERMO CONDIVISO)
-fn set_camera_viewports(
+/* fn set_camera_viewports(
     windows: Query<&Window>,
     mut resize_events: EventReader<WindowResized>,
     mut minimappa_camera: Query<&mut Camera, (With<MyMinimapCamera>, Without<MainCamera>)>,
     mut main_camera: Query<&mut Camera, With<MainCamera>>,
 ) {
-
+    //sleep(std::time::Duration::from_secs(1));
     for resize_event in resize_events.read() {
         //parte sinistra (MINIMAPPA)
         let window = windows.get(resize_event.window).unwrap();
@@ -1006,68 +1558,245 @@ fn set_camera_viewports(
             ..default()
         });
     }
+
+    println!("VIEWPORT");
+} */
+
+/* fn set_camera_viewports(
+    windows: Query<&Window>,
+    mut resize_events: EventReader<WindowResized>,
+    mut minimappa_camera: Query<&mut Camera, (With<MyMinimapCamera>, Without<MainCamera>)>,
+    mut main_camera: Query<&mut Camera, (With<MainCamera>, Without<MyMinimapCamera>)>,
+) {
+    for resize_event in resize_events.read() {
+        if let Ok(window) = windows.get(resize_event.window) {
+            // Handle the minimap camera
+            match minimappa_camera.get_single_mut() {
+                Ok(mut camera) => {
+                    camera.viewport = Some(Viewport {
+                        physical_position: UVec2::new(0, 0),
+                        physical_size: UVec2::new(
+                            window.resolution.physical_width() / 6,
+                            window.resolution.physical_height() / 4,
+                        ),
+                        
+                        ..default()
+                    });
+                    println!("viewport1");
+                }
+                Err(_) => {
+                    eprintln!("Error: Minimap camera not found.");
+                }
+            }
+
+            // Handle the main camera
+            match main_camera.get_single_mut() {
+                Ok(mut camera) => {
+                    camera.viewport = Some(Viewport {
+                        physical_position: UVec2::new(0, 0),
+                        physical_size: UVec2::new(
+                            window.resolution.physical_width(),
+                            window.resolution.physical_height(),
+                        ),
+                        ..default()
+                    });
+                    println!("viewport2");
+                }
+                
+                Err(_) => {
+                    eprintln!("Error: Main camera not found.");
+                }
+            }
+        } else {
+            eprintln!("Error: Window not found.");
+        }
+    }
+
+    println!("VIEWPORT");
+} */
+
+fn set_camera_viewports(
+    windows: Query<&Window>,
+    mut minimappa_camera: Query<&mut Camera, (With<MyMinimapCamera>, Without<MainCamera>)>,
+    mut main_camera: Query<&mut Camera, With<MainCamera>>,
+) {
+    if let Some(window) = windows.iter().next() {
+        // Handle the minimap camera
+        match minimappa_camera.get_single_mut() {
+            Ok(mut camera) => {
+                camera.viewport = Some(Viewport {
+                    physical_position: UVec2::new(0, 0),
+                    physical_size: UVec2::new(
+                        window.resolution.physical_width() / 6,
+                        window.resolution.physical_height() / 4,
+                    ),
+                    ..default()
+                });
+                println!("viewport1 updated");
+            }
+            Err(_) => {
+                eprintln!("Error: Minimap camera not found.");
+            }
+        }
+
+        // Handle the main camera
+        match main_camera.get_single_mut() {
+            Ok(mut camera) => {
+                camera.viewport = Some(Viewport {
+                    physical_position: UVec2::new(0, 0),
+                    physical_size: UVec2::new(
+                        window.resolution.physical_width(),
+                        window.resolution.physical_height(),
+                    ),
+                    ..default()
+                });
+                println!("viewport2 updated");
+            }
+            Err(_) => {
+                eprintln!("Error: Main camera not found.");
+            }
+        }
+    } else {
+        eprintln!("Error: Window not found.");
+    }
 }
 
-//SPAWN DEI TILE
-fn update_show_tiles(
-    world: &Vec<Vec<Option<Tile>>>,
-    commands: &mut Commands,
-    old_world: &mut Vec<Vec<Option<Tile>>>,
-) {
-    for (x, row) in world.iter().enumerate() {
-        for (y, tile) in row.iter().enumerate() {
-            let old_tile = &old_world[x][y];
-          
-            if tile.is_some()
-                && (old_tile.is_none()
-                    || old_tile.clone().unwrap().content != tile.clone().unwrap().content)
-            {
-                let tile = tile.clone().unwrap();
-                // println!("x: {:?}, y: {:?}, tile: {:?}", x, y, tile);
-                let tile_color = get_color(tile.clone());
-                let content_color = get_content_color(tile.clone());
-                let mut z_value = 1.0;
-               
-                if tile.content != Content::None {
-                    commands
-                        .spawn(SpriteBundle {
-                            sprite: Sprite {
-                                color: content_color, 
-                                custom_size: Some(Vec2::new(TILE_SIZE / 3.0, TILE_SIZE / 3.0)), 
-                                ..Default::default()
-                            },
-                            transform: Transform::from_xyz(
-                                x as f32 * TILE_SIZE, 
-                                y as f32 * TILE_SIZE, 
-                                z_value,              
-                            ),
-                            ..Default::default()
-                        })
-                        .insert(RenderLayers::layer(0));
-                    z_value = 0.0;
-                }
 
+//SPAWN DEI TILE
+/*     fn update_show_tiles(
+        world: &Vec<Vec<Option<Tile>>>,
+        commands: &mut Commands,
+        mut old_world: Query<&mut OldMapResource>,
+        tile_icons: Res<TileIcons>,
+        content_icons: Res<ContentIcons>,
+        robot_position: Res<RobotPosition>, 
+    ) {
+
+        if let Ok(mut old_map_res) = old_world.get_single_mut() {
+            let old_world = &mut old_map_res.world;
+
+        for (x, row) in world.iter().enumerate() {
+            for (y, tile) in row.iter().enumerate() {
+                let old_tile = &old_world[x][y];
+            
+                if let Some(tile) = tile {
+                    if old_tile.is_none() || old_tile.as_ref().unwrap().content != tile.content {
+                        let tile_color = get_tile_icons(tile, &tile_icons);
+                        let content_color = get_content_icons(tile, &content_icons);
+                        
+                        let z_value_content = if tile.content != Content::None { 5 } else { 0 };
+                        let z_value_tile = 2;
                 
-                commands
-                    .spawn(SpriteBundle {
-                        sprite: Sprite {
-                            color: tile_color, 
-                            custom_size: Some(Vec2::new(TILE_SIZE, TILE_SIZE)),
+                    if tile.content != Content::None {
+                        commands
+                            .spawn(ImageBundle {
+                                image: content_color.unwrap().into(),
+                                style: Style {
+                                    width: Val::Px(TILE_SIZE),
+                                    height: Val::Px(TILE_SIZE),
+                                    left: Val::Px(x as f32 * TILE_SIZE), // Imposta la posizione orizzontale in base alla coordinata x del tile
+                                    top: Val::Px(y as f32 * TILE_SIZE), // Imposta la posizione verticale in base alla coordinata y del tile
+                                    ..Default::default()
+                                },
+                                z_index: ZIndex::Global(z_value_content),
+
+                                ..Default::default()
+                            })
+                            .insert(RenderLayers::layer(0));
+                            
+
+                    
+                    commands
+                    .spawn(ImageBundle {
+                        image: tile_color.into(),
+                        style: Style {
+                            width: Val::Px(TILE_SIZE),
+                            height: Val::Px(TILE_SIZE),
+                            left: Val::Px(x as f32 * TILE_SIZE), // Imposta la posizione orizzontale in base alla coordinata x del tile
+                            top: Val::Px(y as f32 * TILE_SIZE),  // Imposta la posizione verticale in base alla coordinata y del tile
                             ..Default::default()
                         },
-                        transform: Transform::from_xyz(
-                            x as f32 * TILE_SIZE, 
-                            y as f32 * TILE_SIZE, 
-                            z_value,
-                        ),
+                        z_index: ZIndex::Global(z_value_tile),
                         ..Default::default()
                     })
                     .insert(RenderLayers::layer(0));
+                }
             }
         }
     }
-    *old_world = world.clone();
 }
+        *old_world = world.clone();
+        }
+    } */
+
+
+    fn update_show_tiles(
+        world: &Vec<Vec<Option<Tile>>>,
+        commands: &mut Commands,
+        old_world: &mut Vec<Vec<Option<Tile>>>,
+        tile_icons: Res<TileIcons>,
+        content_icons: Res<ContentIcons>,
+    ) {
+        for (x, row) in world.iter().enumerate() {
+            for (y, tile) in row.iter().enumerate() {
+                let old_tile = &old_world[x][y];
+                // Se il nuovo tile non e' None e il vecchio tile e' None, spawnalo
+                if tile.is_some()
+                    && (old_tile.is_none()
+                        || old_tile.clone().unwrap().content != tile.clone().unwrap().content)
+                {
+                    let tile = tile.clone().unwrap();
+                    // println!("x: {:?}, y: {:?}, tile: {:?}", x, y, tile);
+                    let tile_color = get_tile_icons(&tile, &tile_icons);
+                    let content_color = get_content_icons(&tile, &content_icons);
+                    let mut z_value = 10.0;
+                    // Optionally spawn an additional sprite for the content if it's not None
+                    if tile.content != Content::None {
+                        commands
+                            .spawn(SpriteBundle {
+                                sprite: Sprite {
+                                    color: Color::WHITE, // Use the content color
+                                    custom_size: Some(Vec2::new(TILE_SIZE / 1.5, TILE_SIZE / 1.5)), // Smaller than the tile for distinction
+                                    ..Default::default()
+                                },
+                                texture: content_color.unwrap().clone(),
+                                transform: Transform::from_xyz(
+                                    x as f32 * TILE_SIZE, // Centered on the tile
+                                    y as f32 * TILE_SIZE, // Centered on the tile
+                                    z_value,              // Slightly above the tile layer
+                                ),
+                                ..Default::default()
+                            })
+                            .insert(RenderLayers::layer(3))
+                            .insert(Explode);
+                        
+                        z_value = 5.0;
+                    }
+    
+                    // Create a base sprite for the tile
+                    commands
+                        .spawn(SpriteBundle {
+                            sprite: Sprite {
+                                color: Color::WHITE, // Use the tile color
+                                custom_size: Some(Vec2::new(TILE_SIZE, TILE_SIZE)),
+                                ..Default::default()
+                            },
+                            texture: tile_color.clone(),
+                            transform: Transform::from_xyz(
+                                x as f32 * TILE_SIZE, // X position with an offset
+                                y as f32 * TILE_SIZE, // Y position with an offset
+                                z_value,
+                            ),
+                            ..Default::default()
+                        })
+                        .insert(RenderLayers::layer(3))
+                        .insert(Explode);
+                }
+            }
+        }
+        *old_world = world.clone();
+    }
+
 
 #[derive(Component)]
 struct ZoomIn;
@@ -1104,6 +1833,9 @@ fn button_system(
             Option<&DropdownMenu>,
             Option<&DropdownMenuBackpack>,
             Option<&CloseAppButton>,
+            Option<&PauseButton>, 
+            Option<&IncreaseSpeed>,
+            Option<&DecreaseSpeed>
         ),
         (Changed<Interaction>, With<Button>),
     >,
@@ -1113,6 +1845,14 @@ fn button_system(
     mut label_backpack_query: Query<&mut Style, (With<LabelBackPack>, Without<Label>)>,
     robot_position: Res<RobotPosition>,
     mut exit: EventWriter<AppExit>,
+    mut menu_state: ResMut<NextState<MenuState>>,
+    mut game_state: ResMut<NextState<GameState>>,
+    mut ai1_state: ResMut<NextState<Ai1_State>>,
+    mut ai2_state: ResMut<NextState<Ai2_State>>,
+    mut ai3_state: ResMut<NextState<Ai3_State>>,
+    mut uberai_state: ResMut<NextState<UberAi_State>>,
+    paused_signal: Res<PausedSignal>,
+    mut speed_sleep: ResMut<SleepTime>,
 ) {
     for (
         interaction,
@@ -1124,14 +1864,19 @@ fn button_system(
         dropdown,
         dropdownback,
         closeapp,
+        pause_button,
+        increase_speed,
+        decrease_speed,
     ) in &mut interaction_query
     {
         ;
         match *interaction {
             Interaction::Pressed => {
+
                 if zoomin.is_some() {
                     adjust_camera_zoom_and_position(0.03, &mut camera_query, &robot_position);
                 }
+
                 if zoomout.is_some() {
                     adjust_camera_zoom_and_position(-0.03, &mut camera_query, &robot_position);
                 } else if dropdown.is_some() {
@@ -1142,8 +1887,15 @@ fn button_system(
                             node_style.display = Display::None; 
                         }
                     }
+                    //PING
                 } else if closeapp.is_some() {
-                    exit.send(AppExit);
+                    game_state.set(GameState::InMenu);
+                    ai1_state.set(Ai1_State::Out);
+                    ai2_state.set(Ai2_State::Out);
+                    ai3_state.set(Ai3_State::Out);
+                    uberai_state.set(UberAi_State::Out);
+
+                    //label
                 } else if dropdownback.is_some() {
                     for mut node_style in label_backpack_query.iter_mut() {
                         if node_style.display == Display::None {
@@ -1151,6 +1903,39 @@ fn button_system(
                         } else {
                             node_style.display = Display::None;
                         }
+                    }
+
+                    //pausa
+                } else if pause_button.is_some() {
+                    let current_state = paused_signal.0.load(Ordering::SeqCst);
+                    paused_signal.0.store(!current_state, Ordering::SeqCst);
+                    println!("Stato di pausa cambiato: {}", !current_state);
+
+                    
+                } else if increase_speed.is_some() {
+                    // Ottieni il valore corrente del tempo di sleep
+                    let current_sleep_time = speed_sleep.millis.load(Ordering::SeqCst);
+                    
+                    // Calcola il nuovo valore del tempo di sleep senza superare i 1000 millisecondi
+                    let new_sleep_time = (current_sleep_time + 150).min(1000); // Aumenta di 250 senza superare 1000
+                    
+                    // Aggiorna il valore del tempo di sleep solo se non supera 1000
+                    if current_sleep_time < 1000 {
+                        speed_sleep.millis.store(new_sleep_time, Ordering::SeqCst);
+                        println!("Tempo di sleep aumentato a: {}", new_sleep_time);
+                    }
+                    
+                } else if decrease_speed.is_some() {
+                    // Ottieni il valore corrente del tempo di sleep
+                    let current_sleep_time = speed_sleep.millis.load(Ordering::SeqCst);
+                    
+                    // Calcola il nuovo valore del tempo di sleep senza scendere sotto i 30 millisecondi
+                    let new_sleep_time = current_sleep_time.saturating_sub(150).max(30); // Diminuisce di 250 senza scendere sotto 30
+                    
+                    // Aggiorna il valore del tempo di sleep solo se è maggiore di 30
+                    if current_sleep_time > 30 {
+                        speed_sleep.millis.store(new_sleep_time, Ordering::SeqCst);
+                        println!("Tempo di sleep diminuito a: {}", new_sleep_time);
                     }
                 }
 
@@ -1219,6 +2004,7 @@ fn adjust_camera_zoom_and_position(
 }
 
 const NORMAL_BUTTON: Color = Color::rgb(0.15, 0.15, 0.15);
+const NORMAL_BUTTON2: Color = Color::rgb(0.83, 0.83, 0.83);
 const HOVERED_BUTTON: Color = Color::rgb(0.25, 0.25, 0.25);
 const HOVERED_PRESSED_BUTTON: Color = Color::rgb(0.25, 0.65, 0.25);
 const PRESSED_BUTTON: Color = Color::rgb(0.35, 0.75, 0.35);
@@ -1261,7 +2047,10 @@ fn robot_movement_system(
     robot_resource: Res<RobotResource>,
     world: Res<MapResource>,
     weather_icons: Option<Res<WeatherIcons>>,
-    mut old_world: Option<ResMut<OldMapResource>>,
+    tile_icons: Res<TileIcons>,
+    content_icons: Res<ContentIcons>,
+    mut old_world_query: Query<&mut OldMapResource>,
+    robot_position: Res<RobotPosition>,
     energy_query: Query<
         &mut Text,
         (
@@ -1294,9 +2083,11 @@ fn robot_movement_system(
     weather_image_query: Query<&mut UiImage, With<WeatherIcon>>,
 ) {
     let world = world.0.lock().unwrap();
-    if let Some(ref mut old_world) = old_world {
-        update_show_tiles(&world, &mut commands, &mut old_world.world);
+    if let Ok(mut old_world_res) = old_world_query.get_single_mut() {
+        let old_world = &mut old_world_res.world;
+        update_show_tiles(&world, &mut commands, old_world, tile_icons, content_icons); // Passa direttamente old_world
     }
+    drop(world);
     let resource = robot_resource.0.lock().unwrap();
     let tile_step = tile_size.tile_size; 
     let resource_copy = resource.clone();
@@ -1426,7 +2217,7 @@ enum AiLogic {
     Completo,
 }
 
-fn moviment(robot_data: Arc<Mutex<RobotInfo>>, map: Arc<Mutex<Vec<Vec<Option<Tile>>>>>) {
+fn moviment(robot_data: Arc<Mutex<RobotInfo>>, map: Arc<Mutex<Vec<Vec<Option<Tile>>>>>, ai_logic: AiLogic,  shutdown_signal: Arc<AtomicBool>, paused_signal: Arc<AtomicBool>, sleep_time: Arc<AtomicU64>,) {
     let audio = get_audio_manager();
     let background_music = OxAgSoundConfig::new_looped_with_volume("assets/audio/background.ogg", 2.0);
 
@@ -1436,14 +2227,14 @@ fn moviment(robot_data: Arc<Mutex<RobotInfo>>, map: Arc<Mutex<Vec<Vec<Option<Til
         robot: Robot::new(),
         audio: audio,
         weather_tool: WeatherPredictionTool::new(),
-        ai_logic: AI,
+        ai_logic: ai_logic,
         maze_discovered: None,
     };
 
 
     // world generator initialization
-    let mut world_gen =
-        ghost_amazeing_island::world_generator::WorldGenerator::new(WORLD_SIZE, false, 1, 1.1);
+/*     let mut world_gen =
+        ghost_amazeing_island::world_generator::WorldGenerator::new(WORLD_SIZE, false, 1, 1.1); */
     // Runnable creation and start
 
     println!("Generating runnable (world + robot)...");
@@ -1458,24 +2249,36 @@ fn moviment(robot_data: Arc<Mutex<RobotInfo>>, map: Arc<Mutex<Vec<Vec<Option<Til
         ghost_amazeing_island::world_generator::WorldGenerator::new(WORLD_SIZE, false, 1, 1.1);
     let mut runner = Runner::new(Box::new(robot), &mut world_gen);
     println!("Runnable succesfully generated");
-    //sleep 5 second
-    sleep(std::time::Duration::from_secs(3));
-    for _i in 0..10000 {
-        let rtn = runner.as_mut().unwrap().game_tick();
-        // sleep(std::time::Duration::from_secs(1));
+
+     //MOVIMENTO ROBOT
+    while !shutdown_signal.load(Ordering::SeqCst) {
+        if !paused_signal.load(Ordering::SeqCst) {
+            let current_sleep_time = sleep_time.load(Ordering::SeqCst);
+            std::thread::sleep(Duration::from_millis(current_sleep_time));
+            // Esegui la logica di movimento solo se il robot non è in pausa
+            let rtn = runner.as_mut().unwrap().game_tick();
+            //sleep(std::time::Duration::from_secs(1));
+        } else {
+            // Opzionalmente, inserisci qui una pausa per ridurre l'utilizzo della CPU quando in pausa
+            std::thread::sleep(std::time::Duration::from_millis(100));
+        }
     }
+
+
 }
 
-#[derive(Clone)]
-struct RobotResource(Arc<Mutex<RobotInfo>>);
-struct MapResource(Arc<Mutex<Vec<Vec<Option<Tile>>>>>);
-struct OldMapResource {
-    world: Vec<Vec<Option<Tile>>>,
-}
+
+    #[derive(Clone)]
+    struct RobotResource(Arc<Mutex<RobotInfo>>);
+    struct MapResource(Arc<Mutex<Vec<Vec<Option<Tile>>>>>);
+
+    #[derive(Component, Clone)]
+    struct OldMapResource {
+        world: Vec<Vec<Option<Tile>>>,
+    }
 
 impl bevy::prelude::Resource for RobotResource {}
 impl bevy::prelude::Resource for MapResource {}
-impl bevy::prelude::Resource for OldMapResource {}
 
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -1488,7 +2291,7 @@ struct Position {
     y: i32,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct RobotInfo {
     energy_level: usize,                  // livello di energia del robot
     coordinate_row: usize,                // posizione del robot
@@ -1501,10 +2304,779 @@ struct RobotInfo {
     time: String,
 }
 
+//**************************** */
+//MENU CODE
+/**************************** */
+
+/* fn setup_menu_camera(mut commands: Commands, query: Query<Entity, With<OnMainMenuCamera>>) {
+    // Verifica se esiste già una camera con il componente OnMainMenuCamera
+    let camera_exists = query.iter().next().is_some();
+
+    if !camera_exists {
+        commands.spawn(Camera2dBundle {
+            camera: Camera {
+                order: 0,
+                ..default()
+            },
+            ..default()
+        })
+        .insert(OnMainMenuCamera);
+    }
+} */
+
+fn update_camera_visibility_menu(
+    game_state: Res<State<GameState>>,
+    mut query: Query<(&mut Visibility, &OnMainMenuCamera)>,
+) {
+    let is_menu_active = matches!(game_state.get(), GameState::InMenu);
+
+    for (mut visibility, _) in query.iter_mut() {
+        *visibility = if is_menu_active {
+            Visibility::Visible
+        } else {
+            Visibility::Hidden
+        };
+    }
+}
+
+fn update_camera_visibility_game(
+    game_state: Res<State<GameState>>,
+    mut query: Query<(&mut Visibility, (&MyMinimapCamera, &MainCamera))>,
+) {
+    let is_menu_active = !matches!(game_state.get(), GameState::InMenu);
+
+    for (mut visibility, _) in query.iter_mut() {
+        *visibility = if is_menu_active {
+            Visibility::Visible
+        } else {
+            Visibility::Hidden
+        };
+    }
+}
+// Enum that will be used as a global state for the game
+#[derive(Clone, Copy, Default, Eq, PartialEq, Debug, Hash, States)]
+enum GameState {
+    #[default]
+    InMenu,
+    InAi1,
+    InAi2,
+    InAi3,
+    InUberAi
+}
+
+// Tag component used to mark which setting is currently selected
+#[derive(Component)]
+struct SelectedOption;
+
+#[derive(Component)]
+struct PauseButton;
+
+#[derive(Component)]
+struct IncreaseSpeed;
+
+
+#[derive(Component)]
+struct DecreaseSpeed;
+
+
+#[derive(Resource, Debug, Default)] 
+struct ShutdownSignal(Arc<AtomicBool>);
+
+#[derive(Resource, Debug, Default)] 
+struct PausedSignal(Arc<AtomicBool>);
+
+#[derive(Resource, Debug)] 
+struct SleepTime {
+    millis: Arc<AtomicU64>,
+}
+
+
+
+//BOTTONI DEL MAIN MENU
+#[derive(Clone, Copy, Default, Eq, PartialEq, Debug, Hash, States)]
+enum MenuState {
+    Main,
+    #[default]
+    Disabled,
+    Ai1,
+    Ai2,
+    Ai3,
+    UberAi,
+}
+
+//BOTTONI DEL MAIN MENU
+#[derive(Component)]
+enum MenuButtonAction {
+    AI1,
+    AI2,
+    AI3,
+    UberAI,
+    Exit,
+}
+
+fn menu_setup(mut menu_state: ResMut<NextState<MenuState>>) {
+    sleep(std::time::Duration::from_secs(1));
+    menu_state.set(MenuState::Main);
+}
+fn start_ai1(mut menu_state: ResMut<NextState<MenuState>>) {
+    sleep(std::time::Duration::from_secs(1));
+    menu_state.set(MenuState::Ai1);
+}
+fn start_ai2(mut menu_state: ResMut<NextState<MenuState>>) {
+    sleep(std::time::Duration::from_secs(1));
+    menu_state.set(MenuState::Ai2);
+}
+fn start_ai3(mut menu_state: ResMut<NextState<MenuState>>) {
+    sleep(std::time::Duration::from_secs(1));
+    menu_state.set(MenuState::Ai3);
+}
+fn start_uberai(mut menu_state: ResMut<NextState<MenuState>>) {
+    sleep(std::time::Duration::from_secs(1));
+    menu_state.set(MenuState::UberAi);
+}
+fn start_in_ai1(mut menu_state: ResMut<NextState<Ai1_State>>) {
+    sleep(std::time::Duration::from_secs(1));
+    menu_state.set(Ai1_State::In);
+}
+fn start_in_ai2(mut menu_state: ResMut<NextState<Ai2_State>>) {
+    sleep(std::time::Duration::from_secs(1));
+    menu_state.set(Ai2_State::In);
+}
+fn start_in_ai3(mut menu_state: ResMut<NextState<Ai3_State>>) {
+    sleep(std::time::Duration::from_secs(1));
+    menu_state.set(Ai3_State::In);
+}
+fn start_in_uberai(mut menu_state: ResMut<NextState<UberAi_State>>) {
+    sleep(std::time::Duration::from_secs(1));
+    menu_state.set(UberAi_State::In);
+}
+fn start_update_ai1(mut menu_state: ResMut<NextState<Ai1_State>>) {
+    sleep(std::time::Duration::from_secs(1));
+    menu_state.set(Ai1_State::Run);
+}
+fn start_update_ai2(mut menu_state: ResMut<NextState<Ai2_State>>) {
+    sleep(std::time::Duration::from_secs(1));
+    menu_state.set(Ai2_State::Run);
+}
+fn start_update_ai3(mut menu_state: ResMut<NextState<Ai3_State>>) {
+    sleep(std::time::Duration::from_secs(1));
+    menu_state.set(Ai3_State::Run);
+}
+fn start_update_uberai(mut menu_state: ResMut<NextState<UberAi_State>>) {
+    sleep(std::time::Duration::from_secs(1));
+    menu_state.set(UberAi_State::Run);
+}
+
+// Generic system that takes a component as a parameter, and will despawn all entities with that component
+fn despawn_screen<T: Component + std::fmt::Debug>(to_despawn: Query<Entity, With<T>>, mut commands: Commands) {
+    for entity in &to_despawn {
+      //  log::info!("Despawning entity with component: {:?}", entity);
+        commands.entity(entity).despawn_recursive();
+    }
+}
+
+// Generic system that takes a component as a parameter, and will despawn all entities with that component
+fn despawn_screentry<T: Component + std::fmt::Debug>(to_despawn: Query<Entity, With<T>>, mut commands: Commands) {
+    for entity in &to_despawn {
+       log::info!("Despawning entity with component: {:?}", entity);
+        commands.entity(entity).despawn_recursive();
+    }
+}
+
+//PING
+fn menu_action(
+    interaction_query: Query<
+        (&Interaction, &MenuButtonAction),
+        (Changed<Interaction>, With<Button>),
+    >,
+    mut app_exit_events: EventWriter<AppExit>,
+    mut menu_state: ResMut<NextState<MenuState>>,
+    mut game_state: ResMut<NextState<GameState>>,
+) {
+    for (interaction, menu_button_action) in &interaction_query {
+        if *interaction == Interaction::Pressed {
+            match menu_button_action {
+                MenuButtonAction::Exit => app_exit_events.send(AppExit),
+                MenuButtonAction::AI1 => {
+                    game_state.set(GameState::InAi1);
+                    menu_state.set(MenuState::Disabled);
+                }
+                MenuButtonAction::AI2 => {
+                    game_state.set(GameState::InAi2);
+                    menu_state.set(MenuState::Disabled);
+                }
+                MenuButtonAction::AI3 => {
+                    game_state.set(GameState::InAi3);
+                    menu_state.set(MenuState::Disabled);
+                }
+                MenuButtonAction::UberAI => {
+                    game_state.set(GameState::InUberAi);
+                    menu_state.set(MenuState::Disabled);
+                }
+            }
+        }
+    }
+}
+
+        // This system handles changing all buttons color based on mouse interaction
+        fn button_system_menu(
+            mut interaction_query: Query<
+                (&Interaction, &mut BackgroundColor, Option<&SelectedOption>),
+                (Changed<Interaction>, With<Button>),
+            >,
+        ) {
+            for (interaction, mut color, selected) in &mut interaction_query {
+                *color = match (*interaction, selected) {
+                    (Interaction::Pressed, _) | (Interaction::None, Some(_)) => PRESSED_BUTTON.into(),
+                    (Interaction::Hovered, Some(_)) => HOVERED_PRESSED_BUTTON.into(),
+                    (Interaction::Hovered, None) => HOVERED_BUTTON.into(),
+                    (Interaction::None, None) => NORMAL_BUTTON.into(),
+                }
+            }
+        }
+
+
+
+    //PLUGIN MAIN MENU
+    pub struct MenuPlugin;
+
+    impl Plugin for MenuPlugin {
+        fn build(&self, app: &mut App) {
+
+            println!("entrato in menu");
+            app
+                // At start, the menu is not enabled. This will be changed in `menu_setup` when
+                // entering the `GameState::Menu` state.
+                // Current screen in the menu is handled by an independent state from `GameState`
+                .add_state::<MenuState>()
+                .add_systems(OnEnter(GameState::InMenu), menu_setup)
+                // Systems to handle the main menu screen
+                .add_systems(OnEnter(MenuState::Main), (initial_menu_setup))
+                .add_systems(OnExit(MenuState::Main), (despawn_screen::<OnMainMenuScreen>))
+                
+                // Common systems to all screens that handles buttons behavior
+                .add_systems(
+                    Update,
+                    (menu_action, button_system_menu).run_if(in_state(GameState::InMenu)),
+                );
+        }
+    }
+
+    fn stop_ai_thread(
+        shutdown_signal: Res<ShutdownSignal>,
+    ) {
+        // Attiva il segnale di shutdown
+        shutdown_signal.0.store(true, Ordering::SeqCst);
+    
+        // Qui puoi gestire altre operazioni di pulizia se necessario
+        // Ad esempio, attendere che il thread termini, se hai conservato il suo handle
+    }
+
+    fn break_thread(
+        paused_signal: Res<PausedSignal>,
+    ) {
+        
+        paused_signal.0.store(true, Ordering::SeqCst);
+    
+    }
+
+    fn run_thread(
+        paused_signal: Res<PausedSignal>,
+    ) {
+        
+        paused_signal.0.store(false, Ordering::SeqCst);
+    
+    }
+
+    fn initialize_and_start_thread_ai1(
+        mut commands: Commands,
+        // altri parametri se necessari...
+    ) {
+        println!("Inizializzazione del thread AI...");
+    
+        // Creazione e inizializzazione di RobotInfo
+        let robot_info = RobotInfo {
+            energy_level: 1000,
+            coordinate_row: 0,
+            coordinate_column: 0,
+            bp_size: 10,
+            bp_contents: HashMap::new(),
+            current_weather: None,
+            next_weather: None,
+            ticks_until_change: 0,
+            time: "00:00".to_string(),
+        };
+    
+        println!("RobotInfo inizializzato con: {:?}", robot_info);
+    
+        // Creazione di Arc<Mutex<>> per robot_data e map
+        let robot_data = Arc::new(Mutex::new(robot_info));
+        let map = Arc::new(Mutex::new(vec![vec![None; WORLD_SIZE as usize]; WORLD_SIZE as usize]));
+    
+        // Clonazione delle risorse condivise
+        let robot_data_clone = robot_data.clone();
+        let map_clone = map.clone();
+    
+        println!("Risorse condivise (robot_data e map) create e clonate");
+    
+        // Inserimento delle risorse nel sistema
+        commands.insert_resource(RobotResource(robot_data_clone));
+        commands.insert_resource(MapResource(map_clone));
+    
+        println!("Risorse inserite nel sistema di Bevy");
+
+        let sleep_time_arc = Arc::new(AtomicU64::new(300));
+        commands.insert_resource(SleepTime{ millis: sleep_time_arc.clone() });
+    
+        // Creazione del segnale di shutdown
+        let shutdown_signal = Arc::new(AtomicBool::new(false));
+        let paused_signal = Arc::new(AtomicBool::new(false)); // false significa che il robot non è in pausa
+
+        commands.insert_resource(ShutdownSignal(shutdown_signal.clone()));
+        commands.insert_resource(PausedSignal(paused_signal.clone()));
+    
+        println!("Segnale di shutdown creato");
+    
+        // Avvio del thread
+        let thread_handle = thread::spawn(move || {
+            println!("Thread AI avviato");
+    
+            match std::panic::catch_unwind(|| {
+                moviment(robot_data, map, AiLogic::Falegname, shutdown_signal.clone(), paused_signal.clone(), sleep_time_arc.clone());
+            }) {
+                Ok(_) => println!("Thread AI completato con successo"),
+                Err(_) => println!("Thread AI terminato a causa di un panic"),
+            }
+        });
+    
+        // Opzionale: attendere la fine del thread se necessario
+        // thread_handle.join().unwrap();
+        // println!("Thread AI terminato e unito correttamente");
+    }
+
+    fn initialize_and_start_thread_ai2(
+        mut commands: Commands,
+        // altri parametri se necessari...
+    ) {
+        // Creazione e inizializzazione di RobotInfo
+        let robot_info = RobotInfo {
+            energy_level: 1000,
+            coordinate_row: 0,
+            coordinate_column: 0,
+            bp_size: 10,
+            bp_contents: HashMap::new(),
+            current_weather: None,
+            next_weather: None,
+            ticks_until_change: 0,
+            time: "00:00".to_string(),
+        };
+    
+        // Creazione di Arc<Mutex<>> per robot_data e map
+        let robot_data = Arc::new(Mutex::new(robot_info));
+        let map = Arc::new(Mutex::new(vec![vec![None; WORLD_SIZE as usize]; WORLD_SIZE as usize]));
+    
+        // Clonazione delle risorse condivise
+        let robot_data_clone = robot_data.clone();
+        let map_clone = map.clone();
+    
+        // Inserimento delle risorse nel sistema
+        commands.insert_resource(RobotResource(robot_data_clone));
+        commands.insert_resource(MapResource(map_clone));
+
+        //sleep(std::time::Duration::from_secs(3));
+        let sleep_time_arc = Arc::new(AtomicU64::new(300));
+        commands.insert_resource(SleepTime{ millis: sleep_time_arc.clone() });
+
+          // Creazione del segnale di shutdown
+        let shutdown_signal = Arc::new(AtomicBool::new(false));
+        let paused_signal = Arc::new(AtomicBool::new(false)); // false significa che il robot non è in pausa
+
+        commands.insert_resource(ShutdownSignal(shutdown_signal.clone()));
+        commands.insert_resource(PausedSignal(paused_signal.clone()));
+    
+        // Avvio del thread
+        let thread_handle = thread::spawn(move || {
+            //thread::sleep(std::time::Duration::from_secs(10));
+            println!("Thread started");
+            match std::panic::catch_unwind(|| {
+                moviment(robot_data, map, AiLogic::Asfaltatore, shutdown_signal.clone(), paused_signal.clone(),sleep_time_arc.clone());
+            }) {
+                Ok(_) => println!("Thread completed successfully"),
+                Err(_) => println!("Thread terminated due to panic"),
+            }
+        });
+
+      
+
+        //sleep(std::time::Duration::from_secs(3));
+
+        //println!("PRIMA");
+       //thread_handle.join().unwrap();
+      // println!("JOINNNNNNNN");
+    
+    }
+
+
+    fn initialize_and_start_thread_ai3(
+        mut commands: Commands,
+        // altri parametri se necessari...
+    ) {
+        // Creazione e inizializzazione di RobotInfo
+        let robot_info = RobotInfo {
+            energy_level: 1000,
+            coordinate_row: 0,
+            coordinate_column: 0,
+            bp_size: 10,
+            bp_contents: HashMap::new(),
+            current_weather: None,
+            next_weather: None,
+            ticks_until_change: 0,
+            time: "00:00".to_string(),
+        };
+    
+        // Creazione di Arc<Mutex<>> per robot_data e map
+        let robot_data = Arc::new(Mutex::new(robot_info));
+        let map = Arc::new(Mutex::new(vec![vec![None; WORLD_SIZE as usize]; WORLD_SIZE as usize]));
+    
+        // Clonazione delle risorse condivise
+        let robot_data_clone = robot_data.clone();
+        let map_clone = map.clone();
+    
+        // Inserimento delle risorse nel sistema
+        commands.insert_resource(RobotResource(robot_data_clone));
+        commands.insert_resource(MapResource(map_clone));
+
+        //sleep(std::time::Duration::from_secs(3));
+        let sleep_time_arc = Arc::new(AtomicU64::new(300));
+        commands.insert_resource(SleepTime{ millis: sleep_time_arc.clone() });
+
+          // Creazione del segnale di shutdown
+        let shutdown_signal = Arc::new(AtomicBool::new(false));
+        let paused_signal = Arc::new(AtomicBool::new(false)); // false significa che il robot non è in pausa
+
+        commands.insert_resource(ShutdownSignal(shutdown_signal.clone()));
+        commands.insert_resource(PausedSignal(paused_signal.clone()));
+    
+        // Avvio del thread
+        let thread_handle = thread::spawn(move || {
+            //thread::sleep(std::time::Duration::from_secs(10));
+            println!("Thread started");
+            match std::panic::catch_unwind(|| {
+                moviment(robot_data, map, AiLogic::Ricercatore, shutdown_signal.clone(), paused_signal.clone(),sleep_time_arc.clone());
+            }) {
+                Ok(_) => println!("Thread completed successfully"),
+                Err(_) => println!("Thread terminated due to panic"),
+            }
+        });
+
+      
+
+        //sleep(std::time::Duration::from_secs(3));
+
+        //println!("PRIMA");
+       //thread_handle.join().unwrap();
+      // println!("JOINNNNNNNN");
+    
+    }
+
+    fn initialize_and_start_thread_uberAi(
+        mut commands: Commands,
+        // altri parametri se necessari...
+    ) {
+        // Creazione e inizializzazione di RobotInfo
+        let robot_info = RobotInfo {
+            energy_level: 1000,
+            coordinate_row: 0,
+            coordinate_column: 0,
+            bp_size: 10,
+            bp_contents: HashMap::new(),
+            current_weather: None,
+            next_weather: None,
+            ticks_until_change: 0,
+            time: "00:00".to_string(),
+        };
+    
+        // Creazione di Arc<Mutex<>> per robot_data e map
+        let robot_data = Arc::new(Mutex::new(robot_info));
+        let map = Arc::new(Mutex::new(vec![vec![None; WORLD_SIZE as usize]; WORLD_SIZE as usize]));
+    
+        // Clonazione delle risorse condivise
+        let robot_data_clone = robot_data.clone();
+        let map_clone = map.clone();
+    
+        // Inserimento delle risorse nel sistema
+        commands.insert_resource(RobotResource(robot_data_clone));
+        commands.insert_resource(MapResource(map_clone));
+
+        //sleep(std::time::Duration::from_secs(3));
+        let sleep_time_arc = Arc::new(AtomicU64::new(300));
+        commands.insert_resource(SleepTime{ millis: sleep_time_arc.clone() });
+
+
+          // Creazione del segnale di shutdown
+        let shutdown_signal = Arc::new(AtomicBool::new(false));
+        let paused_signal = Arc::new(AtomicBool::new(false)); // false significa che il robot non è in pausa
+
+        commands.insert_resource(ShutdownSignal(shutdown_signal.clone()));
+        commands.insert_resource(PausedSignal(paused_signal.clone()));
+    
+        // Avvio del thread
+        let thread_handle = thread::spawn(move || {
+            //thread::sleep(std::time::Duration::from_secs(10));
+            println!("Thread started");
+            match std::panic::catch_unwind(|| {
+                moviment(robot_data, map, AiLogic::Completo, shutdown_signal.clone(), paused_signal.clone(),sleep_time_arc.clone());
+            }) {
+                Ok(_) => println!("Thread completed successfully"),
+                Err(_) => println!("Thread terminated due to panic"),
+            }
+        });
+
+      
+
+        //sleep(std::time::Duration::from_secs(3));
+
+        //println!("PRIMA");
+       //thread_handle.join().unwrap();
+      // println!("JOINNNNNNNN");
+    
+    }
+
+
+
+    
+
+
+    //PLUGIN AI1
+    pub struct Ai1Plugin;
+
+    impl Plugin for Ai1Plugin {
+        fn build(&self, app: &mut App) {
+
+            println!("entrato in ai1");
+
+        app
+        
+        .add_state::<Ai1_State>()
+        .add_systems(OnEnter(GameState::InAi1),(initialize_and_start_thread_ai1, start_ai1))
+        .add_systems(OnEnter(MenuState::Ai1), (setup, start_in_ai1))
+        .add_systems(OnEnter(Ai1_State::In), (set_camera_viewports, start_update_ai1))
+        .add_systems(OnExit(MenuState::Ai1),(stop_ai_thread, despawn_screentry::<Explodetry>, despawn_screen::<Explode>))
+        .add_systems(Update, ( cursor_events, robot_movement_system, update_robot_position, follow_robot_system, button_system, update_minimap_outline,).run_if(in_state(Ai1_State::Run)));
+
+
+        }
+    }
+
+
+     //PLUGIN AI2
+     pub struct Ai2Plugin;
+
+     impl Plugin for Ai2Plugin {
+         fn build(&self, app: &mut App) {
+ 
+             println!("entrato in ai2");
+             // Dati condivisi tra thread
+        /*  let robot_info= RobotInfo{
+             energy_level: 1000,
+             coordinate_row: 0,
+             coordinate_column: 0,
+             bp_size: 10,
+             bp_contents: HashMap::new(),
+             current_weather: None,
+             next_weather: None,
+             ticks_until_change: 0,
+             time: "00:00".to_string()
+         };
+         
+         let robot_data = Arc::new(Mutex::new(robot_info));
+         let robot_data_clone = robot_data.clone();
+ 
+         let map: Arc<Mutex<Vec<Vec<Option<Tile>>>>> = Arc::new(Mutex::new(vec![vec![None; WORLD_SIZE as usize]; WORLD_SIZE as usize]));
+         let map_clone = map.clone();
+ 
+ 
+         let robot_resource = RobotResource(robot_data_clone);
+         let map_resource = MapResource(map_clone);
+ 
+        thread::spawn(move || {
+             moviment(robot_data, map);
+         });  */
+ 
+ 
+         app
+         //.init_resource::<RobotPosition>()
+         //.insert_resource(TileSize { tile_size: 3.0 })
+         .add_state::<Ai2_State>()
+         //.insert_resource(robot_resource)
+         //.insert_resource(map_resource)
+         .add_systems(OnEnter(GameState::InAi2),(initialize_and_start_thread_ai2, start_ai2))
+         .add_systems(OnEnter(MenuState::Ai2), (setup, start_in_ai2))
+         .add_systems(OnEnter(Ai2_State::In), (set_camera_viewports, start_update_ai2))
+         .add_systems(OnExit(MenuState::Ai2),(stop_ai_thread, despawn_screen::<Explode>, despawn_screentry::<Explodetry>))
+         .add_systems(Update, ( cursor_events, robot_movement_system, update_robot_position, follow_robot_system, button_system, update_minimap_outline,).run_if(in_state(Ai2_State::Run)));
+ 
+ 
+             //PROBLEMA
+             //moviment.join().unwrap();
+         }
+     }
+
+
+     //PLUGIN AI3
+     pub struct Ai3Plugin;
+
+     impl Plugin for Ai3Plugin {
+         fn build(&self, app: &mut App) {
+ 
+             println!("entrato in ai3");
+             // Dati condivisi tra thread
+        /*  let robot_info= RobotInfo{
+             energy_level: 1000,
+             coordinate_row: 0,
+             coordinate_column: 0,
+             bp_size: 10,
+             bp_contents: HashMap::new(),
+             current_weather: None,
+             next_weather: None,
+             ticks_until_change: 0,
+             time: "00:00".to_string()
+         };
+         
+         let robot_data = Arc::new(Mutex::new(robot_info));
+         let robot_data_clone = robot_data.clone();
+ 
+         let map: Arc<Mutex<Vec<Vec<Option<Tile>>>>> = Arc::new(Mutex::new(vec![vec![None; WORLD_SIZE as usize]; WORLD_SIZE as usize]));
+         let map_clone = map.clone();
+ 
+ 
+         let robot_resource = RobotResource(robot_data_clone);
+         let map_resource = MapResource(map_clone);
+ 
+        thread::spawn(move || {
+             moviment(robot_data, map);
+         });  */
+ 
+ 
+         app
+         //.init_resource::<RobotPosition>()
+         //.insert_resource(TileSize { tile_size: 3.0 })
+         .add_state::<Ai3_State>()
+         //.insert_resource(robot_resource)
+         //.insert_resource(map_resource)
+         .add_systems(OnEnter(GameState::InAi3),(initialize_and_start_thread_ai3, start_ai3))
+         .add_systems(OnEnter(MenuState::Ai3), (setup, start_in_ai3))
+         .add_systems(OnEnter(Ai3_State::In), (set_camera_viewports, start_update_ai3))
+         .add_systems(OnExit(MenuState::Ai3),(stop_ai_thread, despawn_screen::<Explode>, despawn_screentry::<Explodetry>))
+         .add_systems(Update, ( cursor_events, robot_movement_system, update_robot_position, follow_robot_system, button_system, update_minimap_outline,).run_if(in_state(Ai3_State::Run)));
+ 
+ 
+             //PROBLEMA
+             //moviment.join().unwrap();
+         }
+     }
+
+
+        //PLUGIN AI3
+        pub struct UberAiPlugin;
+
+        impl Plugin for UberAiPlugin {
+            fn build(&self, app: &mut App) {
+    
+                println!("entrato in ai4");
+                // Dati condivisi tra thread
+           /*  let robot_info= RobotInfo{
+                energy_level: 1000,
+                coordinate_row: 0,
+                coordinate_column: 0,
+                bp_size: 10,
+                bp_contents: HashMap::new(),
+                current_weather: None,
+                next_weather: None,
+                ticks_until_change: 0,
+                time: "00:00".to_string()
+            };
+            
+            let robot_data = Arc::new(Mutex::new(robot_info));
+            let robot_data_clone = robot_data.clone();
+    
+            let map: Arc<Mutex<Vec<Vec<Option<Tile>>>>> = Arc::new(Mutex::new(vec![vec![None; WORLD_SIZE as usize]; WORLD_SIZE as usize]));
+            let map_clone = map.clone();
+    
+    
+            let robot_resource = RobotResource(robot_data_clone);
+            let map_resource = MapResource(map_clone);
+    
+           thread::spawn(move || {
+                moviment(robot_data, map);
+            });  */
+    
+    
+            app
+            //.init_resource::<RobotPosition>()
+            //.insert_resource(TileSize { tile_size: 3.0 })
+            .add_state::<UberAi_State>()
+            //.insert_resource(robot_resource)
+            //.insert_resource(map_resource)
+            .add_systems(OnEnter(GameState::InUberAi),(initialize_and_start_thread_uberAi, start_uberai))
+            .add_systems(OnEnter(MenuState::UberAi), (setup, start_in_uberai))
+            .add_systems(OnEnter(UberAi_State::In), (set_camera_viewports, start_update_uberai))
+            .add_systems(OnExit(MenuState::UberAi),(stop_ai_thread, despawn_screen::<Explode>, despawn_screentry::<Explodetry>))
+            .add_systems(Update, ( cursor_events, robot_movement_system, update_robot_position, follow_robot_system, button_system, update_minimap_outline,).run_if(in_state(UberAi_State::Run)));
+    
+    
+                //PROBLEMA
+                //moviment.join().unwrap();
+            }
+        }
+
+#[derive(Clone, Copy, Default, Eq, PartialEq, Debug, Hash, States)]
+  enum Ai1_State{
+    In, 
+    #[default]
+    Out, 
+    Run
+  }
+
+  #[derive(Clone, Copy, Default, Eq, PartialEq, Debug, Hash, States)]
+  enum Ai2_State{
+    In, 
+    #[default]
+    Out, 
+    Run
+  }
+
+  #[derive(Clone, Copy, Default, Eq, PartialEq, Debug, Hash, States)]
+  enum Ai3_State{
+    In, 
+    #[default]
+    Out, 
+    Run
+  }
+
+  #[derive(Clone, Copy, Default, Eq, PartialEq, Debug, Hash, States)]
+  enum UberAi_State{
+    In, 
+    #[default]
+    Out, 
+    Run
+  }
+
+
+
+
+ // Tag component used to tag entities added on the main menu screen
+    #[derive(Component, Debug)]
+    struct OnMainMenuScreen;
+
+    #[derive(Component, Debug)]
+    struct OnMainMenuCamera;
+
 
 fn main() {
-    // Dati condivisi tra thread
-    let robot_info = RobotInfo {
+    
+    /* // Dati condivisi tra thread
+    let robot_info= RobotInfo{
         energy_level: 1000,
         coordinate_row: 0,
         coordinate_column: 0,
@@ -1513,55 +3085,42 @@ fn main() {
         current_weather: None,
         next_weather: None,
         ticks_until_change: 0,
-        time: "0:0".to_string(),
+        time: "00:00".to_string()
     };
-
+    
     let robot_data = Arc::new(Mutex::new(robot_info));
-    let robot_data_clone = robot_data.clone();
 
-    let map: Arc<Mutex<Vec<Vec<Option<Tile>>>>> =
-        Arc::new(Mutex::new(vec![
-            vec![None; WORLD_SIZE as usize];
-            WORLD_SIZE as usize
-        ]));
-    let map_clone = map.clone();
+    let map: Arc<Mutex<Vec<Vec<Option<Tile>>>>> = Arc::new(Mutex::new(vec![vec![None; WORLD_SIZE as usize]; WORLD_SIZE as usize]));
 
     let moviment = thread::spawn(move || {
         moviment(robot_data, map);
-    });
+    }); */
 
-    let robot_resource = RobotResource(robot_data_clone);
-    let map_resource = MapResource(map_clone);
+    println!("entrato in main");
+
+    
 
     App::new()
-        .init_resource::<RobotPosition>() //ricordarsi di metterlo quando si ha una risorsa
-        .insert_resource(TileSize { tile_size: 3.0 }) //setta la risorsa tile per la grandezza di esso
-        .insert_resource(robot_resource)
-        .insert_resource(map_resource)
-        .add_systems(Startup, setup)
-        .add_systems(
-            Update,
-            (
-                cursor_events,
-                robot_movement_system,
-                update_robot_position,
-                follow_robot_system,
-                button_system,
-                set_camera_viewports,
-                update_minimap_outline,
-            ),
-        ) //unpdate every frame
-        .add_plugins(DefaultPlugins.set(WindowPlugin {
-            primary_window: Some(Window {
-                mode: WindowMode::Fullscreen,
-                ..default()
-            }),
-            ..Default::default()
-        }))
-        .run();
+    .add_plugins(DefaultPlugins.set(WindowPlugin{
+        primary_window: Some(Window{
+            mode: WindowMode::Fullscreen,
+            ..default()
+        }),
+        ..Default::default()
+    }))
+    .init_resource::<RobotPosition>()
+    .insert_resource(TileSize { tile_size: 3.0 })
+    .add_state::<GameState>()
+    .add_plugins((MenuPlugin, Ai1Plugin, Ai2Plugin, Ai3Plugin, UberAiPlugin))
+    .run();
 
-    moviment.join().unwrap();
+    
+
+  
+
+    
 }
+
 
 struct Robottino {
     shared_robot: Arc<Mutex<RobotInfo>>,
@@ -1916,7 +3475,7 @@ fn ai_asfaltatore(robot: &mut Robottino, world: &mut robotics_lib::world::World)
 }
 fn ai_completo_con_tool(robot: &mut Robottino, world: &mut robotics_lib::world::World) {
     //durata sleep in millisecondi per velocità robot
-    let sleep_time_milly: u64 = 1000;
+    let sleep_time_milly: u64 = 50;
 
     sleep(std::time::Duration::from_millis(sleep_time_milly));
     //se l'energia e' sotto il 300, la ricarico
@@ -1968,8 +3527,8 @@ impl Runnable for Robottino {
         let new_weather = look_at_sky(world).get_weather_condition();
     
 
-        let sleep_time_milly: u64 = 30;
-        sleep(std::time::Duration::from_millis(sleep_time_milly));
+        /* let sleep_time_milly: u64 = 300;
+        sleep(std::time::Duration::from_millis(sleep_time_milly)); */
         // in base alla logica scelta, esegue la funzione corrispondente
         match self.ai_logic {
             AiLogic::Falegname => ai_taglialegna(self, world),
@@ -1998,6 +3557,7 @@ impl Runnable for Robottino {
             shared_robot.bp_contents = self.robot.backpack.get_contents().clone();
 
              }
+            
     }
 
     fn get_energy(&self) -> &Energy {
@@ -2030,6 +3590,7 @@ fn update_map(robot: &mut Robottino, world: &mut robotics_lib::world::World) {
     if let Some(new_map) = robot_map(world) {
         *shared_map = new_map;
     }
+    drop(shared_map);
     let mut shared_robot = robot.shared_robot.lock().unwrap();
     let enviroment = look_at_sky(&world);
 
@@ -2039,6 +3600,7 @@ fn update_map(robot: &mut Robottino, world: &mut robotics_lib::world::World) {
         shared_robot.next_weather = Some(prediction);
         shared_robot.ticks_until_change = ticks;
     }
+    drop(shared_robot);
 }
 
 fn weather_check(robot: &Robottino) -> Option<(WeatherType, u32)> {
