@@ -45,6 +45,7 @@ const MAX_ZOOM: f32 = 1.0; //1.0 se 150, 0.25 se 250
 const WORLD_SIZE: u32 = 200; //A 200 TROVA IL MAZE
 const TILE_SIZE: f32 = 3.0; //LASCIARE A 3!
 
+
 #[derive(Component, Debug)]
 struct Roboto;
 
@@ -2219,7 +2220,7 @@ enum AiLogic {
 
 fn moviment(robot_data: Arc<Mutex<RobotInfo>>, map: Arc<Mutex<Vec<Vec<Option<Tile>>>>>, ai_logic: AiLogic,  shutdown_signal: Arc<AtomicBool>, paused_signal: Arc<AtomicBool>, sleep_time: Arc<AtomicU64>,) {
     let audio = get_audio_manager();
-    let background_music = OxAgSoundConfig::new_looped_with_volume("assets/audio/background.ogg", 2.0);
+    let background_music = OxAgSoundConfig::new_looped_with_volume("assets/audio/background.ogg", 1.0);
 
     let mut robot = Robottino {
         shared_map: map,
@@ -2233,18 +2234,17 @@ fn moviment(robot_data: Arc<Mutex<RobotInfo>>, map: Arc<Mutex<Vec<Vec<Option<Til
 
 
     // world generator initialization
-/*     let mut world_gen =
-        ghost_amazeing_island::world_generator::WorldGenerator::new(WORLD_SIZE, false, 1, 1.1); */
+
     // Runnable creation and start
 
-    println!("Generating runnable (world + robot)...");
-     match robot.audio.play_audio(&background_music) {
-         Ok(_) => {},
-         Err(e) => {
-             eprintln!("Failed to play audio: {}", e);
-             std::process::exit(1);
-         }
-     }
+    // println!("Generating runnable (world + robot)...");
+    //  match robot.audio.play_audio(&background_music) {
+    //      Ok(_) => {},
+    //      Err(e) => {
+    //          eprintln!("Failed to play audio: {}", e);
+    //          std::process::exit(1);
+    //      }
+    //  }
     let mut world_gen =
         ghost_amazeing_island::world_generator::WorldGenerator::new(WORLD_SIZE, false, 1, 1.1);
     let mut runner = Runner::new(Box::new(robot), &mut world_gen);
@@ -2262,6 +2262,7 @@ fn moviment(robot_data: Arc<Mutex<RobotInfo>>, map: Arc<Mutex<Vec<Vec<Option<Til
             // Opzionalmente, inserisci qui una pausa per ridurre l'utilizzo della CPU quando in pausa
             std::thread::sleep(std::time::Duration::from_millis(100));
         }
+
     }
 
 
@@ -3142,54 +3143,13 @@ fn solve_labirint(
     let mut stack: Vec<Direction> = Vec::new();
 
     loop {
-        go(robot, world, last_direction.clone());
-        //conta quanti muri ci sono intorno al robot
-        let view = robot_view(robot, world);
+        let tiles_option = cheapest_border(world, robot);
+        if let Some(tiles) = tiles_option {
+            //manage the return stat of move to cheapest border
+            let result = move_to_cheapest_border(world, robot, tiles);}
+        sleep(std::time::Duration::from_millis(300));
+        robot_view(robot, world);
         update_map(robot, world);
-        let mut walls = 0;
-        if view[0][1].as_ref().unwrap().tile_type==TileType::Wall {
-            walls += 1;
-        };//alto
-        if view[1][0].as_ref().unwrap().tile_type==TileType::Wall{ 
-            walls += 1;
-        };//sinistra
-        if view[1][2].as_ref().unwrap().tile_type==TileType::Wall {
-            walls += 1;
-        };//destra
-        if view[2][1].as_ref().unwrap().tile_type==TileType::Wall {
-            walls += 1;
-        };//basso
-        //se walls e' 2 allora vai nella direzione diversa da last direction
-        if walls == 2 {
-            if last_direction == Direction::Up {
-                if view[1][0].as_ref().unwrap().tile_type==TileType::Wall {
-                    last_direction = Direction::Right;
-                } else {
-                    last_direction = Direction::Left;
-                }
-            } else if last_direction == Direction::Down {
-                if view[1][0].as_ref().unwrap().tile_type==TileType::Wall {
-                    last_direction = Direction::Right;
-                } else {
-                    last_direction = Direction::Left;
-                }
-            } else if last_direction == Direction::Left {
-                if view[0][1].as_ref().unwrap().tile_type==TileType::Wall {
-                    last_direction = Direction::Down;
-                } else {
-                    last_direction = Direction::Up;
-                }
-            } else if last_direction == Direction::Right {
-                if view[0][1].as_ref().unwrap().tile_type==TileType::Wall {
-                    last_direction = Direction::Down;
-                } else {
-                    last_direction = Direction::Up;
-                }
-            }
-        } else {
-            // da gestire 2 strade quindi creazione di vec e push nella pila e gestione 3 wall 
-        }
-
     }
 }
 
@@ -3315,7 +3275,7 @@ fn go_to_maze(robot: &mut Robottino, world: &mut robotics_lib::world::World, maz
     }
 }
 
-fn ai_labirint(robot: &mut Robottino, world: &mut robotics_lib::world::World) {
+fn ai_labirint          (robot: &mut Robottino, world: &mut robotics_lib::world::World) {
     //maze are 18*18 so we check every 9 tiles
     //if robotmap some save it
     if robot.maze_discovered.is_none() {
@@ -3382,8 +3342,7 @@ fn ai_labirint(robot: &mut Robottino, world: &mut robotics_lib::world::World) {
         go_to_maze(robot, world, (row, col));
     }
 }
-
-fn ai_taglialegna(robot: &mut Robottino, world: &mut robotics_lib::world::World) {
+fn ai_taglialegna       (robot: &mut Robottino, world: &mut robotics_lib::world::World) {
     //se l'energia e' sotto il 300, la ricarico
     if robot.robot.energy.get_energy_level() < 300 {
         robot.robot.energy = rust_and_furious_dynamo::dynamo::Dynamo::update_energy();
@@ -3433,7 +3392,7 @@ fn ai_taglialegna(robot: &mut Robottino, world: &mut robotics_lib::world::World)
         }
     }
 }
-fn ai_asfaltatore(robot: &mut Robottino, world: &mut robotics_lib::world::World) {
+fn ai_asfaltatore       (robot: &mut Robottino, world: &mut robotics_lib::world::World) {
     if robot.robot.energy.get_energy_level() < 200 {
         robot.robot.energy = rust_and_furious_dynamo::dynamo::Dynamo::update_energy();
     }
@@ -3473,7 +3432,7 @@ fn ai_asfaltatore(robot: &mut Robottino, world: &mut robotics_lib::world::World)
         }
     }
 }
-fn ai_completo_con_tool(robot: &mut Robottino, world: &mut robotics_lib::world::World) {
+fn ai_completo_con_tool (robot: &mut Robottino, world: &mut robotics_lib::world::World) {
     //durata sleep in millisecondi per velocità robot
     let sleep_time_milly: u64 = 50;
 
@@ -3536,17 +3495,15 @@ impl Runnable for Robottino {
             AiLogic::Ricercatore => ai_labirint(self, world),
             AiLogic::Completo => ai_completo_con_tool(self, world),
         }
-        
-       
-        
-
         //update map
         update_map(self, world);
     }
 
     fn handle_event(&mut self, event: robotics_lib::event::events::Event) {
         self.weather_tool.process_event(&event);
-        
+        if self.robot.energy.get_energy_level() < 300 {
+            self.robot.energy = rust_and_furious_dynamo::dynamo::Dynamo::update_energy();
+        }
         //update info
         {
             let mut shared_robot = self.shared_robot.lock().unwrap();
@@ -3556,8 +3513,9 @@ impl Runnable for Robottino {
             shared_robot.bp_size = self.robot.backpack.get_size();
             shared_robot.bp_contents = self.robot.backpack.get_contents().clone();
 
-             }
-            
+
+        }
+
     }
 
     fn get_energy(&self) -> &Energy {
@@ -3623,7 +3581,7 @@ fn weather_check(robot: &Robottino) -> Option<(WeatherType, u32)> {
 }
 
 fn get_audio_manager() -> OxAgAudioTool {
-    let background_music = OxAgSoundConfig::new_looped_with_volume("audio/background.ogg", 2.0);
+    let background_music = OxAgSoundConfig::new_looped_with_volume("audio/background.ogg", 1.0);
     
 
     let mut events = HashMap::new();
