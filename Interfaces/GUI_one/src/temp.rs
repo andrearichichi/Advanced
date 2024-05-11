@@ -1,8 +1,11 @@
-
-
+use robotics_lib::world::world_generator::Generator;
+use bevy::audio;
 use bevy::core_pipeline::clear_color::ClearColorConfig;
+use bevy::ecs::world;
 use bevy::log;
 use bevy::render::camera::Viewport;
+use bevy::text;
+use bevy::ui::update;
 use bevy::window::PrimaryWindow;
 use bevy::window::WindowMode;
 use bevy::window::WindowResized;
@@ -20,6 +23,7 @@ use robotics_lib::{
         tile::{Content, Tile, TileType},
     },
 };
+use std::sync::Weak;
 use std::thread::sleep;
 use std::{collections::HashMap, ops::Range};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -37,21 +41,115 @@ use robotics_lib::{
     runner::{backpack::BackPack, Robot, Runnable, Runner},
     world::coordinates::Coordinate,
 };
-
+use std::io::{self, Write};
 
 const MIN_ZOOM: f32 = 0.05; 
 const MAX_ZOOM: f32 = 1.0; //1.0 se 150, 0.25 se 250
 
-const WORLD_SIZE: u32 = 200; //A 200 TROVA IL MAZE
+const WORLD_SIZE: u32 = 75; //A 200 TROVA IL MAZE
 const TILE_SIZE: f32 = 3.0; //LASCIARE A 3!
 
-#[derive(Component, Debug)]
-struct Roboto;
+
+fn reset_map(shared_map: &Arc<Mutex<Vec<Vec<Option<Tile>>>>>) {
+    let mut map = shared_map.lock().unwrap();
+    for row in map.iter_mut() {
+        for tile in row.iter_mut() {
+            *tile = None;
+        }
+    }
+    println!("Mappa resettata correttamente.");
+}
+
+fn start_new_game(robot: ResMut<Robottino>, world: &mut robotics_lib::world::World) {
+    reset_map(&robot.shared_map);
+    // Altre inizializzazioni per la partita
+}
+
+
+fn reset_shared_map(robot: ResMut<Robottino>) {
+    // Ottieni l'Arc da Weak se disponibile, altrimenti gestisci il caso in cui non è disponibile
+  //  if let Some(map_arc) = robot.shared_map.upgrade() {
+        let mut map = robot.shared_map.lock().unwrap();
+        
+        // Conta i tile "Some" prima del reset
+        let count_before = map.iter()
+                              .flat_map(|row| row.iter())
+                              .filter(|tile| tile.is_some())
+                              .count();
+        println!("Numero di tile Some prima del reset: {}", count_before);
+
+        println!("Inizio del reset della mappa...");
+        // Resetta tutti i tile a None
+        for row in map.iter_mut() {
+            for tile in row.iter_mut() {
+                *tile = None;
+            }
+        }
+        println!("Mappa resettata con successo.");
+
+        // Conta nuovamente i tile "Some" dopo il reset per confermare che sono tutti None
+        let count_after = map.iter()
+                             .flat_map(|row| row.iter())
+                             .filter(|tile| tile.is_some())
+                             .count();
+        println!("Numero di tile Some dopo il reset: {}", count_after);
+   /*  } else {
+        // Se la risorsa non è disponibile, gestisci questa condizione
+        println!("La mappa non è più disponibile per essere resettata.");
+    } */
+}
+
+#[derive(Resource, Debug, Default)]
+struct WorldResetState {
+    pub needs_reset: bool,
+}
+
+
+
+fn check_reset_condition(
+    mut world_reset_state: ResMut<WorldResetState>,
+    // altri parametri, come il punteggio del giocatore, il numero di vite, ecc.
+) {
+    // supponiamo di voler resettare il mondo se il giocatore ha raggiunto un certo punteggio
+        world_reset_state.needs_reset = true;
+}
+
+fn count_some_tiles(map: Res<MapResource>) {
+    let world = map.0.lock().unwrap();
+    let mut some_tile_count = 0; // Contatore per le tile Some
+                
+                for row in world.iter() {
+                    for tile in row.iter() {
+                        if tile.is_some() {
+                            some_tile_count += 1;
+                        }
+                    }
+                }
+                
+                println!("Debug: Number of tiles that are Some TOTALE: {}", some_tile_count); // Stampa il numero di tile Some
+}
+
+fn reset_map_system(
+    mut commands: Commands,
+    map_resource: Res<MapResource>
+) {
+    let mut world = map_resource.0.lock().unwrap();
+    for row in world.iter_mut() {
+        for tile in row.iter_mut() {
+            *tile = None;
+        }
+    }
+    println!("Map has been reset.");
+}
 
 #[derive(Resource)]
 struct CameraFollow {
     follow_robot: bool,
 }
+
+
+#[derive(Component, Debug)]
+struct Roboto;
 
 
 #[derive(Component, Debug)]
@@ -435,13 +533,16 @@ fn setup(
     robot_resource: Res<RobotResource>,
 ) {
 
+    //commands.remove_resource::<MapResource>();
+
+    commands.insert_resource(WorldResetState { needs_reset: false });
+    commands.insert_resource(CameraFollow { follow_robot: true });
+
 
     load_texture_content_assets(&mut commands, &asset_server);
     load_texture_tile_assets(&mut commands, &asset_server);
 
-    commands.insert_resource(CameraFollow { follow_robot: true });
-
-   // sleep(std::time::Duration::from_secs(3));
+    // sleep(std::time::Duration::from_secs(3));
     //SPRITES
     let weather_icons = WeatherIcons {
         sunny_day: asset_server.load("img/sunny_day.png"),
@@ -462,6 +563,7 @@ fn setup(
     let texture_border2_handle: Handle<Image> = asset_server.load("img/border2.png");
     let texture_border3_handle: Handle<Image> = asset_server.load("img/border3.png");
 
+
     let texture_decrease_handle: Handle<Image> = asset_server.load("img/decrease.png");
     let texture_increase_handle: Handle<Image> = asset_server.load("img/increase.png");
     let texture_play_handle: Handle<Image> = asset_server.load("img/pause.png");
@@ -470,17 +572,16 @@ fn setup(
 
     let texture_robot_handle: Handle<Image> = asset_server.load("img/Robot.png");
     
-    
-    
-
     //sleep 3 secondi
     //sleep(std::time::Duration::from_secs(10));
     let world1 = shared_map.0.lock().unwrap();
     let resource1 = robot_resource.0.lock().unwrap();
-    let world = world1.clone();
+    let mut world = world1.clone();
     let resource = resource1.clone();
     drop(world1);
     drop(resource1);
+    
+    
 
     let mut count = 0;
 
@@ -500,12 +601,14 @@ fn setup(
 
     commands.spawn(()).insert(OldMapResource {
         world: vec![vec![None; WORLD_SIZE as usize]; WORLD_SIZE as usize],
-    })
-    .insert(Explodetry);
+    }).insert(Explode);
 
     // println!("Robot {:?} {:?}",resource.coordinate_column, resource.coordinate_row);
     // update_show_tiles(&world, &mut commands, &mut old_map.world);
     //commands.insert_resource(old_map);
+ 
+    //fai un print della shared map
+   // println!("Shared map {:?}", world);
 
 
 
@@ -651,7 +754,7 @@ fn setup(
     commands
         .spawn(NodeBundle {
             style: Style {
-               
+                
                 width: Val::Percent(100.0),
                 height: Val::Percent(100.0),
                 
@@ -665,8 +768,10 @@ fn setup(
                     right: Val::Px(50.0),
                     bottom: Val::Px(50.0),
                 },
+                
                 ..default()
             },
+           //background_color: BackgroundColor(Color::WHITE),
             ..default()
         })
         .insert(Explode)
@@ -684,8 +789,8 @@ fn setup(
                 align_items: AlignItems::Center,
                 ..default()
             },
-            border_color: BorderColor(Color::BLACK),
-            background_color: NORMAL_BUTTON2.into(),
+            border_color: BorderColor(Color::WHITE),
+            background_color: BackgroundColor(Color::WHITE),
             ..default()
         })
         .with_children(|parent| {
@@ -700,7 +805,7 @@ fn setup(
         })
         .insert(PauseButton);
 
-        //Bottone aumenta velocità
+        //Bottone diminuisce velocità
         parent
         .spawn(ButtonBundle {
             style: Style {
@@ -719,7 +824,7 @@ fn setup(
         .with_children(|parent| {
             parent.spawn(ImageBundle {
                 image: texture_decrease_handle.clone().into(),
-                background_color: BackgroundColor(Color::WHITE),
+                background_color: BackgroundColor(Color::GREEN),
                 style: Style {
                     width: Val::Px(40.0),
                     height: Val::Px(40.0),
@@ -1421,7 +1526,6 @@ fn cursor_position(q_windows: Query<&Window, With<PrimaryWindow>>) {
     println!("CURSOR");
 } */
 
-//VECCHIO, DA PROBLEMI CON FOLLOW DEL ROBOT PERCHE ENTRAMBI CHIAMATI ALLO STESSO MOMENTO
 /* fn cursor_events(
     minimap_camera_query: Query<
         (&Camera, &Transform),
@@ -1785,8 +1889,8 @@ fn set_camera_viewports(
         }
     } */
 
-//VECCHIO NON OTTIMIZZATO
-   /*  fn update_show_tiles(
+
+    /* fn update_show_tiles(
         world: &Vec<Vec<Option<Tile>>>,
         commands: &mut Commands,
         old_world: &mut Vec<Vec<Option<Tile>>>,
@@ -1851,93 +1955,128 @@ fn set_camera_viewports(
             }
         }
         *old_world = world.clone();
-    }
- */
+    } */
 
- //OTTIMIZATO, AGGIORNAMENTO SOLO VICINO AL ROBOT
- fn update_show_tiles(
-    world: &Vec<Vec<Option<Tile>>>,
-    commands: &mut Commands,
-    old_world: &mut Vec<Vec<Option<Tile>>>,
-    tile_icons: &Res<TileIcons>,
-    content_icons: &Res<ContentIcons>,
-    robot_position: &Res<RobotPosition>,
-) {
+
+    //UPDATE TILE SOLO ATTORNO AL ROBOT (?)
+    fn update_show_tiles(
+        world: &Vec<Vec<Option<Tile>>>,
+        commands: &mut Commands,
+        old_world: &mut Vec<Vec<Option<Tile>>>,
+        tile_icons: &Res<TileIcons>,
+        content_icons: &Res<ContentIcons>,
+        robot_position: &Res<RobotPosition>,
+        content: usize,
+    ) {
+        
+        let update_radius = 2;
+        let mut count = 0;
+        let player_x = robot_position.x as usize / TILE_SIZE as usize;
+        let player_y = robot_position.y as usize / TILE_SIZE as usize;
     
-    let update_radius = 2;
-    let mut count = 0;
-    let player_x = robot_position.x as usize / TILE_SIZE as usize;
-    let player_y = robot_position.y as usize / TILE_SIZE as usize;
+        // Calcola gli indici di inizio e fine per x e y
+        let start_x = player_x.saturating_sub(update_radius);
+        let end_x = (player_x + update_radius).min(world.len() - 1);
+        let start_y = player_y.saturating_sub(update_radius);
+        let end_y = (player_y + update_radius).min(world[0].len() - 1);
+    
+        // Itera solo sui tile vicini al robot
+        for x in start_x..=end_x {
+            for y in start_y..=end_y {
+                if let Some(tile) = &world[x][y] {
+                   // println!("Updating tile at position ({}, {})", x, y);  // Aggiunge un print per tracciare l'aggiornamento
+                   count += 1;
+                    spawn_tile(tile, x, y, commands, &tile_icons, &content_icons);
+                }
+            }
+        }
 
-    // Calcola gli indici di inizio e fine per x e y
-    let start_x = player_x.saturating_sub(update_radius);
-    let end_x = (player_x + update_radius).min(world.len() - 1);
-    let start_y = player_y.saturating_sub(update_radius);
-    let end_y = (player_y + update_radius).min(world[0].len() - 1);
+        println!("I TILE AGGIORNATI SONO: {}", count);
 
-    // Itera solo sui tile vicini al robot
-    for x in start_x..=end_x {
-        for y in start_y..=end_y {
-            if let Some(tile) = &world[x][y] {
-               // println!("Updating tile at position ({}, {})", x, y);  // Aggiunge un print per tracciare l'aggiornamento
-               count += 1;
-                spawn_tile(tile, x, y, commands, &tile_icons, &content_icons);
+    }
+
+   
+
+
+    
+
+  /*   fn update_show_tiles(
+        player_position: Res<RobotPosition>, // Assicurati che PlayerPosition sia aggiornata con la posizione corrente del robot
+        mut commands: Commands,
+        world: &Vec<Vec<Option<Tile>>>,
+        tile_icons: Res<TileIcons>,
+        content_icons: Res<ContentIcons>,
+       // update_radius: usize, // Raggio di azione in termini di numero di tile
+    ) {
+
+        let update_radius = 10;
+        let player_x = player_position.x as usize / TILE_SIZE as usize;
+        let player_y = player_position.y as usize / TILE_SIZE as usize;
+    
+        // Calcola gli indici di inizio e fine per x e y
+        let start_x = player_x.saturating_sub(update_radius);
+        let end_x = (player_x + update_radius).min(world.len() - 1);
+        let start_y = player_y.saturating_sub(update_radius);
+        let end_y = (player_y + update_radius).min(world[0].len() - 1);
+    
+        // Itera solo sui tile vicini al robot
+        for x in start_x..=end_x {
+            for y in start_y..=end_y {
+                if let Some(tile) = &world[x][y] {
+                    spawn_tile(tile, x, y, &mut commands, &tile_icons, &content_icons);
+                }
+            }
+        }
+    } */
+    
+    fn spawn_tile(
+        tile: &Tile,
+        x: usize,
+        y: usize,
+        commands: &mut Commands,
+        tile_icons: &Res<TileIcons>,
+        content_icons: &Res<ContentIcons>,
+    ) {
+        let tile_color = get_tile_icons(tile, tile_icons);
+        let content_color = get_content_icons(tile, content_icons);
+    
+        // Spawn base tile sprite
+        commands.spawn(SpriteBundle {
+            sprite: Sprite {
+                color: Color::WHITE,
+                custom_size: Some(Vec2::new(TILE_SIZE, TILE_SIZE)),
+                ..Default::default()
+            },
+            texture: tile_color,
+            transform: Transform::from_xyz(
+                x as f32 * TILE_SIZE,
+                y as f32 * TILE_SIZE,
+                10.0, // Base layer
+            ),
+            ..Default::default()
+        }).insert(RenderLayers::layer(3));
+    
+        // Optionally spawn an additional sprite for the content if it's not None and the handle is valid
+        if tile.content != Content::None {
+            if let Some(content_texture) = content_color {
+                commands.spawn(SpriteBundle {
+                    sprite: Sprite {
+                        color: Color::WHITE,
+                        custom_size: Some(Vec2::new(TILE_SIZE / 1.5, TILE_SIZE / 1.5)), // Typically smaller than the base tile for visibility
+                        ..Default::default()
+                    },
+                    texture: content_texture,
+                    transform: Transform::from_xyz(
+                        x as f32 * TILE_SIZE, // Centered on the tile
+                        y as f32 * TILE_SIZE, // Centered on the tile
+                        15.0,                 // Above the base tile layer
+                    ),
+                    ..Default::default()
+                }).insert(RenderLayers::layer(3));
             }
         }
     }
 
-    println!("I TILE AGGIORNATI SONO: {}", count);
-
-}
-
-
-fn spawn_tile(
-    tile: &Tile,
-    x: usize,
-    y: usize,
-    commands: &mut Commands,
-    tile_icons: &Res<TileIcons>,
-    content_icons: &Res<ContentIcons>,
-) {
-    let tile_color = get_tile_icons(tile, tile_icons);
-    let content_color = get_content_icons(tile, content_icons);
-
-    // Spawn base tile sprite
-    commands.spawn(SpriteBundle {
-        sprite: Sprite {
-            color: Color::WHITE,
-            custom_size: Some(Vec2::new(TILE_SIZE, TILE_SIZE)),
-            ..Default::default()
-        },
-        texture: tile_color,
-        transform: Transform::from_xyz(
-            x as f32 * TILE_SIZE,
-            y as f32 * TILE_SIZE,
-            10.0, // Base layer
-        ),
-        ..Default::default()
-    }).insert(RenderLayers::layer(3));
-
-    // Optionally spawn an additional sprite for the content if it's not None and the handle is valid
-    if tile.content != Content::None {
-        if let Some(content_texture) = content_color {
-            commands.spawn(SpriteBundle {
-                sprite: Sprite {
-                    color: Color::WHITE,
-                    custom_size: Some(Vec2::new(TILE_SIZE / 1.5, TILE_SIZE / 1.5)), // Typically smaller than the base tile for visibility
-                    ..Default::default()
-                },
-                texture: content_texture,
-                transform: Transform::from_xyz(
-                    x as f32 * TILE_SIZE, // Centered on the tile
-                    y as f32 * TILE_SIZE, // Centered on the tile
-                    15.0,                 // Above the base tile layer
-                ),
-                ..Default::default()
-            }).insert(RenderLayers::layer(3));
-        }
-    }
-}
 
 #[derive(Component)]
 struct ZoomIn;
@@ -2084,12 +2223,12 @@ fn button_system(
                 border_color.0 = Color::RED;
             }
             Interaction::Hovered => {
-                *color = HOVERED_BUTTON.into();
-                border_color.0 = Color::WHITE;
+               // *color = HOVERED_BUTTON.into();
+               border_color.0 = Color::WHITE;
             }
             Interaction::None => {
-                *color = NORMAL_BUTTON.into();
-                border_color.0 = Color::BLACK;
+                //*color = NORMAL_BUTTON.into();
+                border_color.0 = Color::BLUE;
             }
         }
     }
@@ -2170,9 +2309,455 @@ pub fn zoom_in(mut query: Query<&mut OrthographicProjection, With<Camera>>) {
 }
 
 
+fn robot_movement_system3(
+    mut commands: Commands,
+    mut query: Query<
+        &mut Transform,
+        (
+            With<Roboto>,
+            Without<TagEnergy>,
+            Without<TagTime>,
+            Without<TagBackPack>,
+            Without<DirectionalLight>,
+        ),
+    >,
+    tile_size: Res<TileSize>, 
+    robot_resource: Res<RobotResource>,
+    world: Res<MapResource>,
+    weather_icons: Option<Res<WeatherIcons>>,
+    tile_icons: Res<TileIcons>,
+    content_icons: Res<ContentIcons>,
+    mut old_world_query: Query<&mut OldMapResource>,
+    robot_position: Res<RobotPosition>,
+    /* energy_query: Query<
+        &mut Text,
+        (
+            With<TagEnergy>,
+            Without<Roboto>,
+            Without<TagTime>,
+            Without<TagBackPack>,
+        ),
+    >, */
+  /*   time_query: Query<
+        &mut Text,
+        (
+            With<TagTime>,
+            Without<TagEnergy>,
+            Without<Roboto>,
+            Without<TagBackPack>,
+        ),
+    >, */
+    /* backpack_query: Query<
+        &mut Text,
+        (
+            With<TagBackPack>,
+            Without<TagEnergy>,
+            Without<Roboto>,
+            Without<TagTime>,
+        ),
+    >, */
+   // battery_query: Query<(&mut Style, &mut BackgroundColor), With<EnergyBar>>,
+   // sun_query: Query<&mut Sprite, With<SunTime>>,
+   // weather_image_query: Query<&mut UiImage, With<WeatherIcon>>,
+    mut reset_signal: Res<ResetWorldSignal>,
+    mut shutdown_signal: Res<StopMovimentSignal>,
+) {
+    while !shutdown_signal.0.load(Ordering::SeqCst) {
+        if reset_signal.0.load(Ordering::SeqCst) {
+
+        let mut worldh = world.0.lock().unwrap();
+        for row in worldh.iter_mut() {
+            for tile in row.iter_mut() {
+                *tile = None;
+            }
+        }
+        drop(worldh);
+        println!("World has been reset.");
+        } else {
+                            // Codice eseguito quando reset_signal è false
+                            let world = world.0.lock().unwrap();
+                            //println!("Debug: Locked World: {:?}", world); // Print di debug dopo aver acquisito il lock sul mondo
+                            
+                            let mut some_tile_count = 0; // Contatore per le tile Some
+                            
+                            for row in world.iter() {
+                                for tile in row.iter() {
+                                    if tile.is_some() {
+                                        some_tile_count += 1;
+                                    }
+                                }
+                            }
+                            
+                            println!("Debug: Number of tiles that are Some: {}", some_tile_count); // Stampa il numero di tile Some
+                            let update_radius = 10; // Raggio di aggiornamento attorno al robot
+
+
+                    if let Ok(mut old_world_res) = old_world_query.get_single_mut() {
+                        let old_world = &mut old_world_res.world;
+                    //  println!("Debug: Old World Before Update: {:?}", old_world); // Print di debug prima dell'aggiornamento del vecchio mondo
+                        update_show_tiles(&world, &mut commands, old_world, &tile_icons, &content_icons, &robot_position, update_radius); // Passa direttamente old_world
+                    //  println!("Debug: Old World After Update: {:?}", old_world); // Print di debug dopo l'aggiornamento del vecchio mondo
+                    }
+                    drop(world);
+                    
+                println!("Debug: Dropped World Lock"); // Print di debug dopo aver rilasciato il lock sul mondo
+
+
+                let resource = robot_resource.0.lock().unwrap();
+                let tile_step = tile_size.tile_size; 
+                let resource_copy = resource.clone();
+                drop(resource);
+                /* if let Some(weather_icons) = weather_icons {
+                    update_infos(
+                        resource_copy.clone(),
+                        weather_icons,
+                        energy_query,
+                        time_query,
+                        backpack_query,
+                        battery_query,
+                        sun_query,
+                        weather_image_query,
+                    );
+                } */
+                // println!(
+                //     "Energy Level: {}\nRow: {}\nColumn: {}\nBackpack Size: {}\nBackpack Contents: {:?}\nCurrent Weather: {:?}\nNext Weather: {:?}\nTicks Until Change: {}",
+                //     resource_copy.energy_level,
+                //     resource_copy.coordinate_row,
+                //     resource_copy.coordinate_column,
+                //     resource_copy.bp_size,
+                //     resource_copy.bp_contents,
+                //     resource_copy.current_weather,
+                //     resource_copy.next_weather,
+                //     resource_copy.ticks_until_change
+                // );
+
+                for mut transform in query.iter_mut() {
+                    transform.translation.y = tile_step * resource_copy.coordinate_column as f32;
+                    transform.translation.x = tile_step * resource_copy.coordinate_row as f32;
+                    }
+
+        }
+        // Aggiornamento del segnale di shutdown (potrebbe essere modificato da altri sistemi)
+        // shutdown_signal.stop = check_for_shutdown(); // Funzione ipotetica per aggiornare il segnale di shutdown
+    }
+}
+
+
 //movimento del robot in base alla grandezza di una tile
 //UPDATES
 fn robot_movement_system(
+    mut commands: Commands,
+    mut query: Query<
+        &mut Transform,
+        (
+            With<Roboto>,
+            Without<TagEnergy>,
+            Without<TagTime>,
+            Without<TagBackPack>,
+            Without<DirectionalLight>,
+        ),
+    >,
+    tile_size: Res<TileSize>, 
+    robot_resource: Res<RobotResource>,
+    world: Res<MapResource>,
+    weather_icons: Option<Res<WeatherIcons>>,
+    tile_icons: Res<TileIcons>,
+    content_icons: Res<ContentIcons>,
+    mut old_world_query: Query<&mut OldMapResource>,
+    robot_position: Res<RobotPosition>,
+    /* energy_query: Query<
+        &mut Text,
+        (
+            With<TagEnergy>,
+            Without<Roboto>,
+            Without<TagTime>,
+            Without<TagBackPack>,
+        ),
+    >, */
+    /* time_query: Query<
+        &mut Text,
+        (
+            With<TagTime>,
+            Without<TagEnergy>,
+            Without<Roboto>,
+            Without<TagBackPack>,
+        ),
+    >, */
+   /*  backpack_query: Query<
+        &mut Text,
+        (
+            With<TagBackPack>,
+            Without<TagEnergy>,
+            Without<Roboto>,
+            Without<TagTime>,
+        ),
+    >, */
+   // battery_query: Query<(&mut Style, &mut BackgroundColor), With<EnergyBar>>,
+   // sun_query: Query<&mut Sprite, With<SunTime>>,
+   // weather_image_query: Query<&mut UiImage, With<WeatherIcon>>,
+  mut reset_signal: Res<ResetWorldSignal>,
+    mut shutdown_signal: Res<StopMovimentSignal>,
+    // world_query: Query<&mut MapResource>,
+    //world_reset_state: Res<WorldResetState>,
+    
+) {
+
+
+    if (!reset_signal.0.load(Ordering::SeqCst)) {
+      //  while !shutdown_signal.0.load(Ordering::SeqCst) {
+        println!("Resetting World");
+        
+        let mut tile_count2 = 0;
+        let mut tile_count = 0;
+        // Assumi che la funzione reset_world sia definita altrove
+         let mut worldh = world.0.lock().unwrap();
+
+         for row in worldh.iter() {
+            for tile in row.iter() {
+                if tile.is_some() {
+                    tile_count2 += 1;
+                }
+            }
+        }
+        
+        println!("Debug: Number of tiles that are Some PRIMA DEL RESET: {}", tile_count2); // Stampa il numero di tile Some
+
+
+        for row in worldh.iter_mut() {
+            for tile in row.iter_mut() {
+                *tile = None;
+                tile_count += 1;    
+
+            }
+        }
+
+        println!("Debug: Number of tiles that are None DOPO RESET: {}", tile_count); // Stampa il numero di tile Some
+        drop(worldh);
+        println!("World has been reset."); 
+  //  }
+
+   }else{
+                let world = world.0.lock().unwrap();
+                //println!("Debug: Locked World: {:?}", world); // Print di debug dopo aver acquisito il lock sul mondo
+                
+                let mut some_tile_count = 0; // Contatore per le tile Some
+                
+                for row in world.iter() {
+                    for tile in row.iter() {
+                        if tile.is_some() {
+                            some_tile_count += 1;
+                        }
+                    }
+                }
+                
+                println!("Debug: Number of tiles that are Some: {}", some_tile_count); // Stampa il numero di tile Some
+                let update_radius = 10; // Raggio di aggiornamento attorno al robot
+    
+
+        if let Ok(mut old_world_res) = old_world_query.get_single_mut() {
+            let old_world = &mut old_world_res.world;
+          //  println!("Debug: Old World Before Update: {:?}", old_world); // Print di debug prima dell'aggiornamento del vecchio mondo
+            update_show_tiles(&world, &mut commands, old_world, &tile_icons, &content_icons, &robot_position, update_radius); // Passa direttamente old_world
+          //  println!("Debug: Old World After Update: {:?}", old_world); // Print di debug dopo l'aggiornamento del vecchio mondo
+        }
+        drop(world);
+        
+       println!("Debug: Dropped World Lock"); // Print di debug dopo aver rilasciato il lock sul mondo
+
+
+    let resource = robot_resource.0.lock().unwrap();
+    let tile_step = tile_size.tile_size; 
+    let resource_copy = resource.clone();
+    drop(resource);
+    /* if let Some(weather_icons) = weather_icons {
+        update_infos(
+            resource_copy.clone(),
+            weather_icons,
+            energy_query,
+            time_query,
+            backpack_query,
+            battery_query,
+            sun_query,
+            weather_image_query,
+        );
+    } */
+    // println!(
+    //     "Energy Level: {}\nRow: {}\nColumn: {}\nBackpack Size: {}\nBackpack Contents: {:?}\nCurrent Weather: {:?}\nNext Weather: {:?}\nTicks Until Change: {}",
+    //     resource_copy.energy_level,
+    //     resource_copy.coordinate_row,
+    //     resource_copy.coordinate_column,
+    //     resource_copy.bp_size,
+    //     resource_copy.bp_contents,
+    //     resource_copy.current_weather,
+    //     resource_copy.next_weather,
+    //     resource_copy.ticks_until_change
+    // );
+
+    for mut transform in query.iter_mut() {
+        transform.translation.y = tile_step * resource_copy.coordinate_column as f32;
+        transform.translation.x = tile_step * resource_copy.coordinate_row as f32;
+        }
+    }
+}
+
+//movimento del robot in base alla grandezza di una tile
+//UPDATES
+fn robot_movement_system4(
+    mut commands: Commands,
+    mut query: Query<
+        &mut Transform,
+        (
+            With<Roboto>,
+            Without<TagEnergy>,
+            Without<TagTime>,
+            Without<TagBackPack>,
+            Without<DirectionalLight>,
+        ),
+    >,
+    tile_size: Res<TileSize>, 
+    robot_resource: Res<RobotResource>,
+    world: Res<MapResource>,
+    weather_icons: Option<Res<WeatherIcons>>,
+    tile_icons: Res<TileIcons>,
+    content_icons: Res<ContentIcons>,
+    mut old_world_query: Query<&mut OldMapResource>,
+    robot_position: Res<RobotPosition>,
+    /* energy_query: Query<
+        &mut Text,
+        (
+            With<TagEnergy>,
+            Without<Roboto>,
+            Without<TagTime>,
+            Without<TagBackPack>,
+        ),
+    >, */
+    /* time_query: Query<
+        &mut Text,
+        (
+            With<TagTime>,
+            Without<TagEnergy>,
+            Without<Roboto>,
+            Without<TagBackPack>,
+        ),
+    >, */
+   /*  backpack_query: Query<
+        &mut Text,
+        (
+            With<TagBackPack>,
+            Without<TagEnergy>,
+            Without<Roboto>,
+            Without<TagTime>,
+        ),
+    >, */
+   // battery_query: Query<(&mut Style, &mut BackgroundColor), With<EnergyBar>>,
+   // sun_query: Query<&mut Sprite, With<SunTime>>,
+   // weather_image_query: Query<&mut UiImage, With<WeatherIcon>>,
+  mut reset_signal: Res<ResetWorldSignal>,
+    mut shutdown_signal: Res<StopMovimentSignal>,
+    // world_query: Query<&mut MapResource>,
+    //world_reset_state: Res<WorldResetState>,
+    
+) {
+
+
+    if (!reset_signal.0.load(Ordering::SeqCst)) {
+      //  while !shutdown_signal.0.load(Ordering::SeqCst) {
+        println!("Resetting World");
+        
+        let mut tile_count2 = 0;
+        let mut tile_count = 0;
+        // Assumi che la funzione reset_world sia definita altrove
+         let mut worldh = world.0.lock().unwrap();
+
+         for row in worldh.iter() {
+            for tile in row.iter() {
+                if tile.is_some() {
+                    tile_count2 += 1;
+                }
+            }
+        }
+        
+        println!("Debug: Number of tiles that are Some PRIMA DEL RESET: {}", tile_count2); // Stampa il numero di tile Some
+
+
+        for row in worldh.iter_mut() {
+            for tile in row.iter_mut() {
+                *tile = None;
+                tile_count += 1;    
+
+            }
+        }
+
+        println!("Debug: Number of tiles that are None DOPO RESET: {}", tile_count); // Stampa il numero di tile Some
+        drop(worldh);
+        println!("World has been reset."); 
+  //  }
+
+   }else{
+                let world = world.0.lock().unwrap();
+                //println!("Debug: Locked World: {:?}", world); // Print di debug dopo aver acquisito il lock sul mondo
+                
+                let mut some_tile_count = 0; // Contatore per le tile Some
+                
+                for row in world.iter() {
+                    for tile in row.iter() {
+                        if tile.is_some() {
+                            some_tile_count += 1;
+                        }
+                    }
+                }
+                
+                println!("Debug: Number of tiles that are Some: {}", some_tile_count); // Stampa il numero di tile Some
+                let update_radius = 10; // Raggio di aggiornamento attorno al robot
+    
+
+        if let Ok(mut old_world_res) = old_world_query.get_single_mut() {
+            let old_world = &mut old_world_res.world;
+          //  println!("Debug: Old World Before Update: {:?}", old_world); // Print di debug prima dell'aggiornamento del vecchio mondo
+            update_show_tiles(&world, &mut commands, old_world, &tile_icons, &content_icons, &robot_position, update_radius); // Passa direttamente old_world
+          //  println!("Debug: Old World After Update: {:?}", old_world); // Print di debug dopo l'aggiornamento del vecchio mondo
+        }
+        drop(world);
+        
+       println!("Debug: Dropped World Lock"); // Print di debug dopo aver rilasciato il lock sul mondo
+
+
+    let resource = robot_resource.0.lock().unwrap();
+    let tile_step = tile_size.tile_size; 
+    let resource_copy = resource.clone();
+    drop(resource);
+    /* if let Some(weather_icons) = weather_icons {
+        update_infos(
+            resource_copy.clone(),
+            weather_icons,
+            energy_query,
+            time_query,
+            backpack_query,
+            battery_query,
+            sun_query,
+            weather_image_query,
+        );
+    } */
+    // println!(
+    //     "Energy Level: {}\nRow: {}\nColumn: {}\nBackpack Size: {}\nBackpack Contents: {:?}\nCurrent Weather: {:?}\nNext Weather: {:?}\nTicks Until Change: {}",
+    //     resource_copy.energy_level,
+    //     resource_copy.coordinate_row,
+    //     resource_copy.coordinate_column,
+    //     resource_copy.bp_size,
+    //     resource_copy.bp_contents,
+    //     resource_copy.current_weather,
+    //     resource_copy.next_weather,
+    //     resource_copy.ticks_until_change
+    // );
+
+    for mut transform in query.iter_mut() {
+        transform.translation.y = tile_step * resource_copy.coordinate_column as f32;
+        transform.translation.x = tile_step * resource_copy.coordinate_row as f32;
+        }
+    }
+}
+
+fn robot_movement_system2(
     mut commands: Commands,
     mut query: Query<
         &mut Transform,
@@ -2222,13 +2807,55 @@ fn robot_movement_system(
     battery_query: Query<(&mut Style, &mut BackgroundColor), With<EnergyBar>>,
     sun_query: Query<&mut Sprite, With<SunTime>>,
     weather_image_query: Query<&mut UiImage, With<WeatherIcon>>,
+    //mut shutdown_signal: Res<ResetWorldSignal>,
+    // world_query: Query<&mut MapResource>,
+    //world_reset_state: Res<WorldResetState>,
+    
 ) {
-    let world = world.0.lock().unwrap();
-    if let Ok(mut old_world_res) = old_world_query.get_single_mut() {
-        let old_world = &mut old_world_res.world;
-        update_show_tiles(&world, &mut commands, old_world, &tile_icons, &content_icons, &robot_position); // Passa direttamente old_world
-    }
-    drop(world);
+
+
+    if (true) {
+        // Assumi che la funzione reset_world sia definita altrove
+         let mut worldh = world.0.lock().unwrap();
+        for row in worldh.iter_mut() {
+            for tile in row.iter_mut() {
+                *tile = None;
+            }
+        }
+        drop(worldh);
+        println!("World has been reset."); 
+
+        reset_old_world(old_world_query); // Resetta il vecchio mondo (old_world
+
+   }else{
+                let world = world.0.lock().unwrap();
+                //println!("Debug: Locked World: {:?}", world); // Print di debug dopo aver acquisito il lock sul mondo
+                
+                let mut some_tile_count = 0; // Contatore per le tile Some
+                
+                for row in world.iter() {
+                    for tile in row.iter() {
+                        if tile.is_some() {
+                            some_tile_count += 1;
+                        }
+                    }
+                }
+                
+                println!("Debug: Number of tiles that are Some: {}", some_tile_count); // Stampa il numero di tile Some
+                let update_radius = 10; // Raggio di aggiornamento attorno al robot
+    
+
+        if let Ok(mut old_world_res) = old_world_query.get_single_mut() {
+            let old_world = &mut old_world_res.world;
+          //  println!("Debug: Old World Before Update: {:?}", old_world); // Print di debug prima dell'aggiornamento del vecchio mondo
+            update_show_tiles(&world, &mut commands, old_world, &tile_icons, &content_icons, &robot_position, update_radius); // Passa direttamente old_world
+          //  println!("Debug: Old World After Update: {:?}", old_world); // Print di debug dopo l'aggiornamento del vecchio mondo
+        }
+        drop(world);
+        
+       println!("Debug: Dropped World Lock"); // Print di debug dopo aver rilasciato il lock sul mondo
+
+
     let resource = robot_resource.0.lock().unwrap();
     let tile_step = tile_size.tile_size; 
     let resource_copy = resource.clone();
@@ -2260,6 +2887,7 @@ fn robot_movement_system(
     for mut transform in query.iter_mut() {
         transform.translation.y = tile_step * resource_copy.coordinate_column as f32;
         transform.translation.x = tile_step * resource_copy.coordinate_row as f32;
+        }
     }
 }
 
@@ -2275,7 +2903,7 @@ fn update_robot_position(
 }
 
 
-//CAMERA CHE FOLLOWA IL ROBOT, NUOVO
+//CAMERA CHE FOLLOWA IL ROBOT
 fn follow_robot_system(
     robot_position: Res<RobotPosition>,
     mut camera_query: Query<(&mut Transform, &Camera), With<MainCamera>>,
@@ -2354,15 +2982,43 @@ enum AiLogic {
     Completo,
 }
 
+/* fn reset_map(map: Arc<Mutex<Vec<Vec<Option<Tile>>>>>) {
+    let mut map_lock = map.lock().unwrap();
+    
+    // Conta e stampa il numero di tile Some prima del reset
+    let count_before_reset = map_lock.iter()
+        .flat_map(|row| row.iter())
+        .filter(|tile| tile.is_some())
+        .count();
+    println!("Numero di tile Some prima del reset oooooooooooo: {}", count_before_reset);
+
+    // Reset della mappa
+    for row in map_lock.iter_mut() {
+        for tile in row.iter_mut() {
+            *tile = None;
+        }
+    }
+    println!("Mappa resettata con successo.");
+
+    // Conta e stampa il numero di tile Some dopo il reset
+    let count_after_reset = map_lock.iter()
+        .flat_map(|row| row.iter())
+        .filter(|tile| tile.is_some())
+        .count();
+    println!("Numero di tile Some dopo il reset oooooooooooo: {}", count_after_reset);
+} */
+
+
 fn moviment(robot_data: Arc<Mutex<RobotInfo>>, map: Arc<Mutex<Vec<Vec<Option<Tile>>>>>, ai_logic: AiLogic,  shutdown_signal: Arc<AtomicBool>, paused_signal: Arc<AtomicBool>, sleep_time: Arc<AtomicU64>,) {
     let audio = get_audio_manager();
     let background_music = OxAgSoundConfig::new_looped_with_volume("assets/audio/background.ogg", 2.0);
 
+
     let mut robot = Robottino {
-        shared_map: map,
+        shared_map: Arc::clone(&map),
         shared_robot: robot_data,
         robot: Robot::new(),
-        audio: audio,
+       // audio: audio,
         weather_tool: WeatherPredictionTool::new(),
         ai_logic: ai_logic,
         maze_discovered: None,
@@ -2374,18 +3030,35 @@ fn moviment(robot_data: Arc<Mutex<RobotInfo>>, map: Arc<Mutex<Vec<Vec<Option<Til
         ghost_amazeing_island::world_generator::WorldGenerator::new(WORLD_SIZE, false, 1, 1.1); */
     // Runnable creation and start
 
-    println!("Generating runnable (world + robot)...");
+
+    //RIATTIVARE AUDIO
+
+   /*  println!("Generating runnable (world + robot)...");
      match robot.audio.play_audio(&background_music) {
          Ok(_) => {},
          Err(e) => {
              eprintln!("Failed to play audio: {}", e);
              std::process::exit(1);
          }
-     }
-    let mut world_gen =
-        ghost_amazeing_island::world_generator::WorldGenerator::new(WORLD_SIZE, false, 1, 1.1);
-    let mut runner = Runner::new(Box::new(robot), &mut world_gen);
-    println!("Runnable succesfully generated");
+     } */
+
+
+     let mut world_gen = ghost_amazeing_island::world_generator::WorldGenerator::new(WORLD_SIZE, false, 1, 1.1);
+let (world_map, spawn_coords, environmental_conditions, _, _) = world_gen.gen();
+
+// Calcola il numero di tiles che non sono 'None' o un equivalente
+let some_tile_count = world_map.iter()
+    .flat_map(|row| row.iter())
+    .filter(|tile| tile.tile_type == TileType::DeepWater) // Supponendo che `Content::None` sia la variante per 'no content'
+    .count();
+
+println!("Number of tiles that contain content: {}", some_tile_count);
+
+let mut runner = Runner::new(Box::new(robot), &mut world_gen);
+println!("Runnable successfully generated");
+
+
+  //  reset_map(Arc::clone(&map));
 
      //MOVIMENTO ROBOT
     while !shutdown_signal.load(Ordering::SeqCst) {
@@ -2396,7 +3069,10 @@ fn moviment(robot_data: Arc<Mutex<RobotInfo>>, map: Arc<Mutex<Vec<Vec<Option<Til
             let rtn = runner.as_mut().unwrap().game_tick();
             //sleep(std::time::Duration::from_secs(1));
         } else {
+
+            println!("PRINNNNNNNNNNNNNNNNNNNNNNTTTTTTTTTTTTTTTTT");
             // Opzionalmente, inserisci qui una pausa per ridurre l'utilizzo della CPU quando in pausa
+    
             std::thread::sleep(std::time::Duration::from_millis(100));
         }
     }
@@ -2407,7 +3083,21 @@ fn moviment(robot_data: Arc<Mutex<RobotInfo>>, map: Arc<Mutex<Vec<Vec<Option<Til
 
     #[derive(Clone)]
     struct RobotResource(Arc<Mutex<RobotInfo>>);
+
+    #[derive(Component, Clone)]
     struct MapResource(Arc<Mutex<Vec<Vec<Option<Tile>>>>>);
+
+    impl MapResource {
+        fn reset(&self) {
+            let mut world = self.0.lock().unwrap();
+            for row in world.iter_mut() {
+                for tile in row.iter_mut() {
+                    *tile = None;
+                }
+            }
+            println!("World has been reset.");
+        }
+    }
 
     #[derive(Component, Clone)]
     struct OldMapResource {
@@ -2519,6 +3209,14 @@ struct DecreaseSpeed;
 #[derive(Resource, Debug, Default)] 
 struct ShutdownSignal(Arc<AtomicBool>);
 
+
+#[derive(Resource, Debug, Default)] 
+struct ResetWorldSignal(Arc<AtomicBool>);
+
+
+#[derive(Resource, Debug, Default)] 
+struct StopMovimentSignal(Arc<AtomicBool>);
+
 #[derive(Resource, Debug, Default)] 
 struct PausedSignal(Arc<AtomicBool>);
 
@@ -2604,6 +3302,145 @@ fn start_update_uberai(mut menu_state: ResMut<NextState<UberAi_State>>) {
     menu_state.set(UberAi_State::Run);
 }
 
+//creami una funzione che mi faccia il clear dell'old world
+fn clear_old_world(mut old_world_query: Query<&mut OldMapResource>) {
+    if let Ok(mut old_world_res) = old_world_query.get_single_mut() {
+        let old_world = &mut old_world_res.world;
+        println!("Before clearing old world: {:?}", old_world);
+        old_world.clear(); // Svuota old_world
+        sleep(std::time::Duration::from_secs(1));
+        println!("After clearing old world: {:?}", old_world);
+    }
+}
+
+fn reset_old_world(mut old_world_query: Query<&mut OldMapResource>) {
+    if let Ok(mut old_world_res) = old_world_query.get_single_mut() {
+        let old_world = &mut old_world_res.world;
+
+        // Print di debug prima del reset
+       // println!("Debug: Before reset - Old World: {:?}", old_world);
+
+        for row in old_world.iter_mut() {
+            for tile in row.iter_mut() {
+                *tile = None;
+            }
+        }
+
+        // Print di debug dopo il reset
+       // println!("Debug: After reset - Old World: {:?}", old_world);
+    }
+}
+
+/* fn reset_world(mut world_query: Query<&mut MapResource>) {
+    println!("Debug: Attempting to reset world...");
+
+    if let Ok(mut world_res) = world_query.get_single_mut() {
+        let mut world = match world_res.0.try_lock() {
+            Ok(world) => world,
+            Err(_) => {
+                println!("Error: Failed to acquire lock on world resource.");
+                return;
+            }
+        };
+
+        // Print di debug prima del reset
+        let mut some_count_before = 0;
+        let mut none_count_before = 0;
+        for row in world.iter() {
+            for tile in row.iter() {
+                if tile.is_some() {
+                    some_count_before += 1;
+                } else {
+                    none_count_before += 1;
+                }
+            }
+        }
+        println!("Debug: Before reset - Some tiles: {}, None tiles: {}", some_count_before, none_count_before);
+
+        for row in world.iter_mut() {
+            for tile in row.iter_mut() {
+                *tile = None;
+            }
+        }
+
+        // Print di debug dopo il reset
+        let mut some_count_after = 0;
+        let mut none_count_after = 0;
+        for row in world.iter() {
+            for tile in row.iter() {
+                if tile.is_some() {
+                    some_count_after += 1;
+                } else {
+                    none_count_after += 1;
+                }
+            }
+        }
+        println!("Debug: After reset - Some tiles: {}, None tiles: {}", some_count_after, none_count_after);
+
+    } else {
+        // Se non riesci ad ottenere il blocco, stampa un messaggio di errore
+        println!("Error: Unable to access world resource for reset.");
+    }
+} */
+
+/* fn clear_world(mut world_query: Query<&mut MapResource>) {
+    println!("clear_world is being called");
+    io::stdout().flush().unwrap();
+
+    match world_query.get_single_mut() {
+        Ok(mut world_res) => {
+            match world_res.0.lock() {
+                Ok(mut world) => {
+                    println!("Before clearing world: {:?}", world);
+                    io::stdout().flush().unwrap();
+                    world.clear(); // Svuota world
+                    sleep(std::time::Duration::from_secs(1));
+                    println!("After clearing world: {:?}", world);
+                    io::stdout().flush().unwrap();
+                }
+                Err(e) => {
+                    println!("Failed to lock world: {:?}", e);
+                    io::stdout().flush().unwrap();
+                }
+            }
+        }
+        Err(e) => {
+            println!("Failed to get world: {:?}", e);
+            io::stdout().flush().unwrap();
+        }
+    }
+} */
+
+fn print_tile_count(mut world_query: Query< &mut MapResource>) {
+    let mut tile_count = 0;
+    for mut map_resource in world_query.iter_mut() {
+        let world = map_resource.0.lock().unwrap();
+        for row in world.iter() {
+            for tile in row.iter() {
+                if tile.is_some() {
+                    tile_count += 1;
+                }
+            }
+        }
+    }
+    println!("Tile count: {}", tile_count);
+}
+
+fn print_tile_count2(mut world_query: Query<&mut OldMapResource>) {
+    let mut tile_count = 0;
+    for mut map_resource in world_query.iter_mut() {
+        let world = &map_resource.world;
+        for row in world.iter() {
+            for tile in row.iter() {
+                if tile.is_some() {
+                    tile_count += 1;
+                }
+            }
+        }
+    }
+    println!("Tile count 2: {}", tile_count);
+}
+
 // Generic system that takes a component as a parameter, and will despawn all entities with that component
 fn despawn_screen<T: Component + std::fmt::Debug>(to_despawn: Query<Entity, With<T>>, mut commands: Commands) {
     for entity in &to_despawn {
@@ -2686,7 +3523,7 @@ fn menu_action(
                 // entering the `GameState::Menu` state.
                 // Current screen in the menu is handled by an independent state from `GameState`
                 .add_state::<MenuState>()
-                .add_systems(OnEnter(GameState::InMenu), menu_setup)
+                .add_systems(OnEnter(GameState::InMenu), (menu_setup))
                 // Systems to handle the main menu screen
                 .add_systems(OnEnter(MenuState::Main), (initial_menu_setup))
                 .add_systems(OnExit(MenuState::Main), (despawn_screen::<OnMainMenuScreen>))
@@ -2701,8 +3538,36 @@ fn menu_action(
 
     fn stop_ai_thread(
         shutdown_signal: Res<ShutdownSignal>,
+       // mut world_query: Query<&mut MapResource>,
     ) {
         // Attiva il segnale di shutdown
+       // reset_world(world_query);
+        shutdown_signal.0.store(true, Ordering::SeqCst);
+    
+        // Qui puoi gestire altre operazioni di pulizia se necessario
+        // Ad esempio, attendere che il thread termini, se hai conservato il suo handle
+    }
+
+    
+    fn stop_ai_movimment(
+        shutdown_signal: Res<StopMovimentSignal>,
+       // mut world_query: Query<&mut MapResource>,
+    ) {
+        // Attiva il segnale di shutdown
+       // reset_world(world_query);
+        shutdown_signal.0.store(true, Ordering::SeqCst);
+    
+        // Qui puoi gestire altre operazioni di pulizia se necessario
+        // Ad esempio, attendere che il thread termini, se hai conservato il suo handle
+    }
+
+    
+    fn reset_ai_mondi(
+        shutdown_signal: Res<ResetWorldSignal>,
+       // mut world_query: Query<&mut MapResource>,
+    ) {
+        // Attiva il segnale di shutdown
+       // reset_world(world_query);
         shutdown_signal.0.store(true, Ordering::SeqCst);
     
         // Qui puoi gestire altre operazioni di pulizia se necessario
@@ -2752,25 +3617,31 @@ fn menu_action(
     
         // Clonazione delle risorse condivise
         let robot_data_clone = robot_data.clone();
-        let map_clone = map.clone();
-    
-        println!("Risorse condivise (robot_data e map) create e clonate");
-    
-        // Inserimento delle risorse nel sistema
-        commands.insert_resource(RobotResource(robot_data_clone));
-        commands.insert_resource(MapResource(map_clone));
-    
-        println!("Risorse inserite nel sistema di Bevy");
+        let weak_map = map.clone();
 
+       // let weak_map_clone = weak_map.clone();
+    
+        // Inizializzazione di Robottino
+       let robottino = Robottino::new(robot_data_clone.clone(), map.clone());
+        commands.insert_resource(robottino);  // Aggiungere Robottino come risorsa
+        commands.insert_resource(RobotResource(robot_data_clone));
+        commands.insert_resource(MapResource(map));
+    
+        println!("Robottino inizializzato e aggiunto come risorsa.");
+    
         let sleep_time_arc = Arc::new(AtomicU64::new(300));
-        commands.insert_resource(SleepTime{ millis: sleep_time_arc.clone() });
+        commands.insert_resource(SleepTime { millis: sleep_time_arc.clone() });
     
         // Creazione del segnale di shutdown
         let shutdown_signal = Arc::new(AtomicBool::new(false));
         let paused_signal = Arc::new(AtomicBool::new(false)); // false significa che il robot non è in pausa
-
+        let reset_world_signal = Arc::new(AtomicBool::new(false));
+        let stop_moviment_signal = Arc::new(AtomicBool::new(false));
+    
         commands.insert_resource(ShutdownSignal(shutdown_signal.clone()));
         commands.insert_resource(PausedSignal(paused_signal.clone()));
+        commands.insert_resource(ResetWorldSignal(reset_world_signal.clone()));
+        commands.insert_resource(StopMovimentSignal(stop_moviment_signal.clone()));
     
         println!("Segnale di shutdown creato");
     
@@ -2779,7 +3650,7 @@ fn menu_action(
             println!("Thread AI avviato");
     
             match std::panic::catch_unwind(|| {
-                moviment(robot_data, map, AiLogic::Falegname, shutdown_signal.clone(), paused_signal.clone(), sleep_time_arc.clone());
+                moviment(robot_data, weak_map, AiLogic::Falegname, shutdown_signal.clone(), paused_signal.clone(), sleep_time_arc.clone());
             }) {
                 Ok(_) => println!("Thread AI completato con successo"),
                 Err(_) => println!("Thread AI terminato a causa di un panic"),
@@ -2814,29 +3685,33 @@ fn menu_action(
     
         // Clonazione delle risorse condivise
         let robot_data_clone = robot_data.clone();
-        let map_clone = map.clone();
-    
+        let weak_map = map.clone();
         // Inserimento delle risorse nel sistema
         commands.insert_resource(RobotResource(robot_data_clone));
-        commands.insert_resource(MapResource(map_clone));
+        commands.insert_resource(MapResource(map));
 
         //sleep(std::time::Duration::from_secs(3));
         let sleep_time_arc = Arc::new(AtomicU64::new(300));
         commands.insert_resource(SleepTime{ millis: sleep_time_arc.clone() });
 
           // Creazione del segnale di shutdown
-        let shutdown_signal = Arc::new(AtomicBool::new(false));
-        let paused_signal = Arc::new(AtomicBool::new(false)); // false significa che il robot non è in pausa
-
-        commands.insert_resource(ShutdownSignal(shutdown_signal.clone()));
-        commands.insert_resource(PausedSignal(paused_signal.clone()));
+         // Creazione del segnale di shutdown
+         let shutdown_signal = Arc::new(AtomicBool::new(false));
+         let paused_signal = Arc::new(AtomicBool::new(false)); // false significa che il robot non è in pausa
+         let reset_world_signal = Arc::new(AtomicBool::new(false));
+         let stop_moviment_signal = Arc::new(AtomicBool::new(false));
+ 
+         commands.insert_resource(ShutdownSignal(shutdown_signal.clone()));
+         commands.insert_resource(PausedSignal(paused_signal.clone()));
+         commands.insert_resource(ResetWorldSignal(reset_world_signal.clone()));
+         commands.insert_resource(StopMovimentSignal(stop_moviment_signal.clone()));
     
         // Avvio del thread
         let thread_handle = thread::spawn(move || {
             //thread::sleep(std::time::Duration::from_secs(10));
             println!("Thread started");
             match std::panic::catch_unwind(|| {
-                moviment(robot_data, map, AiLogic::Asfaltatore, shutdown_signal.clone(), paused_signal.clone(),sleep_time_arc.clone());
+                moviment(robot_data, weak_map, AiLogic::Asfaltatore, shutdown_signal.clone(), paused_signal.clone(),sleep_time_arc.clone());
             }) {
                 Ok(_) => println!("Thread completed successfully"),
                 Err(_) => println!("Thread terminated due to panic"),
@@ -2877,11 +3752,11 @@ fn menu_action(
     
         // Clonazione delle risorse condivise
         let robot_data_clone = robot_data.clone();
-        let map_clone = map.clone();
+        let weak_map = map.clone();
     
         // Inserimento delle risorse nel sistema
         commands.insert_resource(RobotResource(robot_data_clone));
-        commands.insert_resource(MapResource(map_clone));
+        commands.insert_resource(MapResource(map));
 
         //sleep(std::time::Duration::from_secs(3));
         let sleep_time_arc = Arc::new(AtomicU64::new(300));
@@ -2899,7 +3774,7 @@ fn menu_action(
             //thread::sleep(std::time::Duration::from_secs(10));
             println!("Thread started");
             match std::panic::catch_unwind(|| {
-                moviment(robot_data, map, AiLogic::Ricercatore, shutdown_signal.clone(), paused_signal.clone(),sleep_time_arc.clone());
+                moviment(robot_data, weak_map, AiLogic::Ricercatore, shutdown_signal.clone(), paused_signal.clone(),sleep_time_arc.clone());
             }) {
                 Ok(_) => println!("Thread completed successfully"),
                 Err(_) => println!("Thread terminated due to panic"),
@@ -2939,11 +3814,11 @@ fn menu_action(
     
         // Clonazione delle risorse condivise
         let robot_data_clone = robot_data.clone();
-        let map_clone = map.clone();
+        let weak_map = map.clone();
     
         // Inserimento delle risorse nel sistema
         commands.insert_resource(RobotResource(robot_data_clone));
-        commands.insert_resource(MapResource(map_clone));
+        commands.insert_resource(MapResource(map));
 
         //sleep(std::time::Duration::from_secs(3));
         let sleep_time_arc = Arc::new(AtomicU64::new(300));
@@ -2962,7 +3837,7 @@ fn menu_action(
             //thread::sleep(std::time::Duration::from_secs(10));
             println!("Thread started");
             match std::panic::catch_unwind(|| {
-                moviment(robot_data, map, AiLogic::Completo, shutdown_signal.clone(), paused_signal.clone(),sleep_time_arc.clone());
+                moviment(robot_data, weak_map, AiLogic::Completo, shutdown_signal.clone(), paused_signal.clone(),sleep_time_arc.clone());
             }) {
                 Ok(_) => println!("Thread completed successfully"),
                 Err(_) => println!("Thread terminated due to panic"),
@@ -2995,11 +3870,12 @@ fn menu_action(
         app
         
         .add_state::<Ai1_State>()
-        .add_systems(OnEnter(GameState::InAi1),(initialize_and_start_thread_ai1, start_ai1))
-        .add_systems(OnEnter(MenuState::Ai1), (setup, start_in_ai1))
-        .add_systems(OnEnter(Ai1_State::In), (set_camera_viewports, start_update_ai1))
-        .add_systems(OnExit(MenuState::Ai1),(stop_ai_thread, despawn_screentry::<Explodetry>, despawn_screen::<Explode>))
-        .add_systems(Update, ( cursor_events, robot_movement_system, update_robot_position, follow_robot_system, button_system, update_minimap_outline,).run_if(in_state(Ai1_State::Run)));
+        .add_systems(OnEnter(GameState::InAi1),( initialize_and_start_thread_ai1, start_ai1))
+        .add_systems(OnEnter(MenuState::Ai1), (setup, start_in_ai1, count_some_tiles,))
+        .add_systems(OnEnter(Ai1_State::In), (set_camera_viewports, start_update_ai1, count_some_tiles, robot_movement_system,))
+        .add_systems(OnExit(MenuState::Ai1),( despawn_screentry::<Explodetry>, despawn_screen::<Explode>, count_some_tiles, reset_shared_map))
+        .add_systems(OnExit(Ai1_State::Run), (stop_ai_thread))
+        .add_systems(Update, (reset_ai_mondi, print_tile_count2, print_tile_count, cursor_events, robot_movement_system,  update_robot_position, follow_robot_system, button_system, update_minimap_outline,).run_if(in_state(Ai1_State::Run)));
 
 
         }
@@ -3051,7 +3927,7 @@ fn menu_action(
          .add_systems(OnEnter(MenuState::Ai2), (setup, start_in_ai2))
          .add_systems(OnEnter(Ai2_State::In), (set_camera_viewports, start_update_ai2))
          .add_systems(OnExit(MenuState::Ai2),(stop_ai_thread, despawn_screen::<Explode>, despawn_screentry::<Explodetry>))
-         .add_systems(Update, ( cursor_events, robot_movement_system, update_robot_position, follow_robot_system, button_system, update_minimap_outline,).run_if(in_state(Ai2_State::Run)));
+         .add_systems(Update, (cursor_events, robot_movement_system4, update_robot_position, follow_robot_system, button_system, update_minimap_outline).run_if(in_state(Ai2_State::Run)));
  
  
              //PROBLEMA
@@ -3240,7 +4116,7 @@ fn main() {
     App::new()
     .add_plugins(DefaultPlugins.set(WindowPlugin{
         primary_window: Some(Window{
-            mode: WindowMode::Fullscreen,
+            mode: WindowMode::BorderlessFullscreen,
             ..default()
         }),
         ..Default::default()
@@ -3258,15 +4134,29 @@ fn main() {
     
 }
 
-
+#[derive(Resource)]
 struct Robottino {
     shared_robot: Arc<Mutex<RobotInfo>>,
     shared_map: Arc<Mutex<Vec<Vec<Option<Tile>>>>>,
     robot: Robot,
-    audio: OxAgAudioTool,
+    //audio: OxAgAudioTool,
     weather_tool: WeatherPredictionTool,
     ai_logic: AiLogic,
     maze_discovered: Option<(usize, usize)>,
+}
+
+impl Robottino {
+    pub fn new(robot_data: Arc<Mutex<RobotInfo>>, shared_map: Arc<Mutex<Vec<Vec<Option<Tile>>>>>) -> Self {
+        Robottino {
+            shared_robot: robot_data,
+            shared_map: shared_map,
+            robot: Robot::new(), // Assicurati che Robot abbia un metodo new o adatta questa linea
+           // audio: audio, // Assumendo che OxAgAudioTool abbia un costruttore new
+            weather_tool: WeatherPredictionTool::new(), // Assumendo che WeatherPredictionTool abbia un costruttore new
+            ai_logic: AiLogic::Falegname, // Esempio di logica iniziale, adattalo secondo necessità
+            maze_discovered: None,
+        }
+    }
 }
 
 fn solve_labirint(
@@ -3282,7 +4172,7 @@ fn solve_labirint(
         go(robot, world, last_direction.clone());
         //conta quanti muri ci sono intorno al robot
         let view = robot_view(robot, world);
-        update_map(robot, world);
+       update_map(robot, world);
         let mut walls = 0;
         if view[0][1].as_ref().unwrap().tile_type==TileType::Wall {
             walls += 1;
@@ -3521,11 +4411,33 @@ fn ai_labirint(robot: &mut Robottino, world: &mut robotics_lib::world::World) {
 }
 
 fn ai_taglialegna(robot: &mut Robottino, world: &mut robotics_lib::world::World) {
-    //se l'energia e' sotto il 300, la ricarico
+
+    // Utilizza una variabile statica per tracciare se il mondo è stato già resettato
+    /* static mut FIRST_RUN: bool = true;
+
+    unsafe {
+        if FIRST_RUN {
+            // Prova a ottenere un Arc da Weak
+            if let Some(map_arc) = robot.shared_map.upgrade() {
+                let mut map = map_arc.lock().unwrap();
+                println!("Resettando la mappa per la prima esecuzione...");
+                for row in map.iter_mut() {
+                    for tile in row.iter_mut() {
+                        *tile = None; // Assumi che puoi settare ogni tile a None
+                    }
+                }
+                println!("Mappa resettata.");
+            } else {
+                println!("Impossibile accedere alla mappa per resettarla.");
+            }
+            FIRST_RUN = false;
+        }
+    } */
+
+    // Continua con la logica esistente del taglialegna
     if robot.robot.energy.get_energy_level() < 300 {
         robot.robot.energy = rust_and_furious_dynamo::dynamo::Dynamo::update_energy();
     }
-
     let v = robot_view(robot, world);
 
     let a = robot.get_backpack().get_size();
@@ -3658,24 +4570,34 @@ fn ai_completo_con_tool(robot: &mut Robottino, world: &mut robotics_lib::world::
     // println!("{:?}", coordinates);
 }
 
+impl Robottino {
+    pub fn reset_map(&mut self) {
+        let mut shared_map = self.shared_map.lock().unwrap();
+        for row in shared_map.iter_mut() {
+            for tile in row.iter_mut() {
+                *tile = None;
+            }
+        }
+        println!("Map has been reset.");
+    }
+}
+
 impl Runnable for Robottino {
     fn process_tick(&mut self, world: &mut robotics_lib::world::World) {
+        /* if self.needs_reset {
+            self.reset_map();
+            self.needs_reset = false; // Reset the flag after resetting the map
+        } */
 
         let new_weather = look_at_sky(world).get_weather_condition();
-    
-
-        /* let sleep_time_milly: u64 = 300;
-        sleep(std::time::Duration::from_millis(sleep_time_milly)); */
-        // in base alla logica scelta, esegue la funzione corrispondente
+        // Rest of your tick processing logic
         match self.ai_logic {
             AiLogic::Falegname => ai_taglialegna(self, world),
             AiLogic::Asfaltatore => ai_asfaltatore(self, world),
             AiLogic::Ricercatore => ai_labirint(self, world),
             AiLogic::Completo => ai_completo_con_tool(self, world),
         }
-        
-       
-        
+
 
         //update map
         update_map(self, world);
@@ -3722,23 +4644,66 @@ impl Runnable for Robottino {
     }
 }
 
-fn update_map(robot: &mut Robottino, world: &mut robotics_lib::world::World) {
-    let mut shared_map = robot.shared_map.lock().unwrap();
-    if let Some(new_map) = robot_map(world) {
-        *shared_map = new_map;
-    }
-    drop(shared_map);
-    let mut shared_robot = robot.shared_robot.lock().unwrap();
-    let enviroment = look_at_sky(&world);
 
-    shared_robot.time = enviroment.get_time_of_day_string();
-    shared_robot.current_weather = Some(enviroment.get_weather_condition());
+//PROBLEMA
+fn update_map(robot: &mut Robottino, world: &mut robotics_lib::world::World) {
+    // Try to obtain an Arc from the Weak pointer
+    //if let Some(map_arc) = robot.shared_map.upgrade() {
+        let mut shared_map = robot.shared_map.lock().unwrap();
+        // Count and print the number of Some tiles in the shared_map
+        let some_count = shared_map.iter()
+            .flat_map(|row| row.iter())
+            .filter(|tile| tile.is_some())
+            .count();
+        println!("Number of Some tiles in shared_map before update: {}", some_count);
+
+        if let Some(new_map) = robot_map(world) {
+            // Reset shared_map to None before updating
+            for row in shared_map.iter_mut() {
+                for tile in row.iter_mut() {
+                    *tile = None;
+                }
+            }
+
+          // println!("DISCOVERABLEEEEEEEEEEEEE PRIMA: {:?}", world.get_discoverable()); 
+
+            //problema
+            // Now update with new_map
+            for (row, new_row) in shared_map.iter_mut().zip(new_map.iter()) {
+                for (tile, new_tile) in row.iter_mut().zip(new_row.iter()) {
+                    *tile = new_tile.clone();
+                }
+            }
+
+           // println!("DISCOVERABLEEEEEEEEEEEEE DOPO: {:?}", world.get_discoverable()); 
+        
+        
+            // Count and print again after update
+            let updated_some_count = shared_map.iter()
+                .flat_map(|row| row.iter())
+                .filter(|tile| tile.is_some())
+                .count();
+            println!("Number of Some tiles in shared_map after update: {}", updated_some_count);
+        }
+        drop(shared_map);
+   // } else {
+        // Handle the case where the resource is no longer available
+      //  println!("La mappa non è più disponibile.");
+   // }
+
+    let mut shared_robot = robot.shared_robot.lock().unwrap();
+    let environment = look_at_sky(world);
+
+    shared_robot.time = environment.get_time_of_day_string();
+    shared_robot.current_weather = Some(environment.get_weather_condition());
     if let Some((prediction, ticks)) = weather_check(robot) {
         shared_robot.next_weather = Some(prediction);
         shared_robot.ticks_until_change = ticks;
     }
     drop(shared_robot);
 }
+
+
 
 fn weather_check(robot: &Robottino) -> Option<(WeatherType, u32)> {
     let ticks_until_weather = match robot.weather_tool.ticks_until_weather_change(100000000000) {
