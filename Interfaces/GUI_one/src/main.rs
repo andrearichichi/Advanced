@@ -2269,14 +2269,14 @@ fn moviment(robot_data: Arc<Mutex<RobotInfo>>, map: Arc<Mutex<Vec<Vec<Option<Til
 }
 
 
-    #[derive(Clone)]
-    struct RobotResource(Arc<Mutex<RobotInfo>>);
-    struct MapResource(Arc<Mutex<Vec<Vec<Option<Tile>>>>>);
+#[derive(Clone)]
+struct RobotResource(Arc<Mutex<RobotInfo>>);
+struct MapResource(Arc<Mutex<Vec<Vec<Option<Tile>>>>>);
 
-    #[derive(Component, Clone)]
-    struct OldMapResource {
-        world: Vec<Vec<Option<Tile>>>,
-    }
+#[derive(Component, Clone)]
+struct OldMapResource {
+    world: Vec<Vec<Option<Tile>>>,
+}
 
 impl bevy::prelude::Resource for RobotResource {}
 impl bevy::prelude::Resource for MapResource {}
@@ -2619,7 +2619,7 @@ fn menu_action(
         let map_clone = map.clone();
     
         println!("Risorse condivise (robot_data e map) create e clonate");
-    
+        
         // Inserimento delle risorse nel sistema
         commands.insert_resource(RobotResource(robot_data_clone));
         commands.insert_resource(MapResource(map_clone));
@@ -3104,7 +3104,7 @@ fn main() {
     App::new()
     .add_plugins(DefaultPlugins.set(WindowPlugin{
         primary_window: Some(Window{
-            mode: WindowMode::Fullscreen,
+            mode: WindowMode::BorderlessFullscreen,
             ..default()
         }),
         ..Default::default()
