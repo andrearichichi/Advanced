@@ -464,7 +464,7 @@ fn setup(
     shared_map: Res<MapResource>,
     robot_resource: Res<RobotResource>,
 ) {
-
+    
     commands.insert_resource(ContentCounter { count: 0 });
 
     let start_time = Instant::now() - Duration::from_secs(5);
@@ -805,6 +805,34 @@ fn setup(
          )); */
      })
      .insert(DecreaseSpeed);
+
+     parent
+        .spawn(ButtonBundle {
+            style: Style {
+                width: Val::Px(70.0),
+                height: Val::Px(70.0),
+                margin: UiRect::all(Val::Px(10.0)), 
+                //border: UiRect::all(Val::Px(4.0)),
+                justify_content: JustifyContent::Center, 
+                align_items: AlignItems::Center,
+                ..default()
+            },
+            border_color: BorderColor(Color::BLACK),
+            background_color: BackgroundColor(Color::WHITE),
+            image: texture_play_handle.clone().into(),
+            ..default()
+        })
+        .with_children(|parent| {
+            /* parent.spawn(TextBundle::from_section(
+                "STOP",
+                TextStyle {
+                    font_size: 25.0,
+                    color: Color::rgb(0.9, 0.9, 0.9),
+                    ..default()
+                },
+            ));*/
+        }) 
+        .insert(ActivityButton);
     })
       .insert(RenderLayers::layer(1));
         
@@ -2147,7 +2175,8 @@ fn button_system(
             Option<&CloseAppButton>,
             Option<&PauseButton>, 
             Option<&IncreaseSpeed>,
-            Option<&DecreaseSpeed>
+            Option<&DecreaseSpeed>,
+            Option<&ActivityButton>,
         ),
         (Changed<Interaction>, With<Button>),
     >,
@@ -2162,9 +2191,10 @@ fn button_system(
     mut ai1_state: ResMut<NextState<Ai1_State>>,
     mut ai2_state: ResMut<NextState<Ai2_State>>,
     mut ai3_state: ResMut<NextState<Ai3_State>>,
-    mut uberai_state: ResMut<NextState<UberAi_State>>,
+    // mut uberai_state: ResMut<NextState<UberAi_State>>,
     paused_signal: Res<PausedSignal>,
     mut speed_sleep: ResMut<SleepTime>,
+    mut activity_signal: Res<ActivitySignal>,
     mut camera_control: ResMut<CameraControl>,
 ) {
     for (
@@ -2180,6 +2210,7 @@ fn button_system(
         pause_button,
         increase_speed,
         decrease_speed,
+        activity_button,
     ) in &mut interaction_query
     {
         ;
@@ -2211,7 +2242,7 @@ fn button_system(
                     ai1_state.set(Ai1_State::Out);
                     ai2_state.set(Ai2_State::Out);
                     ai3_state.set(Ai3_State::Out);
-                    uberai_state.set(UberAi_State::Out);
+                    // uberai_state.set(UberAi_State::Out);
 
                     //label
                 } else if dropdownback.is_some() {
@@ -2255,6 +2286,11 @@ fn button_system(
                         speed_sleep.millis.store(new_sleep_time, Ordering::SeqCst);
                         println!("Tempo di sleep diminuito a: {}", new_sleep_time);
                     }
+                }
+                else if activity_button.is_some() {
+                    let current_state = activity_signal.0.load(Ordering::SeqCst);
+                    activity_signal.0.store(!current_state, Ordering::SeqCst);
+                    println!("Stato di attivita cambiato: {}", !current_state);
                 }
 
                // *color = PRESSED_BUTTON.into();
@@ -2589,7 +2625,7 @@ enum AiLogic {
     Completo,
 }
 
-fn moviment(robot_data: Arc<Mutex<RobotInfo>>, map: Arc<Mutex<Vec<Vec<Option<Tile>>>>>, ai_logic: AiLogic,  shutdown_signal: Arc<AtomicBool>, paused_signal: Arc<AtomicBool>, sleep_time: Arc<AtomicU64>,) {
+fn moviment(robot_data: Arc<Mutex<RobotInfo>>, map: Arc<Mutex<Vec<Vec<Option<Tile>>>>>, ai_logic: AiLogic,  shutdown_signal: Arc<AtomicBool>, paused_signal: Arc<AtomicBool>, sleep_time: Arc<AtomicU64>, activity_signal: Arc<AtomicBool>) {
     let audio = get_audio_manager();
     let background_music = OxAgSoundConfig::new_looped_with_volume("assets/audio/background.ogg", 1.0);
 
@@ -2601,6 +2637,7 @@ fn moviment(robot_data: Arc<Mutex<RobotInfo>>, map: Arc<Mutex<Vec<Vec<Option<Til
         weather_tool: WeatherPredictionTool::new(),
         ai_logic: ai_logic,
         maze_discovered: None,
+        activity_signal: activity_signal
     };
 
 
@@ -2750,6 +2787,8 @@ struct IncreaseSpeed;
 #[derive(Component)]
 struct DecreaseSpeed;
 
+#[derive(Component)]
+struct ActivityButton;
 
 #[derive(Resource, Debug, Default)] 
 struct ShutdownSignal(Arc<AtomicBool>);
@@ -2762,7 +2801,8 @@ struct SleepTime {
     millis: Arc<AtomicU64>,
 }
 
-
+#[derive(Resource, Debug, Default)] 
+struct ActivitySignal(Arc<AtomicBool>);
 
 //BOTTONI DEL MAIN MENU
 #[derive(Clone, Copy, Default, Eq, PartialEq, Debug, Hash, States)]
@@ -2999,7 +3039,10 @@ fn menu_action(
 
         let sleep_time_arc = Arc::new(AtomicU64::new(300));
         commands.insert_resource(SleepTime{ millis: sleep_time_arc.clone() });
-    
+
+        let activity_signal = Arc::new(AtomicBool::new(false)); // false significa che il robot non fa attivita' principale
+        commands.insert_resource(ActivitySignal(activity_signal.clone()));
+        
         // Creazione del segnale di shutdown
         let shutdown_signal = Arc::new(AtomicBool::new(false));
         let paused_signal = Arc::new(AtomicBool::new(false)); // false significa che il robot non è in pausa
@@ -3014,7 +3057,7 @@ fn menu_action(
             println!("Thread AI avviato");
     
             match std::panic::catch_unwind(|| {
-                moviment(robot_data, map, AiLogic::Falegname, shutdown_signal.clone(), paused_signal.clone(), sleep_time_arc.clone());
+                moviment(robot_data, map, AiLogic::Falegname, shutdown_signal.clone(), paused_signal.clone(), sleep_time_arc.clone(), activity_signal.clone());
             }) {
                 Ok(_) => println!("Thread AI completato con successo"),
                 Err(_) => println!("Thread AI terminato a causa di un panic"),
@@ -3065,13 +3108,15 @@ fn menu_action(
 
         commands.insert_resource(ShutdownSignal(shutdown_signal.clone()));
         commands.insert_resource(PausedSignal(paused_signal.clone()));
+        let activity_signal = Arc::new(AtomicBool::new(false)); // false significa che il robot non fa attivita' principale
+        commands.insert_resource(ActivitySignal(activity_signal.clone()));
     
         // Avvio del thread
         let thread_handle = thread::spawn(move || {
             //thread::sleep(std::time::Duration::from_secs(10));
             println!("Thread started");
             match std::panic::catch_unwind(|| {
-                moviment(robot_data, map, AiLogic::Asfaltatore, shutdown_signal.clone(), paused_signal.clone(),sleep_time_arc.clone());
+                moviment(robot_data, map, AiLogic::Falegname, shutdown_signal.clone(), paused_signal.clone(), sleep_time_arc.clone(), activity_signal.clone());
             }) {
                 Ok(_) => println!("Thread completed successfully"),
                 Err(_) => println!("Thread terminated due to panic"),
@@ -3128,13 +3173,15 @@ fn menu_action(
 
         commands.insert_resource(ShutdownSignal(shutdown_signal.clone()));
         commands.insert_resource(PausedSignal(paused_signal.clone()));
+        let activity_signal = Arc::new(AtomicBool::new(false)); // false significa che il robot non fa attivita' principale
+        commands.insert_resource(ActivitySignal(activity_signal.clone()));
     
         // Avvio del thread
         let thread_handle = thread::spawn(move || {
             //thread::sleep(std::time::Duration::from_secs(10));
             println!("Thread started");
             match std::panic::catch_unwind(|| {
-                moviment(robot_data, map, AiLogic::Ricercatore, shutdown_signal.clone(), paused_signal.clone(),sleep_time_arc.clone());
+                moviment(robot_data, map, AiLogic::Falegname, shutdown_signal.clone(), paused_signal.clone(), sleep_time_arc.clone(), activity_signal.clone());
             }) {
                 Ok(_) => println!("Thread completed successfully"),
                 Err(_) => println!("Thread terminated due to panic"),
@@ -3191,13 +3238,15 @@ fn menu_action(
 
         commands.insert_resource(ShutdownSignal(shutdown_signal.clone()));
         commands.insert_resource(PausedSignal(paused_signal.clone()));
+        let activity_signal = Arc::new(AtomicBool::new(false)); // false significa che il robot non fa attivita' principale
+        commands.insert_resource(ActivitySignal(activity_signal.clone()));
     
         // Avvio del thread
         let thread_handle = thread::spawn(move || {
             //thread::sleep(std::time::Duration::from_secs(10));
             println!("Thread started");
             match std::panic::catch_unwind(|| {
-                moviment(robot_data, map, AiLogic::Completo, shutdown_signal.clone(), paused_signal.clone(),sleep_time_arc.clone());
+                moviment(robot_data, map, AiLogic::Falegname, shutdown_signal.clone(), paused_signal.clone(), sleep_time_arc.clone(), activity_signal.clone());
             }) {
                 Ok(_) => println!("Thread completed successfully"),
                 Err(_) => println!("Thread terminated due to panic"),
@@ -3234,7 +3283,8 @@ fn menu_action(
         .add_systems(OnEnter(MenuState::Ai1), (setup, start_in_ai1))
         .add_systems(OnEnter(Ai1_State::In), (set_camera_viewports, start_update_ai1))
         .add_systems(OnExit(MenuState::Ai1),(stop_ai_thread, despawn_screentry::<Explodetry>, despawn_screen::<Explode>))
-        .add_systems(Update, (icons_upgrade, cursor_events, robot_movement_system, update_robot_position, follow_robot_system, button_system, update_minimap_outline,).run_if(in_state(Ai1_State::Run)));
+        .add_systems(Update, (icons_upgrade, cursor_events, robot_movement_system, update_robot_position, follow_robot_system, button_system, update_minimap_outline,)
+        .run_if(in_state(Ai1_State::Run)));
 
 
         }
@@ -3340,7 +3390,8 @@ fn menu_action(
          .add_systems(OnEnter(MenuState::Ai3), (setup, start_in_ai3))
          .add_systems(OnEnter(Ai3_State::In), (set_camera_viewports, start_update_ai3))
          .add_systems(OnExit(MenuState::Ai3),(stop_ai_thread, despawn_screen::<Explode>, despawn_screentry::<Explodetry>))
-         .add_systems(Update, (icons_upgrade, cursor_events, robot_movement_system_maze, update_robot_position, follow_robot_system, button_system, update_minimap_outline,).run_if(in_state(Ai3_State::Run)));
+         .add_systems(Update, (icons_upgrade, cursor_events, robot_movement_system_maze, update_robot_position, follow_robot_system, button_system, update_minimap_outline,)
+         .run_if(in_state(Ai3_State::Run)));
  
  
              //PROBLEMA
@@ -3394,7 +3445,8 @@ fn menu_action(
             .add_systems(OnEnter(MenuState::UberAi), (setup, start_in_uberai))
             .add_systems(OnEnter(UberAi_State::In), (set_camera_viewports, start_update_uberai))
             .add_systems(OnExit(MenuState::UberAi),(stop_ai_thread, despawn_screen::<Explode>, despawn_screentry::<Explodetry>))
-            .add_systems(Update, (icons_upgrade, cursor_events, robot_movement_system_maze, update_robot_position, follow_robot_system, button_system, update_minimap_outline,).run_if(in_state(UberAi_State::Run)));
+            .add_systems(Update, (icons_upgrade, cursor_events, robot_movement_system_maze, update_robot_position, follow_robot_system, button_system, update_minimap_outline,)
+            .run_if(in_state(UberAi_State::Run)));
     
     
                 //PROBLEMA
@@ -3502,6 +3554,7 @@ struct Robottino {
     weather_tool: WeatherPredictionTool,
     ai_logic: AiLogic,
     maze_discovered: Option<(usize, usize)>,
+    activity_signal: Arc<AtomicBool>,
 }
 
 fn solve_labirint(
@@ -3713,44 +3766,94 @@ fn ai_labirint          (robot: &mut Robottino, world: &mut robotics_lib::world:
         go_to_maze(robot, world, (row, col));
     }
 }
-fn ai_taglialegna       (robot: &mut Robottino, world: &mut robotics_lib::world::World) {
+fn ai_taglialegna(robot: &mut Robottino, world: &mut robotics_lib::world::World) {
     //se l'energia e' sotto il 300, la ricarico
     if robot.robot.energy.get_energy_level() < 300 {
         robot.robot.energy = rust_and_furious_dynamo::dynamo::Dynamo::update_energy();
     }
 
     let v = robot_view(robot, world);
-
+    let attivita = robot.activity_signal.load(Ordering::SeqCst);
+    println!("{:?}", attivita);
     let a = robot.get_backpack().get_size();
     let b = robot.get_backpack().get_contents().values().sum::<usize>();
-    if (a > b) {
-        let tiles_option = cheapest_border(world, robot);
-        if let Some(tiles) = tiles_option {
-             //manage the return stat of move to cheapest border
-             let result = move_to_cheapest_border(world, robot, tiles);
+    if (a - 5) > b {
+        if attivita == true{   
             
-             // Debug print prima della distruzione/raccolta
-            // println!("Tentativo di raccogliere albero alla posizione corrente...");
-             
-             DestroyZone.execute(world, robot, Content::Tree(0));
- 
-             // Debug print dopo la distruzione/raccolta
-           //  println!("Albero raccolto con successo!");
- 
-             // Stampa opzionale per confermare il contenuto dello zaino
-             let num_trees = robot.get_backpack().get_contents().get(&Content::Tree(0)).unwrap_or(&0);
-           //  println!("Numero di alberi nello zaino: {}", num_trees);
+            let mut shopping_list = ShoppingList {
+                list: vec![(
+                    (Content::Tree(0), Some(OpActionInput::Destroy()))
+                )],
+            };
+            match get_best_action_to_element(robot, world, &mut shopping_list) {
+                None => {
+                    let tiles_option = cheapest_border(world, robot);
+                    if let Some(tiles) = tiles_option {
+                         let result = move_to_cheapest_border(world, robot, tiles);             
+                        if attivita == true{   
+                            DestroyZone.execute(world, robot, Content::Tree(0));
+                        }
+                         let num_trees = robot.get_backpack().get_contents().get(&Content::Tree(0)).unwrap_or(&0);
+                    }
+                }
+                Some(next_action) => {
+                    // println!("{:?}", &rand);
+                    println!("trovato albero?");
+                    println!("{:?}", next_action);
+                    match next_action {
+                        OpActionOutput::Move(dir) => {
+                            go(robot, world, dir);
+                        }
+                        OpActionOutput::Destroy(dir) => {
+                            // println!("Destroy");
+                            destroy(robot, world, dir);
+                        }
+                        OpActionOutput::Put(c, u, d) => {
+                            print!("depositandoooooooooooo");
+                            //print c u d
+                            println!("{:?} {:?} {:?}", c, u, d);
+                            put(robot, world, c, u, d);
+                        }
+                    }
+                }
+            }
+        } else {
+            let tiles_option = cheapest_border(world, robot);
+                    if let Some(tiles) = tiles_option {
+                         let result = move_to_cheapest_border(world, robot, tiles);             
+                        if attivita == true{   
+                            DestroyZone.execute(world, robot, Content::Tree(0));
+                        }
+                         let num_trees = robot.get_backpack().get_contents().get(&Content::Tree(0)).unwrap_or(&0);
+                    }
         }
     } else {
         let mut shopping_list = ShoppingList {
             list: vec![(
                 Content::Crate(Range::default()),
-                Some(OpActionInput::Put(Content::Tree(0), 20)),
+                Some(OpActionInput::Put(Content::Tree(0), a-5)),
             )],
         };
         match get_best_action_to_element(robot, world, &mut shopping_list) {
             None => {
-                // mmh, the content was not found or you specified no action. Handle this case!
+                let tiles_option = cheapest_border(world, robot);
+                if let Some(tiles) = tiles_option {
+                    //manage the return stat of move to cheapest border
+                    let result = move_to_cheapest_border(world, robot, tiles);
+                    
+                    // Debug print prima della distruzione/raccolta
+                    // println!("Tentativo di raccogliere albero alla posizione corrente...");
+                    if attivita == true{   
+                        DestroyZone.execute(world, robot, Content::Tree(0));
+                    }
+        
+                    // Debug print dopo la distruzione/raccolta
+                //  println!("Albero raccolto con successo!");
+        
+                    // Stampa opzionale per confermare il contenuto dello zaino
+                    let num_trees = robot.get_backpack().get_contents().get(&Content::Tree(0)).unwrap_or(&0);
+                //  println!("Numero di alberi nello zaino: {}", num_trees);
+                }
             }
             Some(next_action) => {
                 // println!("{:?}", &rand);
@@ -3781,8 +3884,8 @@ fn ai_asfaltatore(robot: &mut Robottino, world: &mut robotics_lib::world::World)
 
     robot_view(robot, world);
 
-    if (robot.get_backpack().get_size()
-        > robot.get_backpack().get_contents().values().sum::<usize>())
+    if robot.get_backpack().get_size()
+        > robot.get_backpack().get_contents().values().sum::<usize>()
     {
         let tiles_option = cheapest_border(world, robot);
         if let Some(tiles) = tiles_option {
@@ -3948,7 +4051,7 @@ fn update_map(robot: &mut Robottino, world: &mut robotics_lib::world::World) {
             })
             .collect::<Vec<_>>(); // Colleziona le righe in un Vec
 
-      // println!("mappa: {:?}", content_map);
+    //   println!("mappa: {:?}", content_map);
     
 
     // Explicitly drop the lock
