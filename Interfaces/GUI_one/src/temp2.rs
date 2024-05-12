@@ -1,5 +1,4 @@
 
-
 use bevy::core_pipeline::clear_color::ClearColorConfig;
 use bevy::log;
 use bevy::render::camera::Viewport;
@@ -38,12 +37,6 @@ use robotics_lib::{
     world::coordinates::Coordinate,
 };
 
-#[derive(Resource)]
-struct ContentCounter {
-    pub count: usize,
-}
-
-
 //PRIVATE
 //use robotics_lib::interface::PLOT;
 
@@ -60,9 +53,8 @@ struct ContentCounter {
 const MIN_ZOOM: f32 = 0.05; 
 const MAX_ZOOM: f32 = 1.0; //1.0 se 150, 0.25 se 250
 
-const WORLD_SIZE: u32 = 75; //A 200 TROVA IL MAZE
+const WORLD_SIZE: u32 = 200; //A 200 TROVA IL MAZE
 const TILE_SIZE: f32 = 3.0; //LASCIARE A 3!
-
 
 #[derive(Component, Debug)]
 struct WorldSize{
@@ -76,11 +68,6 @@ struct Roboto;
 #[derive(Resource)]
 struct CameraFollow {
     follow_robot: bool,
-}
-
-#[derive(Resource, Default)]
-struct CameraControl {
-    is_zooming: bool,
 }
 
 
@@ -465,17 +452,11 @@ fn setup(
     robot_resource: Res<RobotResource>,
 ) {
 
-    commands.insert_resource(ContentCounter { count: 0 });
-
-    let start_time = Instant::now() - Duration::from_secs(5);
-    commands.insert_resource(LastUpdate(start_time));
-
 
     load_texture_content_assets(&mut commands, &asset_server);
     load_texture_tile_assets(&mut commands, &asset_server);
 
     commands.insert_resource(CameraFollow { follow_robot: true });
-    commands.insert_resource(CameraControl { is_zooming: false });
 
    // sleep(std::time::Duration::from_secs(3));
     //SPRITES
@@ -712,26 +693,52 @@ fn setup(
         .insert(Explode)
         .with_children(|parent| {
 
-
-        //Bottone diminuisce velocità
+        //BOTTONE STOP
         parent
         .spawn(ButtonBundle {
             style: Style {
-                width: Val::Px(70.0),
-                height: Val::Px(70.0),
+                width: Val::Px(60.0),
+                height: Val::Px(40.0),
                 margin: UiRect::all(Val::Px(10.0)), 
-               // border: UiRect::all(Val::Px(4.0)),
+                border: UiRect::all(Val::Px(4.0)),
                 justify_content: JustifyContent::Center, 
                 align_items: AlignItems::Center,
                 ..default()
             },
-            border_color: BorderColor(Color::NONE),
-            background_color: BackgroundColor(Color::WHITE),
-            image: texture_decrease_handle.clone().into(),
+            border_color: BorderColor(Color::BLACK),
+            background_color: NORMAL_BUTTON2.into(),
             ..default()
         })
         .with_children(|parent| {
-            /* parent.spawn(ImageBundle {
+            parent.spawn(TextBundle::from_section(
+                "STOP",
+                TextStyle {
+                    font_size: 25.0,
+                    color: Color::rgb(0.9, 0.9, 0.9),
+                    ..default()
+                },
+            ));
+        })
+        .insert(PauseButton);
+
+        //Bottone aumenta velocità
+        parent
+        .spawn(ButtonBundle {
+            style: Style {
+                width: Val::Px(70.0),
+                height: Val::Px(50.0),
+                margin: UiRect::all(Val::Px(10.0)), 
+                border: UiRect::all(Val::Px(4.0)),
+                justify_content: JustifyContent::Center, 
+                align_items: AlignItems::Center,
+                ..default()
+            },
+            border_color: BorderColor(Color::BLACK),
+            background_color: NORMAL_BUTTON2.into(),
+            ..default()
+        })
+        .with_children(|parent| {
+            parent.spawn(ImageBundle {
                 image: texture_decrease_handle.clone().into(),
                 background_color: BackgroundColor(Color::WHITE),
                 style: Style {
@@ -742,67 +749,35 @@ fn setup(
                     ..default()
                 },
                 ..default()
-              }); */
+              });
             })
             .insert(IncreaseSpeed);
 
-
-        //BOTTONE STOP
-        parent
-        .spawn(ButtonBundle {
-            style: Style {
-                width: Val::Px(70.0),
-                height: Val::Px(70.0),
-                margin: UiRect::all(Val::Px(10.0)), 
-                //border: UiRect::all(Val::Px(4.0)),
-                justify_content: JustifyContent::Center, 
-                align_items: AlignItems::Center,
-                ..default()
-            },
-            border_color: BorderColor(Color::BLACK),
-            background_color: BackgroundColor(Color::WHITE),
-            image: texture_play_handle.clone().into(),
-            ..default()
-        })
-        .with_children(|parent| {
-            /* parent.spawn(TextBundle::from_section(
-                "STOP",
-                TextStyle {
-                    font_size: 25.0,
-                    color: Color::rgb(0.9, 0.9, 0.9),
-                    ..default()
-                },
-            ));*/
-        }) 
-        .insert(PauseButton);
-
-        
      //Bottone aumenta velocità
      parent
      .spawn(ButtonBundle {
          style: Style {
-             width: Val::Px(70.0),
-             height: Val::Px(70.0),
+             width: Val::Px(60.0),
+             height: Val::Px(40.0),
              margin: UiRect::all(Val::Px(10.0)), 
-           //  border: UiRect::all(Val::Px(4.0)),
+             border: UiRect::all(Val::Px(4.0)),
              justify_content: JustifyContent::Center, 
              align_items: AlignItems::Center,
              ..default()
          },
          border_color: BorderColor(Color::BLACK),
-         background_color: BackgroundColor(Color::WHITE),
-         image: texture_increase_handle.clone().into(),
+         background_color: NORMAL_BUTTON2.into(),
          ..default()
      })
      .with_children(|parent| {
-         /* parent.spawn(TextBundle::from_section(
+         parent.spawn(TextBundle::from_section(
              "SPEED +",
              TextStyle {
                  font_size: 25.0,
                  color: Color::rgb(0.9, 0.9, 0.9),
                  ..default()
              },
-         )); */
+         ));
      })
      .insert(DecreaseSpeed);
     })
@@ -1027,25 +1002,25 @@ fn setup(
 
     //MAINCAMERA
     // Right Camera
-        commands
-            .spawn((
-                Camera2dBundle {
-                    transform: Transform::from_xyz(
-                        TILE_SIZE * resource.coordinate_row as f32,
-                        TILE_SIZE * resource.coordinate_row as f32,
-                        1.0,
-                    )
-                    .with_scale(main_scale),
-                    camera: Camera {
-                        order: 1,
-                        ..default()
-                    },
-                    ..Default::default()
+    commands
+        .spawn((
+            Camera2dBundle {
+                transform: Transform::from_xyz(
+                    TILE_SIZE * resource.coordinate_row as f32,
+                    TILE_SIZE * resource.coordinate_row as f32,
+                    1.0,
+                )
+                .with_scale(main_scale),
+                camera: Camera {
+                    order: 1,
+                    ..default()
                 },
-                MainCamera,
-            ))
-            .insert(RenderLayers::from_layers(&[1, 2, 3, 7, 8]))
-            .insert(Explode);
+                ..Default::default()
+            },
+            MainCamera,
+        ))
+        .insert(RenderLayers::from_layers(&[1, 2, 3]))
+        .insert(Explode);
 
     //dimensioni complessive del mondo
     let world_width: f32 = world.len() as f32 * TILE_SIZE;
@@ -1086,7 +1061,7 @@ fn setup(
             },
             MyMinimapCamera,
         ))
-        .insert(RenderLayers::from_layers(&[0, 2, 9]))
+        .insert(RenderLayers::from_layers(&[0, 2, 3]))
         .insert(Explode);
 
     // Crea l'entita' per il contorno sulla minimappa
@@ -1213,10 +1188,9 @@ fn setup(
                         custom_size: Some(Vec2::new(TILE_SIZE, TILE_SIZE)), 
                         ..default()
                     },
-                    transform: Transform::from_xyz(pos_x, pos_y, 50.0), 
+                    transform: Transform::from_xyz(pos_x, pos_y, 5.0), 
                     ..default()
                 })
-                .insert(RenderLayers::layer(7))
                 .insert(SunTime)
                 .insert(Explode);
         }
@@ -1900,113 +1874,18 @@ fn set_camera_viewports(
         *old_world = world.clone();
     }
  */
-use std::time::{Duration, Instant};
-
-#[derive(Resource)]
-struct LastUpdate(Instant);
-
-#[derive(Component)]
-struct TilePosition {
-    x: usize,
-    y: usize,
-}
-
 
  //OTTIMIZATO, AGGIORNAMENTO SOLO VICINO AL ROBOT
- fn update_show_tiles(
-    world: &Vec<Vec<Option<Tile>>>,
-    mut commands: Commands,
-    old_world: &mut Vec<Vec<Option<Tile>>>,
-    tile_icons: Res<TileIcons>,
-    content_icons: Res<ContentIcons>,
-    robot_position: Res<RobotPosition>,
-    mut last_update: ResMut<LastUpdate>,
-    mut query: Query<(Entity, &TilePosition), With<Sprite>>,
-    mut content_counter: ResMut<ContentCounter>,
-) {
-    let update_radius = 4;
-    let mut count = 0;
-    let mut despawn_count = 0;
-    let player_x = robot_position.x as usize / TILE_SIZE as usize;
-    let player_y = robot_position.y as usize / TILE_SIZE as usize;
+    fn update_show_tiles(
+        world: &Vec<Vec<Option<Tile>>>,
+        commands: &mut Commands,
+        old_world: &mut Vec<Vec<Option<Tile>>>,
+        tile_icons: &Res<TileIcons>,
+        content_icons: &Res<ContentIcons>,
+        robot_position: &Res<RobotPosition>,
+    ) {
 
-    let start_x = player_x.saturating_sub(update_radius);
-    let end_x = (player_x + update_radius).min(world.len() - 1);
-    let start_y = player_y.saturating_sub(update_radius);
-    let end_y = (player_y + update_radius).min(world[0].len() - 1);
-
-    for x in start_x..=end_x {
-        for y in start_y..=end_y {
-            // Potenziale inversione degli indici qui se necessario
-            let current_tile = &world[y][x];
-            let old_content = old_world[y][x].as_ref().map(|t| t.content.clone());
-
-            if let Some(new_tile) = current_tile {
-                if old_world[y][x].is_none() || old_content != Some(new_tile.content.clone()) {
-                    count += 1;
-                    spawn_tile(new_tile, x, y, &mut commands, &tile_icons, &content_icons, &mut content_counter);
-                    old_world[y][x] = Some(new_tile.clone());
-                }
-            }
-
-            if let Some(old_content_unwrapped) = old_content {
-                if current_tile.is_none() || current_tile.as_ref().unwrap().content == Content::None {
-                    if old_content_unwrapped != Content::None {
-                        for (entity, pos) in query.iter_mut() {
-                            if pos.x == x && pos.y == y {
-                                commands.entity(entity).despawn_recursive();
-                                despawn_count += 1;
-                            }
-                        }
-                        old_world[y][x] = current_tile.clone();
-                    }
-                }
-            }
-        }
-    }
-}
-
-fn despawn_tiles(
-    commands: &mut Commands,
-    query: &mut Query<(Entity, &TilePosition), With<Sprite>>,
-    x: usize,
-    y: usize,
-    
-) {
-    for (entity, pos) in query.iter_mut() {
-        if pos.x == x && pos.y == y {
-            commands.entity(entity).despawn_recursive();
-        }
-    }
-}
-
-
-fn update_show_tiles_maze(
-    world: &Vec<Vec<Option<Tile>>>,
-    commands: &mut Commands,
-    old_world: &mut Vec<Vec<Option<Tile>>>,
-    tile_icons: &Res<TileIcons>,
-    content_icons: &Res<ContentIcons>,
-    robot_position: &Res<RobotPosition>,
-    mut last_update: ResMut<LastUpdate>,
-    mut content_counter: ResMut<ContentCounter>,
-) {
-    if last_update.0.elapsed() >= Duration::new(5, 0) {
-        last_update.0 = Instant::now();  // Resetta il timer
-        let mut count = 0;
-        for (x, row) in world.iter().enumerate() {
-            for (y, tile) in row.iter().enumerate() {
-                let old_tile = &old_world[y][x];
-                if tile.is_some() && (old_tile.is_none() || old_tile.as_ref().unwrap().content != tile.as_ref().unwrap().content) {
-                    count += 1;
-                    spawn_tile(tile.as_ref().unwrap(), x, y, commands, &tile_icons, &content_icons, &mut content_counter);
-                    // Aggiorna il vecchio mondo con il nuovo tile
-                    old_world[x][y] = Some(tile.clone().unwrap());
-                }
-            }
-        }
-      //  println!("I TILE AGGIORNATI SONO: {}", count);
-    } else {
+        
         let update_radius = 2;
         let mut count = 0;
         let player_x = robot_position.x as usize / TILE_SIZE as usize;
@@ -2021,19 +1900,19 @@ fn update_show_tiles_maze(
         // Itera solo sui tile vicini al robot
         for x in start_x..=end_x {
             for y in start_y..=end_y {
-                let tile = &world[y][x];
-                let old_tile = &old_world[y][x];
-                if tile.is_some() && (old_tile.is_none() || old_tile.as_ref().unwrap().content != tile.as_ref().unwrap().content) {
-                    count += 1;
-                    spawn_tile(tile.as_ref().unwrap(), x, y, commands, &tile_icons, &content_icons, &mut content_counter);
-                    // Aggiorna il vecchio mondo con il nuovo tile
-                    old_world[x][y] = Some(tile.clone().unwrap());
+                if let Some(tile) = &world[x][y] {
+                // println!("Updating tile at position ({}, {})", x, y);  // Aggiunge un print per tracciare l'aggiornamento
+                count += 1;
+                    spawn_tile(tile, x, y, commands, &tile_icons, &content_icons);
                 }
             }
         }
-      //  println!("I TILE AGGIORNATI SONO: {}", count);
+
+        println!("I TILE AGGIORNATI SONO: {}", count);
+
     }
-}
+
+    
 
 
     fn spawn_tile(
@@ -2043,11 +1922,9 @@ fn update_show_tiles_maze(
         commands: &mut Commands,
         tile_icons: &Res<TileIcons>,
         content_icons: &Res<ContentIcons>,
-        mut content_counter: &mut ResMut<ContentCounter>,
     ) {
         let tile_color = get_tile_icons(tile, tile_icons);
         let content_color = get_content_icons(tile, content_icons);
-        //let mut count = 0;
 
         // Spawn base tile sprite
         commands.spawn(SpriteBundle {
@@ -2056,37 +1933,18 @@ fn update_show_tiles_maze(
                 custom_size: Some(Vec2::new(TILE_SIZE, TILE_SIZE)),
                 ..Default::default()
             },
-            texture: tile_color.clone(),
+            texture: tile_color,
             transform: Transform::from_xyz(
                 x as f32 * TILE_SIZE,
                 y as f32 * TILE_SIZE,
-                3.0, // Base layer
+                7.0, // Base layer
             ),
             ..Default::default()
-        }).insert(TilePosition { x, y })
-        .insert(RenderLayers::layer(3)) // Assicurati che anche i contenuti siano visibili su entrambi i layer
-        .insert(Explode);
-    
-        commands.spawn(SpriteBundle {
-            sprite: Sprite {
-                color: Color::WHITE,
-                custom_size: Some(Vec2::new(TILE_SIZE, TILE_SIZE)),
-                ..Default::default()
-            },
-            texture: tile_color.clone(),
-            transform: Transform::from_xyz(
-                x as f32 * TILE_SIZE,
-                y as f32 * TILE_SIZE,
-                3.0, // Base layer
-            ),
-            ..Default::default()
-        }).insert(TilePosition { x, y })
-        .insert(RenderLayers::layer(9)) // Assicurati che anche i contenuti siano visibili su entrambi i layer
+        }).insert(RenderLayers::layer(3))
         .insert(Explode);
 
         // Optionally spawn an additional sprite for the content if it's not None and the handle is valid
         if tile.content != Content::None {
-            content_counter.count += 1;
             if let Some(content_texture) = content_color {
                 commands.spawn(SpriteBundle {
                     sprite: Sprite {
@@ -2098,15 +1956,12 @@ fn update_show_tiles_maze(
                     transform: Transform::from_xyz(
                         x as f32 * TILE_SIZE, // Centered on the tile
                         y as f32 * TILE_SIZE, // Centered on the tile
-                        5.0,                 // Above the base tile layer
+                        10.0,                 // Above the base tile layer
                     ),
                     ..Default::default()
-                }).insert(TilePosition { x, y })
-                .insert(RenderLayers::layer(8))
+                }).insert(RenderLayers::layer(3))
                 .insert(Explode);
             }
-
-            println!("I CONTENT SONO: {}", content_counter.count);
         } 
     }
 
@@ -2165,7 +2020,6 @@ fn button_system(
     mut uberai_state: ResMut<NextState<UberAi_State>>,
     paused_signal: Res<PausedSignal>,
     mut speed_sleep: ResMut<SleepTime>,
-    mut camera_control: ResMut<CameraControl>,
 ) {
     for (
         interaction,
@@ -2184,19 +2038,14 @@ fn button_system(
     {
         ;
         match *interaction {
-            Interaction::Pressed => {;
+            Interaction::Pressed => {
 
-                if zoomin.is_some() && !camera_control.is_zooming {
-                    camera_control.is_zooming = true;
+                if zoomin.is_some() {
                     adjust_camera_zoom_and_position(0.03, &mut camera_query, &robot_position);
-                    camera_control.is_zooming = false;
                 }
 
-                if zoomout.is_some() && !camera_control.is_zooming {
-                    camera_control.is_zooming = true;
+                if zoomout.is_some() {
                     adjust_camera_zoom_and_position(-0.03, &mut camera_query, &robot_position);
-                    camera_control.is_zooming = false;
-
                 } else if dropdown.is_some() {
                     for mut node_style in label_query.iter_mut() {
                         if node_style.display == Display::None {
@@ -2257,17 +2106,17 @@ fn button_system(
                     }
                 }
 
-               // *color = PRESSED_BUTTON.into();
+                *color = PRESSED_BUTTON.into();
                 border_color.0 = Color::RED;
             }
             Interaction::Hovered => {
-              //  *color = HOVERED_BUTTON.into();
+                *color = HOVERED_BUTTON.into();
                 border_color.0 = Color::WHITE;
             }
             Interaction::None => {
-              //  *color = NORMAL_BUTTON.into();
+                *color = NORMAL_BUTTON.into();
                 border_color.0 = Color::BLACK;
-            } 
+            }
         }
     }
 }
@@ -2315,8 +2164,8 @@ fn adjust_camera_zoom_and_position(
             }
 
             
-            transform.translation.x = robot_position.x;
-            transform.translation.y = robot_position.y;
+            transform.translation.x = robot_position.x.clamp(world_min_x, world_max_x);
+            transform.translation.y = robot_position.y.clamp(world_min_y, world_max_y);
         }
     }
 }
@@ -2346,9 +2195,29 @@ pub fn zoom_in(mut query: Query<&mut OrthographicProjection, With<Camera>>) {
     }
 }
 
-fn icons_upgrade(
-    weather_icons: Option<Res<WeatherIcons>>,
+
+//movimento del robot in base alla grandezza di una tile
+//UPDATES
+fn robot_movement_system(
+    mut commands: Commands,
+    mut query: Query<
+        &mut Transform,
+        (
+            With<Roboto>,
+            Without<TagEnergy>,
+            Without<TagTime>,
+            Without<TagBackPack>,
+            Without<DirectionalLight>,
+        ),
+    >,
+    tile_size: Res<TileSize>, 
     robot_resource: Res<RobotResource>,
+    world: Res<MapResource>,
+    weather_icons: Option<Res<WeatherIcons>>,
+    tile_icons: Res<TileIcons>,
+    content_icons: Res<ContentIcons>,
+    mut old_world_query: Query<&mut OldMapResource>,
+    robot_position: Res<RobotPosition>,
     energy_query: Query<
         &mut Text,
         (
@@ -2379,13 +2248,19 @@ fn icons_upgrade(
     battery_query: Query<(&mut Style, &mut BackgroundColor), With<EnergyBar>>,
     sun_query: Query<&mut Sprite, With<SunTime>>,
     weather_image_query: Query<&mut UiImage, With<WeatherIcon>>,
-){
+) {
+    let world = world.0.lock().unwrap();
+    if let Ok(mut old_world_res) = old_world_query.get_single_mut() {
+        let old_world = &mut old_world_res.world;
+        update_show_tiles(&world, &mut commands, old_world, &tile_icons, &content_icons, &robot_position); // Passa direttamente old_world
+        update_all_tiles()
+    }
+    drop(world);
+    let resource = robot_resource.0.lock().unwrap();
+    let tile_step = tile_size.tile_size; 
+    let resource_copy = resource.clone();
+    drop(resource);
     if let Some(weather_icons) = weather_icons {
-
-        let resource = robot_resource.0.lock().unwrap();
-        let resource_copy = resource.clone();
-        drop(resource);
-
         update_infos(
             resource_copy.clone(),
             weather_icons,
@@ -2397,47 +2272,6 @@ fn icons_upgrade(
             weather_image_query,
         );
     }
-}
-
-
-
-//movimento del robot in base alla grandezza di una tile
-//UPDATES
-fn robot_movement_system_maze(
-    mut commands: Commands,
-    mut query: Query<
-        &mut Transform,
-        (
-            With<Roboto>,
-            Without<TagEnergy>,
-            Without<TagTime>,
-            Without<TagBackPack>,
-            Without<DirectionalLight>,
-        ),
-    >,
-    tile_size: Res<TileSize>, 
-    robot_resource: Res<RobotResource>,
-    world: Res<MapResource>,
-    
-    tile_icons: Res<TileIcons>,
-    content_icons: Res<ContentIcons>,
-    mut old_world_query: Query<&mut OldMapResource>,
-    robot_position: Res<RobotPosition>,
-    last_update: ResMut<LastUpdate>, 
-    content_counter: ResMut<ContentCounter>,
-    
-) {
-    let world = world.0.lock().unwrap();
-    if let Ok(mut old_world_res) = old_world_query.get_single_mut() {
-        let old_world = &mut old_world_res.world;
-        update_show_tiles_maze(&world, &mut commands, old_world, &tile_icons, &content_icons, &robot_position, last_update, content_counter); // Passa direttamente old_world
-    }
-    drop(world);
-    let resource = robot_resource.0.lock().unwrap();
-    let tile_step = tile_size.tile_size; 
-    let resource_copy = resource.clone();
-    drop(resource);
-   
     // println!(
     //     "Energy Level: {}\nRow: {}\nColumn: {}\nBackpack Size: {}\nBackpack Contents: {:?}\nCurrent Weather: {:?}\nNext Weather: {:?}\nTicks Until Change: {}",
     //     resource_copy.energy_level,
@@ -2456,47 +2290,6 @@ fn robot_movement_system_maze(
     }
 }
 
-
-fn robot_movement_system(
-    mut commands: Commands,
-    mut transform_query: Query<
-        &mut Transform,
-        (
-            With<Roboto>,
-            Without<TagEnergy>,
-            Without<TagTime>,
-            Without<TagBackPack>,
-            Without<DirectionalLight>,
-        ),
-    >,
-    tile_size: Res<TileSize>, 
-    robot_resource: Res<RobotResource>,
-    world: Res<MapResource>,
-    tile_icons: Res<TileIcons>,
-    content_icons: Res<ContentIcons>,
-    mut old_world_query: Query<&mut OldMapResource>,
-    robot_position: Res<RobotPosition>,
-    mut last_update: ResMut<LastUpdate>,
-    mut tile_position_query: Query<(Entity, &TilePosition), With<Sprite>>,
-    mut content_counter: ResMut<ContentCounter>,
-) {
-    let world = world.0.lock().unwrap();
-    if let Ok(mut old_world_res) = old_world_query.get_single_mut() {
-        let old_world = &mut old_world_res.world;
-        // Corretto il passaggio di parametri a update_show_tiles
-        update_show_tiles(&world, commands, old_world, tile_icons, content_icons, robot_position, last_update, tile_position_query, content_counter);
-    }
-    drop(world);
-    let resource = robot_resource.0.lock().unwrap();
-    let tile_step = tile_size.tile_size; 
-    let resource_copy = resource.clone();
-    drop(resource);
-    
-    for mut transform in transform_query.iter_mut() {
-        transform.translation.x = tile_step * resource_copy.coordinate_column as f32;
-        transform.translation.y = tile_step * resource_copy.coordinate_row as f32;
-    }
-}
 //serve per avere la posizione del puntino rosso ad ogni movimento
 fn update_robot_position(
     mut robot_position: ResMut<RobotPosition>,
@@ -2514,14 +2307,13 @@ fn follow_robot_system(
     robot_position: Res<RobotPosition>,
     mut camera_query: Query<(&mut Transform, &Camera), With<MainCamera>>,
     camera_follow: Res<CameraFollow>, // Aggiungi questo
-    camera_control: ResMut<CameraControl>,
 ) {
-    if camera_follow.follow_robot && !camera_control.is_zooming { // Controlla il flag prima di aggiornare la posizione
+    if camera_follow.follow_robot { // Controlla il flag prima di aggiornare la posizione
         if let Ok((mut camera_transform, camera)) = camera_query.get_single_mut() {
             if let Some(viewport) = &camera.viewport {
                 let camera_scale = camera_transform.scale;
-                let camera_half_width = (viewport.physical_size.x as f32 * camera_scale.x) / 3.3;
-                let camera_half_height = (viewport.physical_size.y as f32 * camera_scale.y) / 3.3;
+                let camera_half_width = (viewport.physical_size.x as f32 * camera_scale.x) / 3.1;
+                let camera_half_height = (viewport.physical_size.y as f32 * camera_scale.y) / 3.1;
         
                 let world_min_x = camera_half_width;
                 let world_max_x = WORLD_SIZE as f32 * TILE_SIZE - camera_half_width;
@@ -2533,7 +2325,7 @@ fn follow_robot_system(
 
                 camera_transform.translation.x = new_camera_x;
                 camera_transform.translation.y = new_camera_y;
-                camera_transform.translation.z = 50.0; 
+                camera_transform.translation.z = 10.0; 
             }
         }
     }
@@ -2591,7 +2383,7 @@ enum AiLogic {
 
 fn moviment(robot_data: Arc<Mutex<RobotInfo>>, map: Arc<Mutex<Vec<Vec<Option<Tile>>>>>, ai_logic: AiLogic,  shutdown_signal: Arc<AtomicBool>, paused_signal: Arc<AtomicBool>, sleep_time: Arc<AtomicU64>,) {
     let audio = get_audio_manager();
-    let background_music = OxAgSoundConfig::new_looped_with_volume("assets/audio/background.ogg", 1.0);
+    let background_music = OxAgSoundConfig::new_looped_with_volume("assets/audio/background.ogg", 2.0);
 
     let mut robot = Robottino {
         shared_map: map,
@@ -2605,17 +2397,18 @@ fn moviment(robot_data: Arc<Mutex<RobotInfo>>, map: Arc<Mutex<Vec<Vec<Option<Til
 
 
     // world generator initialization
-
+/*     let mut world_gen =
+        ghost_amazeing_island::world_generator::WorldGenerator::new(WORLD_SIZE, false, 1, 1.1); */
     // Runnable creation and start
 
-    // println!("Generating runnable (world + robot)...");
-    //  match robot.audio.play_audio(&background_music) {
-    //      Ok(_) => {},
-    //      Err(e) => {
-    //          eprintln!("Failed to play audio: {}", e);
-    //          std::process::exit(1);
-    //      }
-    //  }
+    println!("Generating runnable (world + robot)...");
+     match robot.audio.play_audio(&background_music) {
+         Ok(_) => {},
+         Err(e) => {
+             eprintln!("Failed to play audio: {}", e);
+             std::process::exit(1);
+         }
+     }
     let mut world_gen =
         ghost_amazeing_island::world_generator::WorldGenerator::new(WORLD_SIZE, false, 1, 1.1);
     let mut runner = Runner::new(Box::new(robot), &mut world_gen);
@@ -2633,28 +2426,27 @@ fn moviment(robot_data: Arc<Mutex<RobotInfo>>, map: Arc<Mutex<Vec<Vec<Option<Til
             // Opzionalmente, inserisci qui una pausa per ridurre l'utilizzo della CPU quando in pausa
             std::thread::sleep(std::time::Duration::from_millis(100));
         }
-
     }
 
 
 }
 
 
-#[derive(Clone)]
-struct RobotResource(Arc<Mutex<RobotInfo>>);
-struct MapResource(Arc<Mutex<Vec<Vec<Option<Tile>>>>>);
+    #[derive(Clone)]
+    struct RobotResource(Arc<Mutex<RobotInfo>>);
+    struct MapResource(Arc<Mutex<Vec<Vec<Option<Tile>>>>>);
 
-#[derive(Component, Clone)]
-struct OldMapResource {
-    world: Vec<Vec<Option<Tile>>>,
-}
+    #[derive(Component, Clone)]
+    struct OldMapResource {
+        world: Vec<Vec<Option<Tile>>>,
+    }
 
 impl bevy::prelude::Resource for RobotResource {}
 impl bevy::prelude::Resource for MapResource {}
 
 use std::sync::{Arc, Mutex};
 use std::thread;
-
+use std::time::Duration;
 
 
 #[derive(Debug)]
@@ -2990,7 +2782,7 @@ fn menu_action(
         let map_clone = map.clone();
     
         println!("Risorse condivise (robot_data e map) create e clonate");
-        
+    
         // Inserimento delle risorse nel sistema
         commands.insert_resource(RobotResource(robot_data_clone));
         commands.insert_resource(MapResource(map_clone));
@@ -3234,7 +3026,7 @@ fn menu_action(
         .add_systems(OnEnter(MenuState::Ai1), (setup, start_in_ai1))
         .add_systems(OnEnter(Ai1_State::In), (set_camera_viewports, start_update_ai1))
         .add_systems(OnExit(MenuState::Ai1),(stop_ai_thread, despawn_screentry::<Explodetry>, despawn_screen::<Explode>))
-        .add_systems(Update, (icons_upgrade, cursor_events, robot_movement_system, update_robot_position, follow_robot_system, button_system, update_minimap_outline,).run_if(in_state(Ai1_State::Run)));
+        .add_systems(Update, ( cursor_events, robot_movement_system, update_robot_position, follow_robot_system, button_system, update_minimap_outline,).run_if(in_state(Ai1_State::Run)));
 
 
         }
@@ -3286,7 +3078,7 @@ fn menu_action(
          .add_systems(OnEnter(MenuState::Ai2), (setup, start_in_ai2))
          .add_systems(OnEnter(Ai2_State::In), (set_camera_viewports, start_update_ai2))
          .add_systems(OnExit(MenuState::Ai2),(stop_ai_thread, despawn_screen::<Explode>, despawn_screentry::<Explodetry>))
-         .add_systems(Update, (icons_upgrade, cursor_events, robot_movement_system, update_robot_position, follow_robot_system, button_system, update_minimap_outline,).run_if(in_state(Ai2_State::Run)));
+         .add_systems(Update, ( cursor_events, robot_movement_system, update_robot_position, follow_robot_system, button_system, update_minimap_outline,).run_if(in_state(Ai2_State::Run)));
  
  
              //PROBLEMA
@@ -3340,7 +3132,7 @@ fn menu_action(
          .add_systems(OnEnter(MenuState::Ai3), (setup, start_in_ai3))
          .add_systems(OnEnter(Ai3_State::In), (set_camera_viewports, start_update_ai3))
          .add_systems(OnExit(MenuState::Ai3),(stop_ai_thread, despawn_screen::<Explode>, despawn_screentry::<Explodetry>))
-         .add_systems(Update, (icons_upgrade, cursor_events, robot_movement_system_maze, update_robot_position, follow_robot_system, button_system, update_minimap_outline,).run_if(in_state(Ai3_State::Run)));
+         .add_systems(Update, ( cursor_events, robot_movement_system, update_robot_position, follow_robot_system, button_system, update_minimap_outline,).run_if(in_state(Ai3_State::Run)));
  
  
              //PROBLEMA
@@ -3394,7 +3186,7 @@ fn menu_action(
             .add_systems(OnEnter(MenuState::UberAi), (setup, start_in_uberai))
             .add_systems(OnEnter(UberAi_State::In), (set_camera_viewports, start_update_uberai))
             .add_systems(OnExit(MenuState::UberAi),(stop_ai_thread, despawn_screen::<Explode>, despawn_screentry::<Explodetry>))
-            .add_systems(Update, (icons_upgrade, cursor_events, robot_movement_system_maze, update_robot_position, follow_robot_system, button_system, update_minimap_outline,).run_if(in_state(UberAi_State::Run)));
+            .add_systems(Update, ( cursor_events, robot_movement_system, update_robot_position, follow_robot_system, button_system, update_minimap_outline,).run_if(in_state(UberAi_State::Run)));
     
     
                 //PROBLEMA
@@ -3475,7 +3267,7 @@ fn main() {
     App::new()
     .add_plugins(DefaultPlugins.set(WindowPlugin{
         primary_window: Some(Window{
-            mode: WindowMode::BorderlessFullscreen,
+            mode: WindowMode::Fullscreen,
             ..default()
         }),
         ..Default::default()
@@ -3514,13 +3306,54 @@ fn solve_labirint(
     let mut stack: Vec<Direction> = Vec::new();
 
     loop {
-        let tiles_option = cheapest_border(world, robot);
-        if let Some(tiles) = tiles_option {
-            //manage the return stat of move to cheapest border
-            let result = move_to_cheapest_border(world, robot, tiles);}
-        sleep(std::time::Duration::from_millis(300));
-        robot_view(robot, world);
+        go(robot, world, last_direction.clone());
+        //conta quanti muri ci sono intorno al robot
+        let view = robot_view(robot, world);
         update_map(robot, world);
+        let mut walls = 0;
+        if view[0][1].as_ref().unwrap().tile_type==TileType::Wall {
+            walls += 1;
+        };//alto
+        if view[1][0].as_ref().unwrap().tile_type==TileType::Wall{ 
+            walls += 1;
+        };//sinistra
+        if view[1][2].as_ref().unwrap().tile_type==TileType::Wall {
+            walls += 1;
+        };//destra
+        if view[2][1].as_ref().unwrap().tile_type==TileType::Wall {
+            walls += 1;
+        };//basso
+        //se walls e' 2 allora vai nella direzione diversa da last direction
+        if walls == 2 {
+            if last_direction == Direction::Up {
+                if view[1][0].as_ref().unwrap().tile_type==TileType::Wall {
+                    last_direction = Direction::Right;
+                } else {
+                    last_direction = Direction::Left;
+                }
+            } else if last_direction == Direction::Down {
+                if view[1][0].as_ref().unwrap().tile_type==TileType::Wall {
+                    last_direction = Direction::Right;
+                } else {
+                    last_direction = Direction::Left;
+                }
+            } else if last_direction == Direction::Left {
+                if view[0][1].as_ref().unwrap().tile_type==TileType::Wall {
+                    last_direction = Direction::Down;
+                } else {
+                    last_direction = Direction::Up;
+                }
+            } else if last_direction == Direction::Right {
+                if view[0][1].as_ref().unwrap().tile_type==TileType::Wall {
+                    last_direction = Direction::Down;
+                } else {
+                    last_direction = Direction::Up;
+                }
+            }
+        } else {
+            // da gestire 2 strade quindi creazione di vec e push nella pila e gestione 3 wall 
+        }
+
     }
 }
 
@@ -3646,7 +3479,7 @@ fn go_to_maze(robot: &mut Robottino, world: &mut robotics_lib::world::World, maz
     }
 }
 
-fn ai_labirint          (robot: &mut Robottino, world: &mut robotics_lib::world::World) {
+fn ai_labirint(robot: &mut Robottino, world: &mut robotics_lib::world::World) {
     //maze are 18*18 so we check every 9 tiles
     //if robotmap some save it
     if robot.maze_discovered.is_none() {
@@ -3713,7 +3546,8 @@ fn ai_labirint          (robot: &mut Robottino, world: &mut robotics_lib::world:
         go_to_maze(robot, world, (row, col));
     }
 }
-fn ai_taglialegna       (robot: &mut Robottino, world: &mut robotics_lib::world::World) {
+
+fn ai_taglialegna(robot: &mut Robottino, world: &mut robotics_lib::world::World) {
     //se l'energia e' sotto il 300, la ricarico
     if robot.robot.energy.get_energy_level() < 300 {
         robot.robot.energy = rust_and_furious_dynamo::dynamo::Dynamo::update_energy();
@@ -3726,20 +3560,10 @@ fn ai_taglialegna       (robot: &mut Robottino, world: &mut robotics_lib::world:
     if (a > b) {
         let tiles_option = cheapest_border(world, robot);
         if let Some(tiles) = tiles_option {
-             //manage the return stat of move to cheapest border
-             let result = move_to_cheapest_border(world, robot, tiles);
-            
-             // Debug print prima della distruzione/raccolta
-            // println!("Tentativo di raccogliere albero alla posizione corrente...");
-             
-             DestroyZone.execute(world, robot, Content::Tree(0));
- 
-             // Debug print dopo la distruzione/raccolta
-           //  println!("Albero raccolto con successo!");
- 
-             // Stampa opzionale per confermare il contenuto dello zaino
-             let num_trees = robot.get_backpack().get_contents().get(&Content::Tree(0)).unwrap_or(&0);
-           //  println!("Numero di alberi nello zaino: {}", num_trees);
+            //manage the return stat of move to cheapest border
+            let result = move_to_cheapest_border(world, robot, tiles);
+
+            DestroyZone.execute(world, robot, Content::Tree(0));
         }
     } else {
         let mut shopping_list = ShoppingList {
@@ -3773,7 +3597,6 @@ fn ai_taglialegna       (robot: &mut Robottino, world: &mut robotics_lib::world:
         }
     }
 }
-
 fn ai_asfaltatore(robot: &mut Robottino, world: &mut robotics_lib::world::World) {
     if robot.robot.energy.get_energy_level() < 200 {
         robot.robot.energy = rust_and_furious_dynamo::dynamo::Dynamo::update_energy();
@@ -3814,7 +3637,7 @@ fn ai_asfaltatore(robot: &mut Robottino, world: &mut robotics_lib::world::World)
         }
     }
 }
-fn ai_completo_con_tool (robot: &mut Robottino, world: &mut robotics_lib::world::World) {
+fn ai_completo_con_tool(robot: &mut Robottino, world: &mut robotics_lib::world::World) {
     //durata sleep in millisecondi per velocità robot
     let sleep_time_milly: u64 = 50;
 
@@ -3877,15 +3700,17 @@ impl Runnable for Robottino {
             AiLogic::Ricercatore => ai_labirint(self, world),
             AiLogic::Completo => ai_completo_con_tool(self, world),
         }
+        
+        
+        
+
         //update map
         update_map(self, world);
     }
 
     fn handle_event(&mut self, event: robotics_lib::event::events::Event) {
         self.weather_tool.process_event(&event);
-        if self.robot.energy.get_energy_level() < 300 {
-            self.robot.energy = rust_and_furious_dynamo::dynamo::Dynamo::update_energy();
-        }
+        
         //update info
         {
             let mut shared_robot = self.shared_robot.lock().unwrap();
@@ -3895,9 +3720,8 @@ impl Runnable for Robottino {
             shared_robot.bp_size = self.robot.backpack.get_size();
             shared_robot.bp_contents = self.robot.backpack.get_contents().clone();
 
-
-        }
-
+             }
+            
     }
 
     fn get_energy(&self) -> &Energy {
@@ -3938,28 +3762,11 @@ fn update_map(robot: &mut Robottino, world: &mut robotics_lib::world::World) {
 
     if let Some(new_map) = robot_map(world) {
         *shared_map = new_map;
-        
-        // Utilizza filter_map per evitare di fare unwrap su None e colleziona solo i content di Tile
-        let content_map = shared_map.iter()
-            .map(|row| {
-                row.iter()
-                    .filter_map(|tile_option| tile_option.as_ref().map(|tile| tile.content.clone()))
-                    .collect::<Vec<_>>() // Colleziona i content validi in un Vec
-            })
-            .collect::<Vec<_>>(); // Colleziona le righe in un Vec
-
-      // println!("mappa: {:?}", content_map);
-    
-
-    // Explicitly drop the lock
+    }
     drop(shared_map);
-}
+
     let mut shared_robot = robot.shared_robot.lock().unwrap();
     let enviroment = look_at_sky(&world);
-
-  //  println!("colonna: {:?}", shared_robot.coordinate_column);
-  //  println!("riga: {:?}", shared_robot.coordinate_row);
-  //  println!("contenuto {:?}", shared_robot.bp_contents);
 
     shared_robot.time = enviroment.get_time_of_day_string();
     shared_robot.current_weather = Some(enviroment.get_weather_condition());
@@ -3990,7 +3797,7 @@ fn weather_check(robot: &Robottino) -> Option<(WeatherType, u32)> {
 }
 
 fn get_audio_manager() -> OxAgAudioTool {
-    let background_music = OxAgSoundConfig::new_looped_with_volume("audio/background.ogg", 1.0);
+    let background_music = OxAgSoundConfig::new_looped_with_volume("audio/background.ogg", 2.0);
     
 
     let mut events = HashMap::new();
