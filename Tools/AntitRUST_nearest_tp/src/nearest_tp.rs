@@ -1,64 +1,44 @@
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
-
 use robotics_lib::runner::Runnable;
-use robotics_lib::world::{World, SkyCondition};
-use robotics_lib::world::tile::{Tile, TileType};
-use robotics_lib::utils::{calculate_cost_go_with_environment, look_at_sky};
+use robotics_lib::world::World;
+use robotics_lib::world::tile::{Content, Tile, TileType};
+use robotics_lib::interface::*;
+use robotics_lib::utils::{calculate_cost_go_with_environment, go_allowed, LibError};
 
-/// Represents the robot's action towards the teleportation pad.
-#[derive(Clone, Debug)]
-pub enum Action {
-    MoveToTeleport,
-    Arrived,
-}
 
-/// Provides utilities to navigate the robot to the nearest teleportation pad.
-pub struct TeleportNavigator;
+pub fn nearest_teleport(robot: &impl Runnable, world: &World) -> Option<Vec<Direction>> {
+    let (_, (robot_x, robot_y)) = where_am_i(robot, &world);
+    let map = robot_map(world).expect("Errore nella mappa");
+    let mut costs: Vec<Vec<Option<(Option<(usize, usize)>, u32)>>> = vec![vec![None; map.len()]; map.len()];
+    calc_cost(robot_x, robot_y, &map, &mut costs, world);
 
-impl TeleportNavigator {
-    /// Calculates and returns the next action the robot should take to reach the nearest teleport pad.
-    /// Returns None if no teleport pads are reachable.
-    pub fn find_next_action(robot: &impl Runnable, world: &World) -> Option<Action> {
-        let (_, (robot_x, robot_y)) = robot.where_am_i();
-        let map = robot.robot_map().expect("Error in map retrieval");
+    let movements: Vec<(i32, i32)> = vec![(1, 0), (-1, 0), (0, 1), (0, -1)];
+    let mut min_cost: Option<(Option<(usize, usize)>, u32)> = None;
+    let mut min_pos: Option<(usize, usize)> = None;
 
-        // Cost calculation grid initialization
-        let mut costs: Vec<Vec<Option<(Option<(usize, usize)>, u32)>>> = vec![vec![None; map.len()]; map.len()];
-        Self::calculate_costs(robot_x, robot_y, &map, &mut costs);
-
-        // Determine the nearest teleport position
-        if let Some(nearest) = Self::find_nearest_teleport(robot_x, robot_y, &map, &costs) {
-            if nearest.0 == (robot_x, robot_y) {
-                return Some(Action::Arrived);
-            } else {
-                return Some(Action::MoveToTeleport);
-            }
-        }
-        None
-    }
-
-    /// Calculates the pathfinding costs from the robot's position to all reachable tiles.
-    fn calculate_costs(robot_x: usize, robot_y: usize, map: &[Vec<Option<Tile>>], costs: &mut Vec<Vec<Option<(Option<(usize, usize)>, u32)>>>) {
-        let movements = vec![(1i32, 0i32), (-1, 0), (0, 1), (0, -1)];
-        let mut pq = BinaryHeap::new();
-
-        pq.push(DijkstraItem { distance: 0, coord: (robot_x, robot_y) });
-        while let Some(curr) = pq.pop() {
-            let (x, y) = curr.coord;
-            let curr_dist = curr.distance;
-
-            for m in &movements {
-                if x as i32 + m.0 >= 0 && y as i32 + m.1 >= 0 && x as i32 + m.0 < costs.len() as i32 && y as i32 + m.1 < costs.len() as i32 {
-                    let nx = (x as i32 + m.0) as usize;
-                    let ny = (y as i32 + m.1) as usize;
-                    if let Some(tile) = &map[nx][ny] {
-                        if tile.tile_type.properties().walk() {
-                            let move_cost = Self::calculate_move_cost(&tile, &map[x][y], world);
-                            let nc = curr_dist + move_cost;
-                            if nc < costs[nx][ny].unwrap_or((None, u32::MAX)).1 {
-                                pq.push(DijkstraItem { distance: nc, coord: (nx, ny) });
-                                costs[nx][ny] = Some((Some((x, y)), nc));
+    // Find the teleport with the minimum cost
+    for x in 0..map.len() {
+        for y in 0..map.len() {
+            match &map[x][y] {
+                None => {}
+                Some(tile) => {
+                    if tile.tile_type == TileType::Teleport(true) {
+                        match costs[x][y] {
+                            None => {}
+                            Some((_, cost)) => {
+                                match min_cost {
+                                    None => {
+                                        min_cost = Some((Some((x, y)), cost));
+                                        min_pos = Some((x, y));
+                                    }
+                                    Some((_, min_cost_val)) => {
+                                        if cost < min_cost_val {
+                                            min_cost = Some((Some((x, y)), cost));
+                                            min_pos = Some((x, y));
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
@@ -67,39 +47,102 @@ impl TeleportNavigator {
         }
     }
 
-    /// Finds the nearest teleportation pad from the robot's current position.
-    fn find_nearest_teleport(robot_x: usize, robot_y: usize, map: &[Vec<Option<Tile>>], costs: &[Vec<Option<(Option<(usize, usize)>, u32)>>]) -> Option<((usize, usize), u32)> {
-        map.iter().enumerate().flat_map(|(x, row)| {
-            row.iter().enumerate().filter_map(move |(y, tile)| {
-                if let Some(tile) = tile {
-                    if tile.tile_type == TileType::Teleport {
-                        costs[x][y].map(|cost| ((x, y), cost.1))
-                    } else {
-                        None
-                    }
-                } else {
-                    None
-                }
-            })
-        }).min_by_key(|&(_, cost)| cost)
-    }
-
-    /// Calculates the movement cost based on the tile type, environment, and elevation.
-    fn calculate_move_cost(tile: &Tile, current_tile: &Option<Tile>, world: &World) -> u32 {
-        let base_cost = tile.tile_type.properties().cost();
-        let environmental_conditions = look_at_sky(world);
-        let new_elevation = tile.elevation;
-        let current_elevation = current_tile.as_ref().map_or(0, |t| t.elevation);
-
-        let elevation_cost = if new_elevation > current_elevation {
-            (new_elevation - current_elevation).pow(2)
-        } else {
-            0
-        };
-
-        calculate_cost_go_with_environment(base_cost + elevation_cost, environmental_conditions, tile.tile_type)
+    // If a teleport position is found, calculate the path to that position
+    if let Some(destination) = min_pos {
+        let directions = get_directions_to_teleport((robot_x, robot_y), destination, &costs);
+        Some(directions)
+    } else {
+        None
     }
 }
+
+
+fn calc_cost(rob_x: usize, rob_y: usize, map: &Vec<Vec<Option<Tile>>>, costs: &mut Vec<Vec<Option<(Option<(usize, usize)>, u32)>>>, world: &World) {
+    let mut pq = BinaryHeap::new();
+    let movements = vec![(1i32, 0i32), (-1, 0), (0, 1), (0, -1)];
+
+    // Insert elements into the heap.
+    pq.push(DijkstraItem { distance: 0, coord: (rob_x, rob_y) });
+    while let Some(curr) = pq.pop() {
+        let (x, y) = curr.coord;
+        let curr_dist = curr.distance;
+
+        for m in &movements {
+            if x as i32 + m.0 >= 0 && y as i32 + m.1 >= 0 && x as i32 + m.0 < costs.len() as i32 && y as i32 + m.1 < costs.len() as i32 {
+                let nx = (x as i32 + m.0) as usize;
+                let ny = (y as i32 + m.1) as usize;
+                match &map[nx][ny] {
+                    None => {}
+                    Some(tile) => {
+                        if tile.tile_type.properties().walk() {
+                            // let cost = TileType::properties(&tile.tile_type).cost() as u32;
+                            // Init costs
+                            // I guess I should have participated more in the development, that way I would have avoided this copy and paste from the main lib.
+                            let mut base_cost = tile.tile_type.properties().cost();
+                            let mut elevation_cost = 0;
+
+                            // Get informations that influence the cost
+                            let environmental_conditions = look_at_sky(world);
+                            let new_elevation = tile.elevation;
+                            let current_elevation = map[x][y].clone().expect("Where did I come from?").elevation;
+
+                            // Calculate cost
+                            base_cost = calculate_cost_go_with_environment(base_cost, environmental_conditions, tile.tile_type);
+                            // Consider elevation cost only if we are going from a lower tile to a higher tile
+                            if new_elevation > current_elevation {
+                                elevation_cost = (new_elevation - current_elevation).pow(2);
+                            }
+                            let move_cost = (base_cost + elevation_cost) as u32;
+                            let nc = curr_dist + move_cost;
+                            if nc < costs[nx][ny].clone().unwrap_or((None, u32::MAX)).1 {
+                                pq.push(DijkstraItem { distance: nc, coord: (nx, ny) });
+                                costs[nx][ny] = Some((Some((x, y)), nc));
+                            }
+                        }
+                    }
+                };
+            }
+        }
+    }
+}
+
+
+pub fn get_directions_to_teleport(start: (usize, usize), destination: (usize, usize), costs: &Vec<Vec<Option<(Option<(usize, usize)>, u32)>>>) -> Vec<Direction> {
+    let mut path = Vec::new();
+    let mut current_pos = destination;
+
+    // Ricostruisci il percorso a ritroso dal teleport alla posizione iniziale del robot
+    while current_pos != start {
+        if let Some(cost_entry) = &costs[current_pos.0][current_pos.1] {
+            if let Some(previous) = cost_entry.0 {
+                path.push(current_pos);
+                current_pos = previous;
+            } else {
+                break; // Se non c'è un predecessore, interrompi il ciclo
+            }
+        }
+    }
+    path.push(start); // Aggiungi la posizione iniziale al percorso
+    path.reverse(); // Inverti il percorso per avere l'ordine corretto da start a destination
+
+    // Converti il percorso in direzioni
+    let mut directions = Vec::new();
+    for i in 1..path.len() {
+        let (prev_x, prev_y) = path[i - 1];
+        let (next_x, next_y) = path[i];
+        let dir = match (next_x as isize - prev_x as isize, next_y as isize - prev_y as isize) {
+            (0, 1) => Direction::Right,
+            (0, -1) => Direction::Left,
+            (1, 0) => Direction::Down,
+            (-1, 0) => Direction::Up,
+            _ => continue, // Ignora movimenti non validi (non dovrebbero presentarsi)
+        };
+        directions.push(dir);
+    }
+
+    directions
+}
+
 
 #[derive(Eq, PartialEq)]
 struct DijkstraItem {
@@ -107,14 +150,20 @@ struct DijkstraItem {
     coord: (usize, usize),
 }
 
+// Implement the Ord trait in reverse order to create a min-heap.
 impl Ord for DijkstraItem {
     fn cmp(&self, other: &Self) -> Ordering {
+        // Reverse the order to make it a min-heap
         other.distance.cmp(&self.distance)
     }
 }
 
+// PartialOrd must be implemented as well.
 impl PartialOrd for DijkstraItem {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
+
+
+

@@ -3840,7 +3840,16 @@ fn ai_taglialegna(robot: &mut Robottino, world: &mut robotics_lib::world::World)
     let b = robot.get_backpack().get_contents().values().sum::<usize>();
     if (a - 5) > b {
         if attivita == true{   
-            
+            // NEAREST TELEPORT (QUASI FUNZIONANTE)
+            // if let Some(directions) = nearest_teleport(robot, world) {
+            //     for direction in directions {
+            //         go(robot, world, direction);
+
+            //     }
+            //     println!("Il robot ha raggiunto la destinazione o il teleport.");
+            // } else {
+            //     println!("Nessun percorso trovato al teleport.");
+            // }
             let mut shopping_list = ShoppingList {
                 list: vec![(
                     (Content::Tree(0), Some(OpActionInput::Destroy()))
