@@ -179,7 +179,13 @@ struct ContentIcons {
     jollyBlock: Handle<Image>,
     scarecrow: Handle<Image>,
 }
-
+#[derive(Resource, Debug)]
+struct ButtonIcons {
+    increase: Handle<Image>,
+    decrease: Handle<Image>,
+    play: Handle<Image>,
+    pause: Handle<Image>,
+}
 
 fn load_texture_tile_assets(commands: &mut Commands, asset_server: &Res<AssetServer>) {
 
@@ -499,15 +505,29 @@ fn setup(
     let texture_border3_handle: Handle<Image> = asset_server.load("img/border3.png");
 
     let texture_decrease_handle: Handle<Image> = asset_server.load("img/decrease.png");
+
+    let button_icons = ButtonIcons {
+        increase: asset_server.load("img/increase.png"),
+        decrease: asset_server.load("img/decrease.png"),
+        play: asset_server.load("img/pause.png"),
+        pause: asset_server.load("img/play.png"),
+    };
+
+    commands.insert_resource(ButtonIcons {
+        increase: button_icons.increase.clone(),
+        decrease: button_icons.decrease.clone(),
+        play: button_icons.play.clone(),
+        pause: button_icons.pause.clone(),
+    });
+/* 
     let texture_increase_handle: Handle<Image> = asset_server.load("img/increase.png");
     let texture_play_handle: Handle<Image> = asset_server.load("img/pause.png");
     let texture_pause_handle: Handle<Image> = asset_server.load("img/play.png");
-
+*/
 
     let texture_robot_handle: Handle<Image> = asset_server.load("img/Robot.png");
     
-    
-    
+     
 
     //sleep 3 secondi
     //sleep(std::time::Duration::from_secs(10));
@@ -688,26 +708,29 @@ fn setup(
         .insert(RenderLayers::layer(1));
 
     //BUTTONS CENTER
-    commands
-        .spawn(NodeBundle {
-            style: Style {
-               
-                width: Val::Percent(100.0),
-                height: Val::Percent(100.0),
-                
-                align_items: AlignItems::FlexEnd, 
-                justify_content: JustifyContent::Center, 
-                flex_direction: FlexDirection::Row,      
-              
-                padding: UiRect {
-                    left: Val::Auto,
-                    top: Val::Px(10.0),
-                    right: Val::Px(50.0),
-                    bottom: Val::Px(50.0),
-                },
-                ..default()
-            },
+    commands.spawn(NodeBundle {
+        style: Style {
+            // Imposta le dimensioni del rettangolo
+            width: Val::Px(250.0),
+            height: Val::Px(120.0),
+            
+            // Posiziona il rettangolo in basso e al centro
+            position_type: PositionType::Absolute,
+            bottom: Val::Px(25.0), // Distanza dal fondo dello schermo
+            left: Val::Percent(40.0), // Centra orizzontalmente
+            border: UiRect::all(Val::Px(4.0)),
+            // Traslazione di -50% della propria larghezza per centrare esattamente
+            //translate: Transform::from_xyz(-100.0, 0.0, 0.0), 
+            
+            // Assicurati che il contenuto sia centrato (se ne hai)
+            justify_content: JustifyContent::Center,
+            align_items: AlignItems::Center,
+
             ..default()
+        },
+        border_color: BorderColor(Color::BLACK),
+        background_color: Color::rgba(1.0, 1.0, 1.0, 0.5).into(), // Colore bianco con trasparenza
+        ..default() 
         })
         .insert(Explode)
         .with_children(|parent| {
@@ -727,7 +750,7 @@ fn setup(
             },
             border_color: BorderColor(Color::NONE),
             background_color: BackgroundColor(Color::WHITE),
-            image: texture_decrease_handle.clone().into(),
+            image: button_icons.decrease.clone().into(),
             ..default()
         })
         .with_children(|parent| {
@@ -761,7 +784,7 @@ fn setup(
             },
             border_color: BorderColor(Color::BLACK),
             background_color: BackgroundColor(Color::WHITE),
-            image: texture_play_handle.clone().into(),
+            image: button_icons.play.clone().into(),
             ..default()
         })
         .with_children(|parent| {
@@ -791,7 +814,7 @@ fn setup(
          },
          border_color: BorderColor(Color::BLACK),
          background_color: BackgroundColor(Color::WHITE),
-         image: texture_increase_handle.clone().into(),
+         image: button_icons.increase.clone().into(),
          ..default()
      })
      .with_children(|parent| {
@@ -806,7 +829,38 @@ fn setup(
      })
      .insert(DecreaseSpeed);
 
-     parent
+     
+    })
+      .insert(RenderLayers::layer(1));
+
+    //BUTTONS CENTER RIGHT
+    commands.spawn(NodeBundle {
+        style: Style {
+            // Imposta le dimensioni del rettangolo
+            width: Val::Px(250.0),
+            height: Val::Px(120.0),
+            
+            // Posiziona il rettangolo in basso e al centro
+            position_type: PositionType::Absolute,
+            bottom: Val::Px(25.0), // Distanza dal fondo dello schermo
+            left: Val::Percent(60.0), // Centra orizzontalmente
+            border: UiRect::all(Val::Px(4.0)),
+            // Traslazione di -50% della propria larghezza per centrare esattamente
+            //translate: Transform::from_xyz(-100.0, 0.0, 0.0), 
+            
+            // Assicurati che il contenuto sia centrato (se ne hai)
+            justify_content: JustifyContent::Center,
+            align_items: AlignItems::Center,
+
+            ..default()
+        },
+        border_color: BorderColor(Color::BLACK),
+        background_color: Color::rgba(1.0, 1.0, 1.0, 0.5).into(), // Colore bianco con trasparenza
+        ..default() 
+        })
+        .insert(Explode)
+        .with_children(|parent| {
+            parent
         .spawn(ButtonBundle {
             style: Style {
                 width: Val::Px(70.0),
@@ -819,7 +873,7 @@ fn setup(
             },
             border_color: BorderColor(Color::BLACK),
             background_color: BackgroundColor(Color::WHITE),
-            image: texture_play_handle.clone().into(),
+            image: button_icons.play.clone().into(),
             ..default()
         })
         .with_children(|parent| {
@@ -833,8 +887,7 @@ fn setup(
             ));*/
         }) 
         .insert(ActivityButton);
-    })
-      .insert(RenderLayers::layer(1));
+        }).insert(RenderLayers::layer(1));
         
 
     //menu a tendina parte destra
@@ -2177,25 +2230,27 @@ fn button_system(
             Option<&IncreaseSpeed>,
             Option<&DecreaseSpeed>,
             Option<&ActivityButton>,
+            Option<&mut UiImage>,
         ),
         (Changed<Interaction>, With<Button>),
     >,
-    mut text_query: Query<&mut Text>,
+   // mut text_query: Query<&mut Text>,
     mut camera_query: Query<(&mut Transform, &Camera), With<MainCamera>>,
     mut label_query: Query<&mut Style, (With<Label>, Without<LabelBackPack>)>,
     mut label_backpack_query: Query<&mut Style, (With<LabelBackPack>, Without<Label>)>,
     robot_position: Res<RobotPosition>,
-    mut exit: EventWriter<AppExit>,
-    mut menu_state: ResMut<NextState<MenuState>>,
+   // mut exit: EventWriter<AppExit>,
+   // mut menu_state: ResMut<NextState<MenuState>>,
     mut game_state: ResMut<NextState<GameState>>,
     mut ai1_state: ResMut<NextState<Ai1_State>>,
     mut ai2_state: ResMut<NextState<Ai2_State>>,
     mut ai3_state: ResMut<NextState<Ai3_State>>,
-    // mut uberai_state: ResMut<NextState<UberAi_State>>,
+    mut uberai_state: ResMut<NextState<UberAi_State>>,
     paused_signal: Res<PausedSignal>,
     mut speed_sleep: ResMut<SleepTime>,
     mut activity_signal: Res<ActivitySignal>,
     mut camera_control: ResMut<CameraControl>,
+    button_icons: Res<ButtonIcons>,
 ) {
     for (
         interaction,
@@ -2211,6 +2266,7 @@ fn button_system(
         increase_speed,
         decrease_speed,
         activity_button,
+        ui_image,
     ) in &mut interaction_query
     {
         ;
@@ -2242,7 +2298,7 @@ fn button_system(
                     ai1_state.set(Ai1_State::Out);
                     ai2_state.set(Ai2_State::Out);
                     ai3_state.set(Ai3_State::Out);
-                    // uberai_state.set(UberAi_State::Out);
+                    uberai_state.set(UberAi_State::Out);
 
                     //label
                 } else if dropdownback.is_some() {
@@ -2259,7 +2315,12 @@ fn button_system(
                     let current_state = paused_signal.0.load(Ordering::SeqCst);
                     paused_signal.0.store(!current_state, Ordering::SeqCst);
                     println!("Stato di pausa cambiato: {}", !current_state);
+                    if current_state {
+                        ui_image.unwrap().texture = button_icons.play.clone();
+                    } else {
+                        ui_image.unwrap().texture = button_icons.pause.clone();
 
+                    }
                     
                 } else if increase_speed.is_some() {
                     // Ottieni il valore corrente del tempo di sleep
@@ -2293,15 +2354,15 @@ fn button_system(
                     println!("Stato di attivita cambiato: {}", !current_state);
                 }
 
-               // *color = PRESSED_BUTTON.into();
+                *color = Color::BLUE.into();
                 border_color.0 = Color::RED;
             }
             Interaction::Hovered => {
-              //  *color = HOVERED_BUTTON.into();
-                border_color.0 = Color::WHITE;
+                *color = Color::WHITE.into();
+                border_color.0 = Color::GREEN;
             }
             Interaction::None => {
-              //  *color = NORMAL_BUTTON.into();
+                *color = Color::BLACK.into();
                 border_color.0 = Color::BLACK;
             } 
         }
