@@ -1,8 +1,31 @@
-
+/* CONTROLLARE  TRANSFORM DI QUESTO CODICE
+ commands
+        .spawn(SpriteBundle {
+            sprite: Sprite {
+                color: Color::GRAY,
+                custom_size: Some(Vec2::new(robot_size, robot_size)),
+                // Flip the logo to the left
+           // flip_x: true,
+            // And don't flip it upside-down ( the default )
+           // flip_y: false,
+                ..Default::default()
+            },
+            texture: texture_robot_handle,
+            transform: Transform::from_xyz(
+                TILE_SIZE * resource.coordinate_row as f32,
+                TILE_SIZE * resource.coordinate_row as f32,
+                15.0,
+            ), // asse z serve per metterlo sopra i tile e i conent
+            ..Default::default()
+        })
+        .insert(Roboto)
+        .insert(RenderLayers::layer(2))
+        .insert(Explode) */
 
 use bevy::core_pipeline::clear_color::ClearColorConfig;
 use bevy::log;
 use bevy::render::camera::Viewport;
+use bevy::text;
 use bevy::window::PrimaryWindow;
 use bevy::window::WindowMode;
 use bevy::window::WindowResized;
@@ -41,10 +64,25 @@ use robotics_lib::{
     world::coordinates::Coordinate,
 };
 
+
+#[derive(Resource)]
+struct PreviousX(f32);
+
 #[derive(Resource)]
 struct ContentCounter {
     pub count: usize,
 }
+
+#[derive(Component)]
+struct TagItem {
+    item_type: Content,
+}
+
+#[derive(Component)]
+struct PopupLabel;
+
+#[derive(Component)]
+struct PopupLabelText;
 
 
 //PRIVATE
@@ -362,7 +400,7 @@ commands
                         MenuButtonAction::AI1,
                     ))
                     .with_children(|parent| {
-                        let icon = asset_server.load("img/menu_rock_robot.png");
+                        let icon = asset_server.load("img/menu_tree_robot.png");
                         parent.spawn(ImageBundle {
                             style: button_icon_style.clone(),
                             image: UiImage::new(icon),
@@ -383,7 +421,7 @@ commands
                         MenuButtonAction::AI2,
                     ))
                     .with_children(|parent| {
-                        let icon = asset_server.load("img/menu_tree_robot.png");
+                        let icon = asset_server.load("img/menu_rock_robot.png");
                         parent.spawn(ImageBundle {
                             style: button_icon_style.clone(),
                             image: UiImage::new(icon),
@@ -529,6 +567,26 @@ fn setup(
 */
 
     let texture_robot_handle: Handle<Image> = asset_server.load("img/Robot.png");
+
+    let content_icons = ContentIcons{
+
+        rock: asset_server.load("img/Rock.png"),
+        tree: asset_server.load("img/Tree.png"),
+        garbage: asset_server.load("img/Trash.png"),
+        fire: asset_server.load("img/Fire.png"),
+        coin: asset_server.load("img/Coin.png"),
+        water: asset_server.load("img/WaterObject.png"),
+        bin: asset_server.load("img/Bin.png"),
+        c_crate: asset_server.load("img/Crate.png"),
+        bank: asset_server.load("img/Bank.png"),
+        market: asset_server.load("img/Market.png"),
+        fish: asset_server.load("img/Fish.png"),
+        building: asset_server.load("img/Building.png"),
+        bush: asset_server.load("img/Bush.png"),
+        jollyBlock: asset_server.load("img/JollyBlock.png"),
+        scarecrow: asset_server.load("img/ScareCrow.png"),
+    
+        };
     
      
 
@@ -569,6 +627,7 @@ fn setup(
 
 
     let robot_size = 2.0;
+    commands.insert_resource(PreviousX(resource.coordinate_column as f32));
 
     //spawna il robot
     commands
@@ -577,9 +636,9 @@ fn setup(
                 color: Color::GRAY,
                 custom_size: Some(Vec2::new(robot_size, robot_size)),
                 // Flip the logo to the left
-            flip_x: true,
+           // flip_x: true,
             // And don't flip it upside-down ( the default )
-            flip_y: false,
+           // flip_y: false,
                 ..Default::default()
             },
             texture: texture_robot_handle,
@@ -1069,11 +1128,11 @@ fn setup(
                 })
                 .insert(DropdownMenuBackpack);
 
-            parent
+                parent
                 .spawn(NodeBundle {
                     style: Style {
                         width: Val::Px(250.0),
-                        height: Val::Px(500.0),
+                        height: Val::Px(600.0),
                         border: UiRect::all(Val::Px(1.0)),
                         justify_content: JustifyContent::FlexStart, 
                         align_items: AlignItems::FlexStart, 
@@ -1092,20 +1151,97 @@ fn setup(
                     ..default()
                 })
                 .with_children(|parent| {
-                    // Primo figlio:
-                    parent
-                        .spawn(TextBundle::from_section(
-                            "BACKPACK", 
-                            TextStyle {
-                                font_size: 25.0,
-                                color: Color::BLACK,
+                    let item_types = [
+                        (Content::Rock(0), &content_icons.rock), // Assumo 1 come quantità di default
+                        (Content::Tree(0), &content_icons.tree),
+                        (Content::Garbage(0), &content_icons.garbage),
+                        (Content::Fire, &content_icons.fire), // Fire non ha parametri
+                        (Content::Coin(0), &content_icons.coin),
+                        (Content::Water(0), &content_icons.water),
+                        (Content::Bin(0..5), &content_icons.bin), // Assumo un range come esempio
+                        (Content::Crate(0..5), &content_icons.c_crate),
+                        (Content::Bank(0..5), &content_icons.bank),
+                        (Content::Market(0), &content_icons.market),
+                        (Content::Fish(0), &content_icons.fish),
+                        (Content::Building, &content_icons.building), // Building non ha parametri
+                        (Content::Bush(0), &content_icons.bush),
+                        (Content::JollyBlock(0), &content_icons.jollyBlock),
+                        (Content::Scarecrow, &content_icons.scarecrow), // Scarecrow non ha parametri
+                    ];
+            
+                    for (name, icon) in item_types {
+                       let button = parent.spawn(NodeBundle {
+                            style: Style {
+                                flex_direction: FlexDirection::Row,
+                                align_items: AlignItems::Center,
                                 ..default()
                             },
-                        ))
-                        .insert(TagBackPack);
+                            ..default()
+                        }).with_children(|parent| {
+                            parent.spawn(ButtonBundle {
+                                style: Style {
+                                    width: Val::Px(25.0),
+                                    height: Val::Px(25.0),
+                                    margin: UiRect::all(Val::Px(5.0)),
+                                    ..default()
+                                },
+                                background_color: BackgroundColor(Color::WHITE),
+                                image: icon.clone().into(),
+                                ..default()
+                            }).insert(TagItem { item_type: name.clone() });
+                            
+                        // .insert(TagBackPack);
+                        // button.insert(TagItem { item_type: name.to_string() });
+
+                            parent.spawn(TextBundle::from_section(
+                                format!("{:?}:", name.clone()),
+                                TextStyle {
+                                    //font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                                    font_size: 20.0,
+                                    color: Color::BLACK,
+                                    ..default()
+                                },
+                            )).insert(TagBackPack)
+                            .insert(TagItem { item_type: name });
+                            
+                        });
+                    }
                 })
-                .insert(LabelBackPack);
+            .insert(LabelBackPack);
         });
+
+
+        //POPUP
+        commands.spawn(NodeBundle {
+            style: Style {
+                display: Display::Flex,
+                width: Val::Px(220.0),
+                height: Val::Px(130.0),
+                position_type: PositionType::Absolute,
+                left: Val::Px(10.0),
+                top: Val::Percent(20.0),
+                justify_content: JustifyContent::Center,
+                align_items: AlignItems::Center,
+                border: UiRect::all(Val::Px(4.0)),
+                ..default()
+            },
+            background_color: Color::rgba(1.0, 1.0, 1.0, 0.5).into(),
+            border_color: BorderColor(Color::BLACK),
+            ..default()
+        }).insert(PopupLabel)
+        .insert(Explode)
+        .with_children(|parent| {
+            parent.spawn(TextBundle::from_section(
+                "",
+                TextStyle {
+                    font_size: 15.0,
+                    color: Color::BLACK,
+                    ..default()
+                },
+            )).insert(PopupLabelText)
+            .insert(Explode); // Assicurati di inserire PopupLabelText qui
+        });
+         // Etichetta per identificare questo NodeBundle
 
     let main_scale = Vec3::new(0.1, 0.1, 1.0);
 
@@ -1329,8 +1465,9 @@ fn update_infos(
         ),
     >,
     mut backpack_query: Query<
-        &mut Text,
-        (
+        ( &mut Text,
+           &TagItem),       
+            (
             With<TagBackPack>,
             Without<TagEnergy>,
             Without<Roboto>,
@@ -1360,20 +1497,15 @@ fn update_infos(
         }
     }
     //TESTO BACKPACK
-    for mut text in backpack_query.iter_mut() {
-        let mut formatted_string = format!("Backpack Size: {}\n\n", resource.bp_size);
-        let mut tot_value = 0;
-        for (key, value) in resource.bp_contents.iter() {
-            
-            formatted_string.push_str(&format!("{}: {}\n", key, value));
-            tot_value += value;
+    for (mut text, tag_item) in backpack_query.iter_mut() {
+        if let Some(value) = resource.bp_contents.get(&tag_item.item_type) {
+            // Costruisci la stringa di output basata solo sul tipo specifico di Content
+            let formatted_string = format!("{}: {}", tag_item.item_type, value);
+            text.sections[0].value = formatted_string;
+        } else {
+            // Se non ci sono elementi di quel tipo, imposta un messaggio di default
+            text.sections[0].value = format!("{}: None", tag_item.item_type);
         }
-       
-        if tot_value == 20 {
-            formatted_string.push_str(&format!("\nMAX SIZE REACHED"));
-        }
-
-        text.sections[0].value = formatted_string;
     }
 
     //UPDATE BATTERY SPRITE
@@ -2214,6 +2346,57 @@ struct LabelBackPack;
 
 #[derive(Component)]
 struct CloseAppButton;
+#[derive(Component)]
+struct HoverableButton {
+    timer: Timer,
+}
+
+fn button_system_backpack(
+    mut interaction_query: Query<
+        (
+            &Interaction,
+            &TagItem,
+        ),
+        (Changed<Interaction>, With<Button>),
+    >,
+    mut popup_query: Query<(&mut Style), With<PopupLabel>>,
+    mut popup_text_query: Query<&mut Text, With<PopupLabelText>>,
+) {
+    // println!("Checking interactions...");  // Debug: verifica se il sistema viene chiamato
+
+    for (interaction, tag_item) in interaction_query.iter_mut() {
+        println!("Interaction: {:?}", interaction);  // Debug: stampa lo stato dell'interazione
+
+        if let Ok((mut popup_style)) = popup_query.get_single_mut() {
+            if let Ok(mut popup_text) = popup_text_query.get_single_mut() {
+                match *interaction {
+                    Interaction::Hovered => {
+                        popup_style.display = Display::Flex; // Abilita la visualizzazione del popup
+                        popup_style.position_type = PositionType::Absolute;
+                        popup_style.left = Val::Px(10.0);  // Sinistra dello schermo
+                        popup_style.top = Val::Percent(25.0);   // Alto dello schermo
+
+                        // Imposta il testo in base al tipo di contenuto
+                        popup_text.sections[0].value = match tag_item.item_type {
+                            Content::Rock(_) => "La roccia più dura del mondo ciao ciao ciao ciao ciao ciao ciao ciao v ciao vciao  v ciao ciao ciao ciao ciao ciao".to_string(),
+                            Content::Tree(_) => "Un grande albero".to_string(),
+                            Content::Garbage(_) => "Un mucchio di rifiuti".to_string(),
+                            Content::Fire => "Un fuoco ardente".to_string(),
+                            // Altri casi
+                            _ => "Elemento sconosciuto".to_string(),
+                        };
+                    }
+                    Interaction::None => {
+                        popup_style.display = Display::None; // Nasconde il popup
+                    }
+                    _ => {}
+                }
+            } else {
+                println!("Failed to get popup entity.");  // Debug: fallimento nell'ottenere l'entità del popup
+            }
+        }
+    }
+}
 
 
 //BOTTONI
@@ -2468,7 +2651,9 @@ fn icons_upgrade(
         ),
     >,
     backpack_query: Query<
-        &mut Text,
+    (&mut Text,
+        &TagItem),
+
         (
             With<TagBackPack>,
             Without<TagEnergy>,
@@ -2601,10 +2786,22 @@ fn robot_movement_system(
 fn update_robot_position(
     mut robot_position: ResMut<RobotPosition>,
     robot_query: Query<&Transform, With<Roboto>>,
+    mut robot_sprite_query: Query<&mut Sprite, With<Roboto>>,
+    mut previous_x: ResMut<PreviousX>,
 ) {
     if let Ok(robot_transform) = robot_query.get_single() {
         robot_position.x = robot_transform.translation.x;
         robot_position.y = robot_transform.translation.y;
+
+        if let Ok(mut robot_sprite) = robot_sprite_query.get_single_mut() {
+            if robot_position.x < previous_x.0 {
+                robot_sprite.flip_x = true;
+            } else if robot_position.x > previous_x.0 {
+                robot_sprite.flip_x = false;
+            }
+            // Update previous_x to current x
+            previous_x.0 = robot_transform.translation.x;
+        }
     }
 }
 
@@ -3347,7 +3544,7 @@ fn menu_action(
         .add_systems(OnEnter(MenuState::Ai1), (setup, start_in_ai1))
         .add_systems(OnEnter(Ai1_State::In), (set_camera_viewports, start_update_ai1))
         .add_systems(OnExit(MenuState::Ai1),(stop_ai_thread, despawn_screentry::<Explodetry>, despawn_screen::<Explode>))
-        .add_systems(Update, (icons_upgrade, cursor_events, robot_movement_system, update_robot_position, follow_robot_system, button_system, update_minimap_outline,)
+        .add_systems(Update, (icons_upgrade, cursor_events, robot_movement_system, update_robot_position, follow_robot_system, button_system, button_system_backpack, update_minimap_outline,)
         .run_if(in_state(Ai1_State::Run)));
 
 
@@ -3400,7 +3597,7 @@ fn menu_action(
          .add_systems(OnEnter(MenuState::Ai2), (setup, start_in_ai2))
          .add_systems(OnEnter(Ai2_State::In), (set_camera_viewports, start_update_ai2))
          .add_systems(OnExit(MenuState::Ai2),(stop_ai_thread, despawn_screen::<Explode>, despawn_screentry::<Explodetry>))
-         .add_systems(Update, (icons_upgrade, cursor_events, robot_movement_system, update_robot_position, follow_robot_system, button_system, update_minimap_outline,).run_if(in_state(Ai2_State::Run)));
+         .add_systems(Update, (icons_upgrade, cursor_events, robot_movement_system, update_robot_position, follow_robot_system, button_system, button_system_backpack, update_minimap_outline,).run_if(in_state(Ai2_State::Run)));
  
  
              //PROBLEMA
@@ -3454,7 +3651,7 @@ fn menu_action(
          .add_systems(OnEnter(MenuState::Ai3), (setup, start_in_ai3))
          .add_systems(OnEnter(Ai3_State::In), (set_camera_viewports, start_update_ai3))
          .add_systems(OnExit(MenuState::Ai3),(stop_ai_thread, despawn_screen::<Explode>, despawn_screentry::<Explodetry>))
-         .add_systems(Update, (icons_upgrade, cursor_events, robot_movement_system_maze, update_robot_position, follow_robot_system, button_system, update_minimap_outline,)
+         .add_systems(Update, (icons_upgrade, cursor_events, robot_movement_system_maze, update_robot_position, follow_robot_system, button_system, button_system_backpack, update_minimap_outline,)
          .run_if(in_state(Ai3_State::Run)));
  
  
@@ -3509,7 +3706,7 @@ fn menu_action(
             .add_systems(OnEnter(MenuState::UberAi), (setup, start_in_uberai))
             .add_systems(OnEnter(UberAi_State::In), (set_camera_viewports, start_update_uberai))
             .add_systems(OnExit(MenuState::UberAi),(stop_ai_thread, despawn_screen::<Explode>, despawn_screentry::<Explodetry>))
-            .add_systems(Update, (icons_upgrade, cursor_events, robot_movement_system_maze, update_robot_position, follow_robot_system, button_system, update_minimap_outline,)
+            .add_systems(Update, (icons_upgrade, cursor_events, robot_movement_system_maze, update_robot_position, follow_robot_system, button_system, button_system_backpack, update_minimap_outline,)
             .run_if(in_state(UberAi_State::Run)));
     
     
