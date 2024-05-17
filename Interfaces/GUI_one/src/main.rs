@@ -10,6 +10,8 @@ use bevy::{app::AppExit, prelude::*, render::view::RenderLayers};
 use op_map::op_pathfinding::{
     get_best_action_to_element, OpActionInput, OpActionOutput, ShoppingList,
 };
+use nearest_tp::nearest_tp::{
+    nearest_teleport, nearest_tile_type};
 use rand::Rng;
 use robotics_lib::world::coordinates;
 use robotics_lib::{
@@ -20,6 +22,7 @@ use robotics_lib::{
         tile::{Content, Tile, TileType},
     },
 };
+use std::f64::consts::E;
 use std::thread::sleep;
 use std::{collections::HashMap, ops::Range};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -3177,7 +3180,7 @@ fn menu_action(
             //thread::sleep(std::time::Duration::from_secs(10));
             println!("Thread started");
             match std::panic::catch_unwind(|| {
-                moviment(robot_data, map, AiLogic::Falegname, shutdown_signal.clone(), paused_signal.clone(), sleep_time_arc.clone(), activity_signal.clone());
+                moviment(robot_data, map, AiLogic::Asfaltatore, shutdown_signal.clone(), paused_signal.clone(), sleep_time_arc.clone(), activity_signal.clone());
             }) {
                 Ok(_) => println!("Thread completed successfully"),
                 Err(_) => println!("Thread terminated due to panic"),
@@ -3242,7 +3245,7 @@ fn menu_action(
             //thread::sleep(std::time::Duration::from_secs(10));
             println!("Thread started");
             match std::panic::catch_unwind(|| {
-                moviment(robot_data, map, AiLogic::Falegname, shutdown_signal.clone(), paused_signal.clone(), sleep_time_arc.clone(), activity_signal.clone());
+                moviment(robot_data, map, AiLogic::Ricercatore, shutdown_signal.clone(), paused_signal.clone(), sleep_time_arc.clone(), activity_signal.clone());
             }) {
                 Ok(_) => println!("Thread completed successfully"),
                 Err(_) => println!("Thread terminated due to panic"),
@@ -3307,7 +3310,7 @@ fn menu_action(
             //thread::sleep(std::time::Duration::from_secs(10));
             println!("Thread started");
             match std::panic::catch_unwind(|| {
-                moviment(robot_data, map, AiLogic::Falegname, shutdown_signal.clone(), paused_signal.clone(), sleep_time_arc.clone(), activity_signal.clone());
+                moviment(robot_data, map, AiLogic::Completo, shutdown_signal.clone(), paused_signal.clone(), sleep_time_arc.clone(), activity_signal.clone());
             }) {
                 Ok(_) => println!("Thread completed successfully"),
                 Err(_) => println!("Thread terminated due to panic"),
@@ -3760,7 +3763,7 @@ fn go_to_maze(robot: &mut Robottino, world: &mut robotics_lib::world::World, maz
     }
 }
 
-fn ai_labirint          (robot: &mut Robottino, world: &mut robotics_lib::world::World) {
+fn ai_labirint(robot: &mut Robottino, world: &mut robotics_lib::world::World) {
     //maze are 18*18 so we check every 9 tiles
     //if robotmap some save it
     if robot.maze_discovered.is_none() {
@@ -3842,19 +3845,20 @@ fn ai_taglialegna(robot: &mut Robottino, world: &mut robotics_lib::world::World)
         if attivita == true{   
             // NEAREST TELEPORT (QUASI FUNZIONANTE)
             // if let Some(directions) = nearest_teleport(robot, world) {
-            //     for direction in directions {
-            //         go(robot, world, direction);
-
-            //     }
-            //     println!("Il robot ha raggiunto la destinazione o il teleport.");
-            // } else {
-            //     println!("Nessun percorso trovato al teleport.");
-            // }
+            //         for direction in directions {
+            //                 let _ = go(robot, world, direction);
+            //                 break;
+            //             }
+            //             println!("Il robot ha raggiunto la destinazione o il teleport.");
+            //         } else {
+            //                 println!("Nessun percorso trovato al teleport.");
+            //             }
             let mut shopping_list = ShoppingList {
                 list: vec![(
                     (Content::Tree(0), Some(OpActionInput::Destroy()))
                 )],
             };
+
             match get_best_action_to_element(robot, world, &mut shopping_list) {
                 None => {
                     let tiles_option = cheapest_border(world, robot);
@@ -3952,39 +3956,108 @@ fn ai_asfaltatore(robot: &mut Robottino, world: &mut robotics_lib::world::World)
         robot.robot.energy = rust_and_furious_dynamo::dynamo::Dynamo::update_energy();
     }
 
-    robot_view(robot, world);
+    let a = robot_view(robot, world);
+    println!("{:?}", a);
+    let attivita = robot.activity_signal.load(Ordering::SeqCst);
+    println!("{:?}", attivita);
+    let a = robot.get_backpack().get_size();
+    let b = robot.get_backpack().get_contents().values().sum::<usize>();
+    if b < 5 {
+        if attivita == true{   
+            let mut shopping_list = ShoppingList {
+                list: vec![(
+                    (Content::Rock(0), Some(OpActionInput::Destroy()))
+                )],
+            };
 
-    if robot.get_backpack().get_size()
-        > robot.get_backpack().get_contents().values().sum::<usize>()
-    {
-        let tiles_option = cheapest_border(world, robot);
-        if let Some(tiles) = tiles_option {
-            //manage the return stat of move to cheapest border
-            let result = move_to_cheapest_border(world, robot, tiles);
-
-            DestroyZone.execute(world, robot, Content::Rock(0));
+            match get_best_action_to_element(robot, world, &mut shopping_list) {
+                None => {
+                    let tiles_option = cheapest_border(world, robot);
+                    if let Some(tiles) = tiles_option {
+                         let result = move_to_cheapest_border(world, robot, tiles);             
+                        if attivita == true{   
+                            DestroyZone.execute(world, robot, Content::Rock(0));
+                        }
+                    }
+                }
+                Some(next_action) => {
+                    println!("trovata roccia?");
+                    println!("{:?}", next_action);
+                    match next_action {
+                        OpActionOutput::Move(dir) => {
+                            go(robot, world, dir);
+                        }
+                        OpActionOutput::Destroy(dir) => {
+                            // println!("Destroy");
+                            destroy(robot, world, dir);
+                        }
+                        OpActionOutput::Put(c, u, d) => {
+                            print!("depositandoooooooooooo");
+                            //print c u d
+                            println!("{:?} {:?} {:?}", c, u, d);
+                            put(robot, world, c, u, d);
+                        }
+                    }
+                }
+            }
+        } else {
+            let tiles_option = cheapest_border(world, robot);
+                    if let Some(tiles) = tiles_option {
+                         let result = move_to_cheapest_border(world, robot, tiles);             
+                        if attivita == true{   
+                            DestroyZone.execute(world, robot, Content::Rock(0));
+                        }
+                    }
         }
     } else {
-        for _i in 0..20 {
-            sleep(std::time::Duration::from_millis(300));
-            let v = bessie::bessie::road_paving_machine(
-                robot,
-                world,
-                Direction::Up,
-                bessie::bessie::State::MakeRoad,
-            );
-            //if err
-            if v.is_err() {
-                //random da 0 a 3
-                let rand = rand::thread_rng().gen_range(0..4);
-                match rand {
-                    0 => go(robot, world, Direction::Up),
-                    1 => go(robot, world, Direction::Down),
-                    2 => go(robot, world, Direction::Left),
-                    _ => go(robot, world, Direction::Right),
-                };
-            }
+        if let Some(directions) = nearest_tile_type(robot, world, TileType::ShallowWater) {
+            println!("{:?}", directions);
+            if directions.len() > 1 {
+                for direction in directions {
+                        let _ = go(robot, world, direction);
+                        break;
+                    }
+                    println!("Il robot ha raggiunto la destinazione o il teleport.");
+                } 
+            else if directions.len() == 1 {
+                for direction in directions {
+                    let v = bessie::bessie::road_paving_machine(
+                                robot,
+                                world,
+                                direction,
+                                bessie::bessie::State::MakeRoad,
+                            );
+                        }
+            } else{
+                
+                let tiles_option = cheapest_border(world, robot);
+                    if let Some(tiles) = tiles_option {
+                         let result = move_to_cheapest_border(world, robot, tiles);             
+                        if attivita == true{   
+                            DestroyZone.execute(world, robot, Content::Rock(0));
+                        }
+                    }
+            } 
         }
+        // nearest_tile_type(robot, world, Content::Water(0));
+        //     sleep(std::time::Duration::from_millis(300));
+        //     let v = bessie::bessie::road_paving_machine(
+        //         robot,
+        //         world,
+        //         Direction::Up,
+        //         bessie::bessie::State::MakeRoad,
+        //     );
+        //     //if err
+        //     if v.is_err() {
+        //         //random da 0 a 3
+        //         let rand = rand::thread_rng().gen_range(0..4);
+        //         match rand {
+        //             0 => go(robot, world, Direction::Up),
+        //             1 => go(robot, world, Direction::Down),
+        //             2 => go(robot, world, Direction::Left),
+        //             _ => go(robot, world, Direction::Right),
+        //         };
+        //     }
     }
 }
 fn ai_completo_con_tool (robot: &mut Robottino, world: &mut robotics_lib::world::World) {
