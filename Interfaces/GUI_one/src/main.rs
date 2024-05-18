@@ -64,6 +64,18 @@ use robotics_lib::{
     world::coordinates::Coordinate,
 };
 
+#[derive(Resource, Default)]
+struct ContentTracker {
+    counts: HashMap<Content, usize>,           // Mappa attuale dei conteggi per tipo di contenuto
+    old_values: HashMap<Content, usize>,      // Mappa dei vecchi valori per tipo di contenuto
+    deposited_counts: HashMap<Content, usize> // Mappa delle quantità depositate per tipo di contenuto
+}
+
+#[derive(Resource, Default)]
+struct OldValueBackPack{
+    value: usize,
+}
+
 
 #[derive(Resource)]
 struct PreviousX(f32);
@@ -513,6 +525,11 @@ fn setup(
 ) {
     
     commands.insert_resource(ContentCounter { count: 0 });
+    commands.insert_resource(ContentTracker {
+        counts: HashMap::new(),
+        old_values: HashMap::new(),
+        deposited_counts: HashMap::new(), // Add the missing field 'deposited_counts'
+    });
 
     let start_time = Instant::now() - Duration::from_secs(5);
     commands.insert_resource(LastUpdate(start_time));
@@ -1446,6 +1463,8 @@ fn setup(
 fn update_infos(
     resource: RobotInfo, 
     weather_icons: Res<WeatherIcons>,
+    mut tracker: ResMut<ContentTracker>,
+   // mut old_value: ResMut<OldValueBackPack>,
     mut energy_query: Query<
         &mut Text,
         (
@@ -1497,16 +1516,44 @@ fn update_infos(
         }
     }
     //TESTO BACKPACK
-    for (mut text, tag_item) in backpack_query.iter_mut() {
-        if let Some(value) = resource.bp_contents.get(&tag_item.item_type) {
-            // Costruisci la stringa di output basata solo sul tipo specifico di Content
-            let formatted_string = format!("{}: {}", tag_item.item_type, value);
-            text.sections[0].value = formatted_string;
-        } else {
-            // Se non ci sono elementi di quel tipo, imposta un messaggio di default
-            text.sections[0].value = format!("{}: None", tag_item.item_type);
+        for (mut text, tag_item) in backpack_query.iter_mut() {
+            if let Some(value) = resource.bp_contents.get(&tag_item.item_type) {
+                // Costruisci la stringa di output basata solo sul tipo specifico di Content
+                let formatted_string = format!("{}: {}", tag_item.item_type, value);
+                text.sections[0].value = formatted_string;
+            } else {
+                // Se non ci sono elementi di quel tipo, imposta un messaggio di default
+                text.sections[0].value = format!("{}: None", tag_item.item_type);
+            }
         }
-    }
+
+        // Aggiornamento delle informazioni nel tracker
+        for (_, tag_item) in backpack_query.iter() {
+            let item_type = tag_item.item_type.clone();
+            let current_value = resource.bp_contents.get(&item_type).cloned().unwrap_or(0);
+            let old_value = *tracker.old_values.entry(item_type.clone()).or_insert(current_value);
+        
+            if current_value != old_value {
+                let difference = current_value as isize - old_value as isize; // Differenza calcolata come valore signed
+        
+                // Aggiorna il vecchio valore
+                *tracker.old_values.get_mut(&item_type).unwrap() = current_value;
+        
+                // Gestione incremento
+                if difference > 0 {
+                    let increase = difference as usize;  // Converte solo incrementi positivi
+                    let entry = tracker.counts.entry(item_type.clone()).or_insert(0);
+                    *entry += increase;  // Aggiunge solo incrementi positivi
+                }
+        
+                // Gestione deposito
+                if difference < 0 {
+                    let deposited_amount = (-difference) as usize;  // Quantità depositata
+                    let deposited = tracker.deposited_counts.entry(item_type).or_insert(0);
+                    *deposited += deposited_amount;  // Aggiunge al conteggio dei depositati
+                }
+            }
+        }
 
     //UPDATE BATTERY SPRITE
     for (mut style, mut back_color) in battery_query.iter_mut() {
@@ -2121,14 +2168,14 @@ use std::time::{Duration, Instant};
 #[derive(Resource)]
 struct LastUpdate(Instant);
 
-#[derive(Component)]
+#[derive(Component, Debug)]
 struct TilePosition {
     x: usize,
     y: usize,
 }
 
 
- //OTTIMIZATO, AGGIORNAMENTO SOLO VICINO AL ROBOT
+ //OTTIMIZATO, AGGIORNAMENTO SOLO VICINO AL ROBOT E DESPAWNA CONTENT
  fn update_show_tiles(
     world: &Vec<Vec<Option<Tile>>>,
     mut commands: Commands,
@@ -2157,13 +2204,31 @@ struct TilePosition {
             let current_tile = &world[y][x];
             let old_content = old_world[y][x].as_ref().map(|t| t.content.clone());
 
-            if let Some(new_tile) = current_tile {
-                if old_world[y][x].is_none() || old_content != Some(new_tile.content.clone()) {
-                    count += 1;
-                    spawn_tile(new_tile, x, y, &mut commands, &tile_icons, &content_icons, &mut content_counter);
-                    old_world[y][x] = Some(new_tile.clone());
+
+                if let Some(new_tile) = current_tile {
+                    // Controllo se il tile attuale è una strada o se ci sono cambiamenti nei contenuti.
+                    let is_street = matches!(new_tile.tile_type, TileType::Street);
+                    let content_changed = old_world[y][x].is_none() || old_content != Some(new_tile.content.clone());
+                
+                    if is_street || content_changed {
+                        count += 1;
+                        // Despawna il tile esistente prima di rispawnarlo, se è una strada
+                        if is_street {
+                            for (entity, pos) in query.iter_mut() {
+                                if pos.x == x && pos.y == y {
+                                    commands.entity(entity).despawn_recursive();
+                                 //  println!("despawned: {:?} pos {:?}", entity, pos);
+                                    break; // Despawna solo l'entità corrispondente a quella posizione
+                                }
+                            }
+                        }
+                        // Risppawna il tile
+                        spawn_tile(new_tile, x, y, &mut commands, &tile_icons, &content_icons, &mut content_counter);
+                        old_world[y][x] = Some(new_tile.clone());
+                    }
                 }
-            }
+
+              
 
             if let Some(old_content_unwrapped) = old_content {
                 if current_tile.is_none() || current_tile.as_ref().unwrap().content == Content::None {
@@ -2182,7 +2247,7 @@ struct TilePosition {
     }
 }
 
-fn despawn_tiles(
+/* fn despawn_tiles(
     commands: &mut Commands,
     query: &mut Query<(Entity, &TilePosition), With<Sprite>>,
     x: usize,
@@ -2194,9 +2259,9 @@ fn despawn_tiles(
             commands.entity(entity).despawn_recursive();
         }
     }
-}
+} */
 
-
+//************************************************INSERIRE DESPAWN******************************************** */
 fn update_show_tiles_maze(
     world: &Vec<Vec<Option<Tile>>>,
     commands: &mut Commands,
@@ -2265,6 +2330,12 @@ fn update_show_tiles_maze(
         let content_color = get_content_icons(tile, content_icons);
         //let mut count = 0;
 
+        // Determine the Z level based on the tile type
+            let z_level = match tile.tile_type {
+                TileType::Street => 4.0,  // Higher Z level for street tiles
+                _ => 3.0,                 // Default Z level for all other tiles
+            };
+
         // Spawn base tile sprite
         commands.spawn(SpriteBundle {
             sprite: Sprite {
@@ -2276,7 +2347,7 @@ fn update_show_tiles_maze(
             transform: Transform::from_xyz(
                 x as f32 * TILE_SIZE,
                 y as f32 * TILE_SIZE,
-                3.0, // Base layer
+                z_level, // Base layer
             ),
             ..Default::default()
         }).insert(TilePosition { x, y })
@@ -2351,7 +2422,8 @@ struct HoverableButton {
     timer: Timer,
 }
 
-fn button_system_backpack(
+/* fn button_system_backpack(
+    total_content: Res<ContentTracker>,
     mut interaction_query: Query<
         (
             &Interaction,
@@ -2384,6 +2456,58 @@ fn button_system_backpack(
                             Content::Fire => "Un fuoco ardente".to_string(),
                             // Altri casi
                             _ => "Elemento sconosciuto".to_string(),
+                        };
+                    }
+                    Interaction::None => {
+                        popup_style.display = Display::None; // Nasconde il popup
+                    }
+                    _ => {}
+                }
+            } else {
+                println!("Failed to get popup entity.");  // Debug: fallimento nell'ottenere l'entità del popup
+            }
+        }
+    }
+} */
+
+
+
+fn button_system_backpack(
+    total_content: Res<ContentTracker>, // Accesso alla risorsa che tiene traccia del conteggio totale dei contenuti
+    mut interaction_query: Query<
+        (
+            &Interaction,
+            &TagItem,
+        ),
+        (Changed<Interaction>, With<Button>),
+    >,
+    mut popup_query: Query<(&mut Style), With<PopupLabel>>,
+    mut popup_text_query: Query<&mut Text, With<PopupLabelText>>,
+) {
+    for (interaction, tag_item) in interaction_query.iter_mut() {
+        println!("Interaction: {:?}", interaction);  // Debug: stampa lo stato dell'interazione
+
+        if let Ok((mut popup_style)) = popup_query.get_single_mut() {
+            if let Ok(mut popup_text) = popup_text_query.get_single_mut() {
+                match *interaction {
+                    Interaction::Hovered => {
+                        popup_style.display = Display::Flex; // Abilita la visualizzazione del popup
+                        popup_style.position_type = PositionType::Absolute;
+                        popup_style.left = Val::Px(10.0);  // Sinistra dello schermo
+                        popup_style.top = Val::Percent(25.0);   // Alto dello schermo
+
+                        // Recupera il conteggio totale e il conteggio dei depositi dal ContentTracker
+                        let content_count = total_content.counts.get(&tag_item.item_type).unwrap_or(&0);
+                        let deposited_count = total_content.deposited_counts.get(&tag_item.item_type).unwrap_or(&0);
+
+                        // Imposta il testo in base al tipo di contenuto, includendo il conteggio totale e quello depositato
+                        popup_text.sections[0].value = match tag_item.item_type {
+                            Content::Rock(_) => format!("A SIMPLE ROCK:\n Gathered {} times.\n Used {} times.\n\n Often overlooked but essential for crafting tools.", content_count, deposited_count),
+                            Content::Tree(_) => format!("ANCIENT TREE:\n Harvested {} times.\n Deposited {} times.\n\n Its wood serves as the backbone of homes and weaponry.", content_count, deposited_count),
+                            Content::Garbage(_) => format!("Mysterious Garbage:\n Collected {} times, {} deposited.\n Sometimes trash, sometimes treasure.", content_count, deposited_count),
+                            Content::Fire => format!("Wild Fire:\n Observed {} times, {} deposited.\n Its warmth can comfort or consume.", content_count, deposited_count),
+                            // Other cases
+                            _ => format!("Unknown Element:\n Interacted {} times, {} deposited.\n A mystery to all who encounter it.", content_count, deposited_count),
                         };
                     }
                     Interaction::None => {
@@ -2630,6 +2754,8 @@ pub fn zoom_in(mut query: Query<&mut OrthographicProjection, With<Camera>>) {
 }
 
 fn icons_upgrade(
+    mut tracker: ResMut<ContentTracker>,
+ //  mut old_value: ResMut<OldValueBackPack>,
     weather_icons: Option<Res<WeatherIcons>>,
     robot_resource: Res<RobotResource>,
     energy_query: Query<
@@ -2674,6 +2800,8 @@ fn icons_upgrade(
         update_infos(
             resource_copy.clone(),
             weather_icons,
+            tracker,
+           // old_value,
             energy_query,
             time_query,
             backpack_query,
@@ -4154,9 +4282,9 @@ fn ai_asfaltatore(robot: &mut Robottino, world: &mut robotics_lib::world::World)
     }
 
     let a = robot_view(robot, world);
-    println!("{:?}", a);
+   // println!("{:?}", a);
     let attivita = robot.activity_signal.load(Ordering::SeqCst);
-    println!("{:?}", attivita);
+   // println!("{:?}", attivita);
     let a = robot.get_backpack().get_size();
     let b = robot.get_backpack().get_contents().values().sum::<usize>();
     if b < 5 {
@@ -4178,8 +4306,8 @@ fn ai_asfaltatore(robot: &mut Robottino, world: &mut robotics_lib::world::World)
                     }
                 }
                 Some(next_action) => {
-                    println!("trovata roccia?");
-                    println!("{:?}", next_action);
+                 //   println!("trovata roccia?");
+                  //  println!("{:?}", next_action);
                     match next_action {
                         OpActionOutput::Move(dir) => {
                             go(robot, world, dir);
@@ -4189,9 +4317,9 @@ fn ai_asfaltatore(robot: &mut Robottino, world: &mut robotics_lib::world::World)
                             destroy(robot, world, dir);
                         }
                         OpActionOutput::Put(c, u, d) => {
-                            print!("depositandoooooooooooo");
+                           // print!("depositandoooooooooooo");
                             //print c u d
-                            println!("{:?} {:?} {:?}", c, u, d);
+                        //    println!("{:?} {:?} {:?}", c, u, d);
                             put(robot, world, c, u, d);
                         }
                     }
@@ -4214,7 +4342,7 @@ fn ai_asfaltatore(robot: &mut Robottino, world: &mut robotics_lib::world::World)
                         let _ = go(robot, world, direction);
                         break;
                     }
-                    println!("Il robot ha raggiunto la destinazione o il teleport.");
+                  //  println!("Il robot ha raggiunto la destinazione o il teleport.");
                 } 
             else if directions.len() == 1 {
                 for direction in directions {
