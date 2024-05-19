@@ -7,7 +7,7 @@ use robotics_lib::interface::*;
 use robotics_lib::utils::{calculate_cost_go_with_environment, go_allowed, LibError};
 
 
-pub fn nearest_teleport(robot: &impl Runnable, world: &World) -> Option<Vec<Direction>> {
+pub fn nearest_teleport(robot: &impl Runnable, world: &mut World) -> Option<Vec<Direction>> {
     let (_, (robot_x, robot_y)) = where_am_i(robot, &world);
     let map = robot_map(world).expect("Errore nella mappa");
     let mut costs: Vec<Vec<Option<(Option<(usize, usize)>, u32)>>> = vec![vec![None; map.len()]; map.len()];
@@ -47,6 +47,7 @@ pub fn nearest_teleport(robot: &impl Runnable, world: &World) -> Option<Vec<Dire
         }
     }
 
+
     // If a teleport position is found, calculate the path to that position
     if let Some(destination) = min_pos {
         let directions = get_directions_to_teleport((robot_x, robot_y), destination, &costs);
@@ -56,6 +57,92 @@ pub fn nearest_teleport(robot: &impl Runnable, world: &World) -> Option<Vec<Dire
     }
 }
 
+
+
+pub fn nearest_tile_type(robot: &impl Runnable, world: &mut World, tile_type: TileType) -> Option<Vec<Direction>> {
+    let (_, (robot_x, robot_y)) = where_am_i(robot, &world);
+    let map = robot_map(world).expect("Errore nella mappa");
+    let mut costs: Vec<Vec<Option<(Option<(usize, usize)>, u32)>>> = vec![vec![None; map.len()]; map.len()];
+    calc_cost(robot_x, robot_y, &map, &mut costs, world);
+
+    let movements: Vec<(i32, i32)> = vec![(1, 0), (-1, 0), (0, 1), (0, -1)];
+    let mut min_cost: Option<(Option<(usize, usize)>, u32)> = None;
+    let mut min_pos: Option<(usize, usize)> = None;
+
+    // Find the tile of the specified type with the minimum cost
+    for x in 0..map.len() {
+        for y in 0..map.len() {
+            match &map[x][y] {
+                None => {}
+                Some(tile) => {
+                    if tile.tile_type == tile_type {
+                        match costs[x][y] {
+                            None => {}
+                            Some((_, cost)) => {
+                                match min_cost {
+                                    None => {
+                                        min_cost = Some((Some((x, y)), cost));
+                                        min_pos = Some((x, y));
+                                    }
+                                    Some((_, min_cost_val)) => {
+                                        if cost < min_cost_val {
+                                            min_cost = Some((Some((x, y)), cost));
+                                            min_pos = Some((x, y));
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // If a tile position is found, calculate the path to that position
+    if let Some(destination) = min_pos {
+        let directions = get_directions_to_tile((robot_x, robot_y), destination, &costs);
+        Some(directions)
+    } else {
+        None
+    }
+}
+
+pub fn get_directions_to_tile(start: (usize, usize), destination: (usize, usize), costs: &Vec<Vec<Option<(Option<(usize, usize)>, u32)>>>) -> Vec<Direction> {
+    let mut path = Vec::new();
+    let mut current_pos = destination;
+
+    // Ricostruisci il percorso a ritroso dal tile alla posizione iniziale del robot
+    while current_pos != start {
+        if let Some(cost_entry) = &costs[current_pos.0][current_pos.1] {
+            if let Some(previous) = cost_entry.0 {
+                path.push(current_pos);
+                current_pos = previous;
+            } else {
+                break; // Se non c'Ã¨ un predecessore, interrompi il ciclo
+            }
+        }
+    }
+    path.push(start); // Aggiungi la posizione iniziale al percorso
+    path.reverse(); // Inverti il percorso per avere l'ordine corretto da start a destination
+
+    // Converti il percorso in direzioni
+    let mut directions = Vec::new();
+    for i in 1..path.len() {
+        let (prev_x, prev_y) = path[i - 1];
+        let (next_x, next_y) = path[i];
+        let dir = match (next_x as isize - prev_x as isize, next_y as isize - prev_y as isize) {
+            (0, 1) => Direction::Right,
+            (0, -1) => Direction::Left,
+            (1, 0) => Direction::Down,
+            (-1, 0) => Direction::Up,
+            _ => continue, // Ignora movimenti non validi (non dovrebbero presentarsi)
+        };
+        directions.push(dir);
+    }
+
+    directions
+}
 
 fn calc_cost(rob_x: usize, rob_y: usize, map: &Vec<Vec<Option<Tile>>>, costs: &mut Vec<Vec<Option<(Option<(usize, usize)>, u32)>>>, world: &World) {
     let mut pq = BinaryHeap::new();
@@ -164,6 +251,3 @@ impl PartialOrd for DijkstraItem {
         Some(self.cmp(other))
     }
 }
-
-
-

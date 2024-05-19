@@ -12,7 +12,7 @@
 [package]
 edition = "2021"
 name = "nearest_tp"
-version = "0.1.2"
+version = "0.1.7"
 authors = [
     "Andrea Richichi <andrea.richichi@studenti.unitn.it>",
     "Martin Perosa <Martin.Perosa@studenti.unitn.it>",
