@@ -121,7 +121,7 @@ struct PopupLabelText;
 const MIN_ZOOM: f32 = 0.05; 
 const MAX_ZOOM: f32 = 1.0; //1.0 se 150, 0.25 se 250
 
-const WORLD_SIZE: u32 = 75; //A 200 TROVA IL MAZE
+const WORLD_SIZE: u32 = 200; //A 200 TROVA IL MAZE
 const TILE_SIZE: f32 = 3.0; //LASCIARE A 3!
 
 
@@ -975,6 +975,8 @@ fn setup(
         })
         .insert(Explode)
         .with_children(|parent| {
+
+            //ACTIVITY BUTTON
             parent
         .spawn(ButtonBundle {
             style: Style {
@@ -1002,6 +1004,36 @@ fn setup(
             ));*/
         }) 
         .insert(ActivityButton);
+
+        //TELEPORT BUTTON
+        parent
+        .spawn(ButtonBundle {
+            style: Style {
+                width: Val::Px(70.0),
+                height: Val::Px(70.0),
+                margin: UiRect::all(Val::Px(10.0)), 
+                //border: UiRect::all(Val::Px(4.0)),
+                justify_content: JustifyContent::Center, 
+                align_items: AlignItems::Center,
+                ..default()
+            },
+            border_color: BorderColor(Color::BLACK),
+            background_color: BackgroundColor(Color::WHITE),
+            image: button_icons.play.clone().into(),
+            ..default()
+        })
+        .with_children(|parent| {
+            /* parent.spawn(TextBundle::from_section(
+                "STOP",
+                TextStyle {
+                    font_size: 25.0,
+                    color: Color::rgb(0.9, 0.9, 0.9),
+                    ..default()
+                },
+            ));*/
+        }) 
+        .insert(TeleportButton);
+    
         }).insert(RenderLayers::layer(1));
         
 
@@ -2291,7 +2323,7 @@ struct TilePosition {
     discovered_signal: Res<DiscoveredSignal>,
 ) {
     
-    if discovered_signal.signal{
+    if !discovered_signal.signal{
 
 
     let update_radius = 4;
@@ -2698,6 +2730,7 @@ fn button_system(
             Option<&IncreaseSpeed>,
             Option<&DecreaseSpeed>,
             Option<&ActivityButton>,
+            Option<&TeleportButton>,
             Option<&mut UiImage>,
         ),
         (Changed<Interaction>, With<Button>),
@@ -2718,6 +2751,7 @@ fn button_system(
     mut speed_sleep: ResMut<SleepTime>,
     mut activity_signal: Res<ActivitySignal>,
     mut camera_control: ResMut<CameraControl>,
+    mut teleport_signal: ResMut<TeleportSignal>,
     button_icons: Res<ButtonIcons>,
 ) {
     for (
@@ -2734,6 +2768,7 @@ fn button_system(
         increase_speed,
         decrease_speed,
         activity_button,
+        teleport_button,
         ui_image,
     ) in &mut interaction_query
     {
@@ -2819,6 +2854,11 @@ fn button_system(
                 else if activity_button.is_some() {
                     let current_state = activity_signal.0.load(Ordering::SeqCst);
                     activity_signal.0.store(!current_state, Ordering::SeqCst);
+                    println!("Stato di attivita cambiato: {}", !current_state);
+                }
+                else if teleport_button.is_some() {
+                    let current_state = teleport_signal.0.load(Ordering::SeqCst);
+                    teleport_signal.0.store(!current_state, Ordering::SeqCst);
                     println!("Stato di attivita cambiato: {}", !current_state);
                 }
 
@@ -3189,7 +3229,7 @@ enum AiLogic {
     Completo,
 }
 
-fn moviment(robot_data: Arc<Mutex<RobotInfo>>, map: Arc<Mutex<Vec<Vec<Option<Tile>>>>>, ai_logic: AiLogic,  shutdown_signal: Arc<AtomicBool>, paused_signal: Arc<AtomicBool>, sleep_time: Arc<AtomicU64>, activity_signal: Arc<AtomicBool>) {
+fn moviment(robot_data: Arc<Mutex<RobotInfo>>, map: Arc<Mutex<Vec<Vec<Option<Tile>>>>>, ai_logic: AiLogic,  shutdown_signal: Arc<AtomicBool>, paused_signal: Arc<AtomicBool>, sleep_time: Arc<AtomicU64>, activity_signal: Arc<AtomicBool>, teleport_signal: Arc<AtomicBool>) {
     let audio = get_audio_manager();
     let background_music = OxAgSoundConfig::new_looped_with_volume("assets/audio/background.ogg", 1.0);
 
@@ -3201,7 +3241,8 @@ fn moviment(robot_data: Arc<Mutex<RobotInfo>>, map: Arc<Mutex<Vec<Vec<Option<Til
         weather_tool: WeatherPredictionTool::new(),
         ai_logic: ai_logic,
         maze_discovered: None,
-        activity_signal: activity_signal
+        activity_signal: activity_signal,
+        teleport_signal: teleport_signal,
     };
 
 
@@ -3354,6 +3395,9 @@ struct DecreaseSpeed;
 #[derive(Component)]
 struct ActivityButton;
 
+#[derive(Component)]
+struct TeleportButton;
+
 #[derive(Resource, Debug, Default)] 
 struct ShutdownSignal(Arc<AtomicBool>);
 
@@ -3364,6 +3408,9 @@ struct PausedSignal(Arc<AtomicBool>);
 struct DiscoveredSignal{
     signal: bool,
 }
+
+#[derive(Resource, Debug, Default)] 
+struct TeleportSignal(Arc<AtomicBool>);
 
 #[derive(Resource, Debug)] 
 struct SleepTime {
@@ -3613,6 +3660,9 @@ fn menu_action(
         commands.insert_resource(ActivitySignal(activity_signal.clone()));
 
         commands.insert_resource(DiscoveredSignal{signal: false});
+
+        let teleport_signal = Arc::new(AtomicBool::new(false)); // false significa che il robot non fa attivita' principale
+        commands.insert_resource(TeleportSignal(teleport_signal.clone()));
         
         // Creazione del segnale di shutdown
         let shutdown_signal = Arc::new(AtomicBool::new(false));
@@ -3628,7 +3678,7 @@ fn menu_action(
             println!("Thread AI avviato");
     
             match std::panic::catch_unwind(|| {
-                moviment(robot_data, map, AiLogic::Falegname, shutdown_signal.clone(), paused_signal.clone(), sleep_time_arc.clone(), activity_signal.clone());
+                moviment(robot_data, map, AiLogic::Falegname, shutdown_signal.clone(), paused_signal.clone(), sleep_time_arc.clone(), activity_signal.clone(), teleport_signal.clone());
             }) {
                 Ok(_) => println!("Thread AI completato con successo"),
                 Err(_) => println!("Thread AI terminato a causa di un panic"),
@@ -3684,13 +3734,16 @@ fn menu_action(
         commands.insert_resource(ActivitySignal(activity_signal.clone()));
 
         commands.insert_resource(DiscoveredSignal{signal: false});
+
+        let teleport_signal = Arc::new(AtomicBool::new(false)); // false significa che il robot non fa attivita' principale
+        commands.insert_resource(TeleportSignal(teleport_signal.clone()));
     
         // Avvio del thread
         let thread_handle = thread::spawn(move || {
             //thread::sleep(std::time::Duration::from_secs(10));
             println!("Thread started");
             match std::panic::catch_unwind(|| {
-                moviment(robot_data, map, AiLogic::Asfaltatore, shutdown_signal.clone(), paused_signal.clone(), sleep_time_arc.clone(), activity_signal.clone());
+                moviment(robot_data, map, AiLogic::Asfaltatore, shutdown_signal.clone(), paused_signal.clone(), sleep_time_arc.clone(), activity_signal.clone(), teleport_signal.clone());
             }) {
                 Ok(_) => println!("Thread completed successfully"),
                 Err(_) => println!("Thread terminated due to panic"),
@@ -3751,13 +3804,16 @@ fn menu_action(
         commands.insert_resource(ActivitySignal(activity_signal.clone()));
 
         commands.insert_resource(DiscoveredSignal{signal: false});
+
+        let teleport_signal = Arc::new(AtomicBool::new(false)); // false significa che il robot non fa attivita' principale
+        commands.insert_resource(TeleportSignal(teleport_signal.clone()));
     
         // Avvio del thread
         let thread_handle = thread::spawn(move || {
             //thread::sleep(std::time::Duration::from_secs(10));
             println!("Thread started");
             match std::panic::catch_unwind(|| {
-                moviment(robot_data, map, AiLogic::Ricercatore, shutdown_signal.clone(), paused_signal.clone(), sleep_time_arc.clone(), activity_signal.clone());
+                moviment(robot_data, map, AiLogic::Ricercatore, shutdown_signal.clone(), paused_signal.clone(), sleep_time_arc.clone(), activity_signal.clone(), teleport_signal.clone());
             }) {
                 Ok(_) => println!("Thread completed successfully"),
                 Err(_) => println!("Thread terminated due to panic"),
@@ -3818,13 +3874,16 @@ fn menu_action(
         commands.insert_resource(ActivitySignal(activity_signal.clone()));
 
         commands.insert_resource(DiscoveredSignal{signal: false});
+
+        let teleport_signal = Arc::new(AtomicBool::new(false)); // false significa che il robot non fa attivita' principale
+        commands.insert_resource(TeleportSignal(teleport_signal.clone()));
     
         // Avvio del thread
         let thread_handle = thread::spawn(move || {
             //thread::sleep(std::time::Duration::from_secs(10));
             println!("Thread started");
             match std::panic::catch_unwind(|| {
-                moviment(robot_data, map, AiLogic::Completo, shutdown_signal.clone(), paused_signal.clone(), sleep_time_arc.clone(), activity_signal.clone());
+                moviment(robot_data, map, AiLogic::Completo, shutdown_signal.clone(), paused_signal.clone(), sleep_time_arc.clone(), activity_signal.clone(), teleport_signal.clone());
             }) {
                 Ok(_) => println!("Thread completed successfully"),
                 Err(_) => println!("Thread terminated due to panic"),
@@ -4133,6 +4192,7 @@ struct Robottino {
     ai_logic: AiLogic,
     maze_discovered: Option<(usize, usize)>,
     activity_signal: Arc<AtomicBool>,
+    teleport_signal: Arc<AtomicBool>,
 }
 
 fn solve_labirint(
