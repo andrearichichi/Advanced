@@ -121,7 +121,7 @@ struct PopupLabelText;
 const MIN_ZOOM: f32 = 0.05; 
 const MAX_ZOOM: f32 = 1.0; //1.0 se 150, 0.25 se 250
 
-const WORLD_SIZE: u32 = 200; //A 200 TROVA IL MAZE
+const WORLD_SIZE: u32 = 75; //A 200 TROVA IL MAZE
 const TILE_SIZE: f32 = 3.0; //LASCIARE A 3!
 
 
@@ -249,6 +249,10 @@ struct ButtonIcons {
     decrease: Handle<Image>,
     play: Handle<Image>,
     pause: Handle<Image>,
+    teleport: Handle<Image>,
+    teleportactive: Handle<Image>,
+    actionin: Handle<Image>,
+    actionout: Handle<Image>,
 }
 
 fn load_texture_tile_assets(commands: &mut Commands, asset_server: &Res<AssetServer>) {
@@ -588,13 +592,22 @@ fn setup(
         decrease: asset_server.load("img/decrease.png"),
         play: asset_server.load("img/pause.png"),
         pause: asset_server.load("img/play.png"),
+        teleport: asset_server.load("img/TeleportButton.png"),
+        teleportactive: asset_server.load("img/TeleportButtonActive.png"),
+        actionin: asset_server.load("img/ActionActive.png"),
+        actionout: asset_server.load("img/ActionNotActive.png"),
     };
+
 
     commands.insert_resource(ButtonIcons {
         increase: button_icons.increase.clone(),
         decrease: button_icons.decrease.clone(),
         play: button_icons.play.clone(),
         pause: button_icons.pause.clone(),
+        teleport: button_icons.teleport.clone(),
+        teleportactive: button_icons.teleportactive.clone(),
+        actionin: button_icons.actionin.clone(),
+        actionout: button_icons.actionout.clone(),
     });
 /* 
     let texture_increase_handle: Handle<Image> = asset_server.load("img/increase.png");
@@ -864,7 +877,7 @@ fn setup(
                 ..default()
             },
             border_color: BorderColor(Color::NONE),
-            background_color: BackgroundColor(Color::WHITE),
+            background_color: BackgroundColor(Color::BLACK),
             image: button_icons.decrease.clone().into(),
             ..default()
         })
@@ -898,7 +911,7 @@ fn setup(
                 ..default()
             },
             border_color: BorderColor(Color::BLACK),
-            background_color: BackgroundColor(Color::WHITE),
+            background_color: BackgroundColor(Color::BLACK),
             image: button_icons.play.clone().into(),
             ..default()
         })
@@ -928,7 +941,7 @@ fn setup(
              ..default()
          },
          border_color: BorderColor(Color::BLACK),
-         background_color: BackgroundColor(Color::WHITE),
+         background_color: BackgroundColor(Color::BLACK),
          image: button_icons.increase.clone().into(),
          ..default()
      })
@@ -990,7 +1003,7 @@ fn setup(
             },
             border_color: BorderColor(Color::BLACK),
             background_color: BackgroundColor(Color::WHITE),
-            image: button_icons.play.clone().into(),
+            image: button_icons.actionout.clone().into(),
             ..default()
         })
         .with_children(|parent| {
@@ -1019,7 +1032,7 @@ fn setup(
             },
             border_color: BorderColor(Color::BLACK),
             background_color: BackgroundColor(Color::WHITE),
-            image: button_icons.play.clone().into(),
+            image: button_icons.teleport.clone().into(),
             ..default()
         })
         .with_children(|parent| {
@@ -2854,11 +2867,21 @@ fn button_system(
                 else if activity_button.is_some() {
                     let current_state = activity_signal.0.load(Ordering::SeqCst);
                     activity_signal.0.store(!current_state, Ordering::SeqCst);
+                    if !current_state{
+                        ui_image.unwrap().texture = button_icons.actionin.clone();
+                    }else{
+                        ui_image.unwrap().texture = button_icons.actionout.clone();
+                    }
                     println!("Stato di attivita cambiato: {}", !current_state);
                 }
                 else if teleport_button.is_some() {
                     let current_state = teleport_signal.0.load(Ordering::SeqCst);
                     teleport_signal.0.store(!current_state, Ordering::SeqCst);
+                    if !current_state{
+                        ui_image.unwrap().texture = button_icons.teleportactive.clone();
+                    } else {
+                        ui_image.unwrap().texture = button_icons.teleport.clone();
+                    }
                     println!("Stato di attivita cambiato: {}", !current_state);
                 }
 
@@ -2866,11 +2889,11 @@ fn button_system(
                 border_color.0 = Color::RED;
             }
             Interaction::Hovered => {
-                *color = Color::WHITE.into();
+               *color = Color::BLACK.into();
                 border_color.0 = Color::GREEN;
             }
             Interaction::None => {
-                *color = Color::BLACK.into();
+                *color = BackgroundColor(Color::WHITE);
                 border_color.0 = Color::BLACK;
             } 
         }
