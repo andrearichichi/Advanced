@@ -65,6 +65,14 @@ use robotics_lib::{
 };
 
 #[derive(Resource, Default)]
+struct FontResource {
+    font_handle: Handle<Font>,
+    font_handle1: Handle<Font>,
+    font_handle2: Handle<Font>,
+    font_handle3: Handle<Font>,
+}
+
+#[derive(Resource, Default)]
 struct ContentTracker {
     counts: HashMap<Content, usize>,           // Mappa attuale dei conteggi per tipo di contenuto
     old_values: HashMap<Content, usize>,      // Mappa dei vecchi valori per tipo di contenuto
@@ -169,6 +177,9 @@ struct MinimapOutline;
 
 #[derive(Component, Debug)]
 struct TagEnergy;
+
+#[derive(Component, Debug)]
+struct TagCoordinate;
 
 #[derive(Component, Debug)]
 struct TagTime;
@@ -331,6 +342,10 @@ fn get_content_icons(content: &Tile, content_icons: &ContentIcons) -> Option<Han
 
 //setup main menu
 fn initial_menu_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
+
+    let font_handle2: Handle<Font> = asset_server.load("img/LondrinaSketch-Regular.ttf");
+    let font_handle3: Handle<Font> = asset_server.load("img/Lobster-Regular.ttf");
+
     
     // Qui vai a definire lo stile dei bottoni e il testo, simile a quanto fatto in main_menu_setup
     // Common style for all buttons on the screen
@@ -343,7 +358,7 @@ fn initial_menu_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         ..default()
     };
     let button_icon_style = Style {
-        width: Val::Px(30.0),
+        width: Val::Px(50.0),
         // This takes the icons out of the flexbox flow, to be positioned exactly
         position_type: PositionType::Absolute,
         // The icon will be close to the left border of the button
@@ -351,6 +366,7 @@ fn initial_menu_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         ..default()
     };
     let button_text_style = TextStyle {
+        font: font_handle3,
         font_size: 40.0,
         color: Color::rgb(0.9, 0.9, 0.9),
         ..default()
@@ -387,6 +403,7 @@ commands
                     TextBundle::from_section(
                         "AntitRust Project",
                         TextStyle {
+                            font: font_handle2,
                             font_size: 80.0,
                             color: Color::rgb(0.9, 0.9, 0.9),
                             ..default()
@@ -419,7 +436,7 @@ commands
                             ..default()
                         });
                         parent.spawn(TextBundle::from_section(
-                            "AI1",
+                            "AI_1",
                             button_text_style.clone(),
                         ));
                     });
@@ -440,7 +457,7 @@ commands
                             ..default()
                         });
                         parent.spawn(TextBundle::from_section(
-                            "AI2",
+                            "AI_2",
                             button_text_style.clone(),
                         ));
                     });
@@ -460,7 +477,7 @@ commands
                             image: UiImage::new(icon),
                             ..default()
                         });
-                        parent.spawn(TextBundle::from_section("AI3", button_text_style.clone()));
+                        parent.spawn(TextBundle::from_section("AI_3", button_text_style.clone()));
                     });
 
                     parent
@@ -479,7 +496,7 @@ commands
                             image: UiImage::new(icon),
                             ..default()
                         });
-                        parent.spawn(TextBundle::from_section("UberAI", button_text_style.clone()));
+                        parent.spawn(TextBundle::from_section("Uber_AI", button_text_style.clone()));
                     });
 
                     parent
@@ -563,6 +580,8 @@ fn setup(
     let texture_border3_handle: Handle<Image> = asset_server.load("img/border3.png");
 
     let texture_decrease_handle: Handle<Image> = asset_server.load("img/decrease.png");
+    let texture_zoom_in_handle:Handle<Image> = asset_server.load("img/ZoomIn.png");
+    let texture_zoom_out_handle:Handle<Image> = asset_server.load("img/ZoomOut.png");
 
     let button_icons = ButtonIcons {
         increase: asset_server.load("img/increase.png"),
@@ -584,6 +603,7 @@ fn setup(
 */
 
     let texture_robot_handle: Handle<Image> = asset_server.load("img/Robot.png");
+    let texture_battery_handle: Handle<Image> = asset_server.load("img/EmptyBattery.png");
 
     let content_icons = ContentIcons{
 
@@ -605,8 +625,18 @@ fn setup(
     
         };
     
-     
+    let font_handle: Handle<Font> = asset_server.load("img/Jacquard12-Regular.ttf");
+    let font_handle1: Handle<Font> = asset_server.load("img/Jersey25Charted-Regular.ttf");
+    let font_handle2: Handle<Font> = asset_server.load("img/AmaticSC-Bold.ttf");
+    let font_handle3: Handle<Font> = asset_server.load("img/SpecialElite-Regular.ttf");
 
+    commands.insert_resource(FontResource {
+        font_handle: font_handle.clone(),
+        font_handle1: font_handle1.clone(),
+        font_handle2: font_handle2.clone(),
+        font_handle3: font_handle3.clone(),
+    });
+       
     //sleep 3 secondi
     //sleep(std::time::Duration::from_secs(10));
     let world1 = shared_map.0.lock().unwrap();
@@ -674,34 +704,38 @@ fn setup(
     commands
         .spawn(NodeBundle {
             style: Style {
-               
-                width: Val::Percent(100.0),
-                height: Val::Percent(100.0),
+                // Imposta le dimensioni del rettangolo
+                width: Val::Px(250.0),
+                height: Val::Px(100.0),
                 
-                align_items: AlignItems::FlexEnd, 
-                justify_content: JustifyContent::FlexEnd, 
-                flex_direction: FlexDirection::Row,      
-              
-                padding: UiRect {
-                    left: Val::Auto,
-                    top: Val::Px(10.0),
-                    right: Val::Px(50.0),
-                    bottom: Val::Px(50.0),
-                },
+                // Posiziona il rettangolo in basso e al centro
+                position_type: PositionType::Absolute,
+                bottom: Val::Px(25.0), // Distanza dal fondo dello schermo
+                left: Val::Percent(80.0), // Centra orizzontalmente
+                border: UiRect::all(Val::Px(4.0)),
+                // Traslazione di -50% della propria larghezza per centrare esattamente
+                //translate: Transform::from_xyz(-100.0, 0.0, 0.0), 
+                
+                // Assicurati che il contenuto sia centrato (se ne hai)
+                justify_content: JustifyContent::Center,
+                align_items: AlignItems::Center,
+    
                 ..default()
             },
-            ..default()
-        })
+            border_color: BorderColor(Color::BLACK),
+            background_color: Color::rgba(1.0, 1.0, 1.0, 0.5).into(), // Colore bianco con trasparenza
+            ..default() 
+            })
         .insert(Explode)
         .with_children(|parent| {
             // Primo bottone
             parent
                 .spawn(ButtonBundle {
                     style: Style {
-                        width: Val::Px(60.0),
-                        height: Val::Px(40.0),
+                        width: Val::Px(50.0),
+                        height: Val::Px(50.0),
                         margin: UiRect::all(Val::Px(10.0)), 
-                        border: UiRect::all(Val::Px(4.0)),
+                       // border: UiRect::all(Val::Px(4.0)),
                         justify_content: JustifyContent::Center, 
                         align_items: AlignItems::Center,
 
@@ -709,10 +743,11 @@ fn setup(
                     },
                     border_color: BorderColor(Color::BLACK),
                     background_color: NORMAL_BUTTON.into(),
+                    image: texture_zoom_out_handle.into(),
                     ..default()
                 })
                 .with_children(|parent| {
-                    parent.spawn(TextBundle::from_section(
+                   /*  parent.spawn(TextBundle::from_section(
                         "-",
                         TextStyle {
                             
@@ -720,7 +755,7 @@ fn setup(
                             color: Color::rgb(0.9, 0.9, 0.9),
                             ..default()
                         },
-                    ));
+                    )); */
                 })
                 .insert(ZoomIn);
                
@@ -729,27 +764,28 @@ fn setup(
             parent
                 .spawn(ButtonBundle {
                     style: Style {
-                        width: Val::Px(60.0),
-                        height: Val::Px(40.0),
+                        width: Val::Px(50.0),
+                        height: Val::Px(50.0),
                         margin: UiRect::all(Val::Px(10.0)), 
-                        border: UiRect::all(Val::Px(4.0)),
+                       // border: UiRect::all(Val::Px(4.0)),
                         justify_content: JustifyContent::Center, 
                         align_items: AlignItems::Center,
                         ..default()
                     },
                     border_color: BorderColor(Color::BLACK),
                     background_color: NORMAL_BUTTON.into(),
+                    image: texture_zoom_in_handle.clone().into(),
                     ..default()
                 })
                 .with_children(|parent| {
-                    parent.spawn(TextBundle::from_section(
+                    /* parent.spawn(TextBundle::from_section(
                         "+",
                         TextStyle {
                             font_size: 25.0,
                             color: Color::rgb(0.9, 0.9, 0.9),
                             ..default()
                         },
-                    ));
+                    )); */
                 })
                 .insert(ZoomOut);
                 
@@ -1024,8 +1060,8 @@ fn setup(
                         ..default()
                     },
                     visibility: Visibility::Visible,
-                    border_color: BorderColor(Color::BLACK),
-                    background_color: BackgroundColor(Color::rgba(255.0, 255.0, 255.0, 0.8)),
+                    border_color: BorderColor(Color::WHITE),
+                    background_color: BackgroundColor(Color::rgba(0.3, 0.3, 0.3, 0.8)),
                     ..default()
                 })
                 .insert(Explode)
@@ -1035,8 +1071,9 @@ fn setup(
                         .spawn(TextBundle::from_section(
                             "Time \n", 
                             TextStyle {
+                                font: font_handle3.clone(),
                                 font_size: 25.0,
-                                color: Color::BLACK,
+                                color: Color::WHITE,
                                 ..default()
                             },
                         ))
@@ -1053,13 +1090,14 @@ fn setup(
                             ..default()
                         })
                         .insert(WeatherIcon);
-                    //ENERGY AND COORDINATE
+                    //ENERGY 
                     parent
                         .spawn(TextBundle::from_section(
                             "ENERGY \n", 
                             TextStyle {
+                                font: font_handle3.clone(),
                                 font_size: 25.0,
-                                color: Color::BLACK,
+                                color: Color::WHITE,
                                 ..default()
                             },
                         ))
@@ -1067,33 +1105,58 @@ fn setup(
 
                     // BARRA DELL'ENERGIA
                     // All'interno del menu a tendina
-                    parent
-                        .spawn(NodeBundle {
+                    parent.spawn(NodeBundle {
+                        style: Style {
+                            width: Val::Px(150.0),
+                            height: Val::Px(150.0),
+                            ..Default::default()
+                        },
+                      //  background_color: BackgroundColor::default(),  // Se l'immagine deve coprire tutto il nodo
+                      //  border_color: BorderColor(Color::BLACK),
+                        ..Default::default()
+                    }).with_children(|parent| {
+                        // Nodo figlio per l'immagine
+                        parent.spawn(ImageBundle {
                             style: Style {
-                                width: Val::Px(150.0),             
-                                height: Val::Px(30.0),             
-                                border: UiRect::all(Val::Px(2.0)), 
+                                position_type: PositionType::Absolute,
+                                //position: UiRect::all(Val::Auto),
+                                width: Val::Percent(100.0),
+                                height: Val::Percent(100.0),
+                               // border: UiRect { left: Val::Percent(25.0), right: Val::Percent(25.0), top: Val::Percent(25.0), bottom: Val::Percent(25.0) },
                                 ..Default::default()
                             },
-                            background_color: Color::NONE.into(),
-                            border_color: Color::BLACK.into(), 
+                           // background_color: BackgroundColor(Color::WHITE),
+                            image: texture_battery_handle.into(), 
+                            z_index: ZIndex::Global(50), // Qui si imposta l'immagine di sfondo
                             ..Default::default()
-                        })
-                        .with_children(|parent| {
-                            parent
-                                .spawn(NodeBundle {
-                                    style: Style {
-                                        width: Val::Percent(100.0), 
-                                        height: Val::Percent(100.0), 
-                                        ..Default::default()
-                                    },
-                                    background_color: Color::GREEN.into(),
-                                    border_color: Color::BLACK.into(), 
-                                    ..Default::default()
-                                })
-                                .insert(EnergyBar);
                         });
-                    //COORDINATE ROBOT
+                        
+                        // Nodo interno per la barra dell'energia
+                        parent.spawn(NodeBundle {
+                            style: Style {
+                                width: Val::Percent(40.0), // Inizia con il 50%, aggiusta dinamicamente
+                                height: Val::Percent(48.0),
+                                top: Val::Percent(25.0),
+                                left: Val::Percent(2.0),
+                                ..Default::default()
+                            },
+                            background_color: BackgroundColor(Color::GREEN),  // Usa un colore solido per la barra
+                            ..Default::default()
+                        }).insert(EnergyBar);
+                    });
+
+                    //COORDINATES
+                    parent
+                        .spawn(TextBundle::from_section(
+                            "COORDINATES: \n", 
+                            TextStyle {
+                                font: font_handle3.clone(),
+                                font_size: 25.0,
+                                color: Color::WHITE,
+                                ..default()
+                            },
+                        ))
+                        .insert(TagCoordinate);
                 })
                 .insert(Label);
                 
@@ -1213,8 +1276,8 @@ fn setup(
                             parent.spawn(TextBundle::from_section(
                                 format!("{:?}:", name.clone()),
                                 TextStyle {
-                                    //font: asset_server.load("fonts/FiraSans-Bold.ttf"),
-                                    font_size: 20.0,
+                                    font: font_handle2.clone(),
+                                    font_size: 30.0,
                                     color: Color::BLACK,
                                     ..default()
                                 },
@@ -1242,8 +1305,8 @@ fn setup(
                 border: UiRect::all(Val::Px(4.0)),
                 ..default()
             },
-            background_color: Color::rgba(1.0, 1.0, 1.0, 0.5).into(),
-            border_color: BorderColor(Color::BLACK),
+            background_color: Color::rgba(0.0, 0.0, 0.0, 0.8).into(),
+            border_color: BorderColor(Color::WHITE),
             ..default()
         }).insert(PopupLabel)
         .insert(Explode)
@@ -1252,9 +1315,11 @@ fn setup(
                 "",
                 TextStyle {
                     font_size: 15.0,
-                    color: Color::BLACK,
+                    font: font_handle1.into(),
+                    color: Color::WHITE,
                     ..default()
                 },
+                
             )).insert(PopupLabelText)
             .insert(Explode); // Assicurati di inserire PopupLabelText qui
         });
@@ -1472,7 +1537,18 @@ fn update_infos(
             Without<Roboto>,
             Without<TagTime>,
             Without<TagBackPack>,
+            Without<TagCoordinate>,
         ),
+    >,
+    mut coordinate_quert: Query<
+        &mut Text,
+        (
+            With<TagCoordinate>,
+            Without<Roboto>,
+            Without<TagTime>,
+            Without<TagBackPack>,
+            Without<TagEnergy>,
+        )
     >,
     mut time_query: Query<
         &mut Text,
@@ -1481,6 +1557,7 @@ fn update_infos(
             Without<TagEnergy>,
             Without<Roboto>,
             Without<TagBackPack>,
+            Without<TagCoordinate>,
         ),
     >,
     mut backpack_query: Query<
@@ -1491,28 +1568,52 @@ fn update_infos(
             Without<TagEnergy>,
             Without<Roboto>,
             Without<TagTime>,
+            Without<TagCoordinate>,
         ),
     >,
     mut battery_query: Query<(&mut Style, &mut BackgroundColor), With<EnergyBar>>,
     mut sun_query: Query<&mut Sprite, With<SunTime>>,
     mut weather_image_query: Query<&mut UiImage, With<WeatherIcon>>,
+    font_res: Res<FontResource>,
 ) {
     
     //TESTO ENERGY E COORDINATE
     for mut text in energy_query.iter_mut() {
         text.sections[0].value = format!(
-            "Energy: {}\n\n X: {}, Y: {}\n\n",
-            resource.energy_level, resource.coordinate_column, resource.coordinate_row
+            "Energy: {}\n\n",
+            resource.energy_level,
         );
     }
+
+    for mut text in coordinate_quert.iter_mut() {
+        text.sections[0].value = format!(
+            "Coordinates: X: {}, Y:{}",  resource.coordinate_column, resource.coordinate_row
+        );
+    }
+
     //TESTO TIME E WEATHER
     for mut text in time_query.iter_mut() {
         if resource.current_weather.is_some() {
-            text.sections[0].value = format!(
-                "Time: {}\n\n Weather: {:?}\n\n",
-                resource.time,
-                resource.current_weather.unwrap()
-            );
+            text.sections = vec![
+                TextSection {
+                    value: format!("\nTIME: {:?}\n\n", resource.time),
+                    style: TextStyle {
+                      font: font_res.font_handle3.clone(), // Assicurati di avere il font handle corretto qui
+                        font_size: 40.0, // Font size più piccolo per 'Weather'
+                    color: Color::WHITE,
+                       
+                    },
+                },
+            TextSection {
+                value: format!("Weather: {:?}\n\n", resource.current_weather.unwrap()),
+                style: TextStyle {
+                  font: font_res.font_handle3.clone(), // Assicurati di avere il font handle corretto qui
+                    font_size: 25.0, // Font size più piccolo per 'Weather'
+                   color: Color::WHITE,
+                   
+                },
+            },
+        ];
         }
     }
     //TESTO BACKPACK
@@ -1566,7 +1667,7 @@ fn update_infos(
             _ => Color::RED.into(),
         };
         // Aggiorna la larghezza in base alla percentuale dell'energia
-        style.width = Val::Percent(percentage * 100.0);
+        style.width = Val::Percent(percentage * 82.0);
     }
 
     //SUN MOVEMENT
@@ -1641,6 +1742,7 @@ fn update_infos(
             };
 
             image.texture = image_handle;
+
         } else {
             
         }
@@ -2186,7 +2288,12 @@ struct TilePosition {
     mut last_update: ResMut<LastUpdate>,
     mut query: Query<(Entity, &TilePosition), With<Sprite>>,
     mut content_counter: ResMut<ContentCounter>,
+    discovered_signal: Res<DiscoveredSignal>,
 ) {
+    
+    if discovered_signal.signal{
+
+
     let update_radius = 4;
     let mut count = 0;
     let mut despawn_count = 0;
@@ -2245,6 +2352,21 @@ struct TilePosition {
             }
         }
     }
+} else{
+
+    for (x, row) in world.iter().enumerate() {
+        for (y, tile) in row.iter().enumerate() {
+            let old_tile = &old_world[y][x];
+            // Se il nuovo tile non e' None e il vecchio tile e' None, spawnalo
+            if tile.is_some()
+                && (old_tile.is_none()
+                    || old_tile.clone().unwrap().content != tile.clone().unwrap().content)
+            {
+                spawn_tile(&tile.clone().unwrap(), y, x, &mut commands, &tile_icons, &content_icons, &mut content_counter);
+        }
+    }
+    }
+}
 }
 
 /* fn despawn_tiles(
@@ -2264,12 +2386,13 @@ struct TilePosition {
 //************************************************INSERIRE DESPAWN******************************************** */
 fn update_show_tiles_maze(
     world: &Vec<Vec<Option<Tile>>>,
-    commands: &mut Commands,
+    mut commands: &mut Commands,
     old_world: &mut Vec<Vec<Option<Tile>>>,
     tile_icons: &Res<TileIcons>,
     content_icons: &Res<ContentIcons>,
     robot_position: &Res<RobotPosition>,
     mut last_update: ResMut<LastUpdate>,
+    mut query: Query<(Entity, &TilePosition), With<Sprite>>,
     mut content_counter: ResMut<ContentCounter>,
 ) {
     if last_update.0.elapsed() >= Duration::new(5, 0) {
@@ -2280,14 +2403,15 @@ fn update_show_tiles_maze(
                 let old_tile = &old_world[y][x];
                 if tile.is_some() && (old_tile.is_none() || old_tile.as_ref().unwrap().content != tile.as_ref().unwrap().content) {
                     count += 1;
-                    spawn_tile(tile.as_ref().unwrap(), x, y, commands, &tile_icons, &content_icons, &mut content_counter);
+                    spawn_tile(tile.as_ref().unwrap(), y, x, commands, &tile_icons, &content_icons, &mut content_counter);
                     // Aggiorna il vecchio mondo con il nuovo tile
-                    old_world[x][y] = Some(tile.clone().unwrap());
+                    old_world[y][x] = Some(tile.clone().unwrap());
                 }
             }
         }
       //  println!("I TILE AGGIORNATI SONO: {}", count);
     } else {
+
         let update_radius = 2;
         let mut count = 0;
         let player_x = robot_position.x as usize / TILE_SIZE as usize;
@@ -2302,17 +2426,51 @@ fn update_show_tiles_maze(
         // Itera solo sui tile vicini al robot
         for x in start_x..=end_x {
             for y in start_y..=end_y {
-                let tile = &world[y][x];
-                let old_tile = &old_world[y][x];
-                if tile.is_some() && (old_tile.is_none() || old_tile.as_ref().unwrap().content != tile.as_ref().unwrap().content) {
-                    count += 1;
-                    spawn_tile(tile.as_ref().unwrap(), x, y, commands, &tile_icons, &content_icons, &mut content_counter);
-                    // Aggiorna il vecchio mondo con il nuovo tile
-                    old_world[x][y] = Some(tile.clone().unwrap());
+                // Potenziale inversione degli indici qui se necessario
+                let current_tile = &world[y][x];
+                let old_content = old_world[y][x].as_ref().map(|t| t.content.clone());
+    
+    
+                    if let Some(new_tile) = current_tile {
+                        // Controllo se il tile attuale è una strada o se ci sono cambiamenti nei contenuti.
+                        let is_street = matches!(new_tile.tile_type, TileType::Street);
+                        let content_changed = old_world[y][x].is_none() || old_content != Some(new_tile.content.clone());
+                    
+                        if is_street || content_changed {
+                            count += 1;
+                            // Despawna il tile esistente prima di rispawnarlo, se è una strada
+                            if is_street {
+                                for (entity, pos) in query.iter_mut() {
+                                    if pos.x == x && pos.y == y {
+                                        commands.entity(entity).despawn_recursive();
+                                     //  println!("despawned: {:?} pos {:?}", entity, pos);
+                                        break; // Despawna solo l'entità corrispondente a quella posizione
+                                    }
+                                }
+                            }
+                            // Risppawna il tile
+                            spawn_tile(new_tile, x, y, &mut commands, &tile_icons, &content_icons, &mut content_counter);
+                            old_world[y][x] = Some(new_tile.clone());
+                        }
+                    }
+    
+                  
+    
+                if let Some(old_content_unwrapped) = old_content {
+                    if current_tile.is_none() || current_tile.as_ref().unwrap().content == Content::None {
+                        if old_content_unwrapped != Content::None {
+                            for (entity, pos) in query.iter_mut() {
+                                if pos.x == x && pos.y == y {
+                                    commands.entity(entity).despawn_recursive();
+                                   // despawn_count += 1;
+                                }
+                            }
+                            old_world[y][x] = current_tile.clone();
+                        }
+                    }
                 }
             }
         }
-      //  println!("I TILE AGGIORNATI SONO: {}", count);
     }
 }
 
@@ -2758,38 +2916,51 @@ fn icons_upgrade(
  //  mut old_value: ResMut<OldValueBackPack>,
     weather_icons: Option<Res<WeatherIcons>>,
     robot_resource: Res<RobotResource>,
-    energy_query: Query<
+    mut energy_query: Query<
         &mut Text,
         (
             With<TagEnergy>,
             Without<Roboto>,
             Without<TagTime>,
             Without<TagBackPack>,
+            Without<TagCoordinate>,
         ),
     >,
-    time_query: Query<
+    mut coordinate_quert: Query<
+        &mut Text,
+        (
+            With<TagCoordinate>,
+            Without<Roboto>,
+            Without<TagTime>,
+            Without<TagBackPack>,
+            Without<TagEnergy>,
+        )
+    >,
+    mut time_query: Query<
         &mut Text,
         (
             With<TagTime>,
             Without<TagEnergy>,
             Without<Roboto>,
             Without<TagBackPack>,
+            Without<TagCoordinate>,
         ),
     >,
-    backpack_query: Query<
-    (&mut Text,
-        &TagItem),
-
-        (
+    mut backpack_query: Query<
+        ( &mut Text,
+           &TagItem),       
+            (
             With<TagBackPack>,
             Without<TagEnergy>,
             Without<Roboto>,
             Without<TagTime>,
+            Without<TagCoordinate>,
         ),
     >,
     battery_query: Query<(&mut Style, &mut BackgroundColor), With<EnergyBar>>,
     sun_query: Query<&mut Sprite, With<SunTime>>,
     weather_image_query: Query<&mut UiImage, With<WeatherIcon>>,
+    font_res: Res<FontResource>,
 ){
     if let Some(weather_icons) = weather_icons {
 
@@ -2803,11 +2974,13 @@ fn icons_upgrade(
             tracker,
            // old_value,
             energy_query,
+            coordinate_quert,
             time_query,
             backpack_query,
             battery_query,
             sun_query,
             weather_image_query,
+            font_res,
         );
     }
 }
@@ -2838,12 +3011,13 @@ fn robot_movement_system_maze(
     robot_position: Res<RobotPosition>,
     last_update: ResMut<LastUpdate>, 
     content_counter: ResMut<ContentCounter>,
+    mut query_sprite: Query<(Entity, &TilePosition), With<Sprite>>,
     
 ) {
     let world = world.0.lock().unwrap();
     if let Ok(mut old_world_res) = old_world_query.get_single_mut() {
         let old_world = &mut old_world_res.world;
-        update_show_tiles_maze(&world, &mut commands, old_world, &tile_icons, &content_icons, &robot_position, last_update, content_counter); // Passa direttamente old_world
+        update_show_tiles_maze(&world, &mut commands, old_world, &tile_icons, &content_icons, &robot_position, last_update, query_sprite, content_counter); // Passa direttamente old_world
     }
     drop(world);
     let resource = robot_resource.0.lock().unwrap();
@@ -2864,14 +3038,14 @@ fn robot_movement_system_maze(
     // );
 
     for mut transform in query.iter_mut() {
-        transform.translation.y = tile_step * resource_copy.coordinate_column as f32;
-        transform.translation.x = tile_step * resource_copy.coordinate_row as f32;
+        transform.translation.x = tile_step * resource_copy.coordinate_column as f32;
+        transform.translation.y = tile_step * resource_copy.coordinate_row as f32;
     }
 }
 
 
 fn robot_movement_system(
-    mut commands: Commands,
+    commands: Commands,
     mut transform_query: Query<
         &mut Transform,
         (
@@ -2892,12 +3066,13 @@ fn robot_movement_system(
     mut last_update: ResMut<LastUpdate>,
     mut tile_position_query: Query<(Entity, &TilePosition), With<Sprite>>,
     mut content_counter: ResMut<ContentCounter>,
+    discovered_signal: Res<DiscoveredSignal>,
 ) {
     let world = world.0.lock().unwrap();
     if let Ok(mut old_world_res) = old_world_query.get_single_mut() {
         let old_world = &mut old_world_res.world;
         // Corretto il passaggio di parametri a update_show_tiles
-        update_show_tiles(&world, commands, old_world, tile_icons, content_icons, robot_position, last_update, tile_position_query, content_counter);
+        update_show_tiles(&world, commands, old_world, tile_icons, content_icons, robot_position, last_update, tile_position_query, content_counter, discovered_signal);
     }
     drop(world);
     let resource = robot_resource.0.lock().unwrap();
@@ -3185,6 +3360,11 @@ struct ShutdownSignal(Arc<AtomicBool>);
 #[derive(Resource, Debug, Default)] 
 struct PausedSignal(Arc<AtomicBool>);
 
+#[derive(Resource, Debug, Default)] 
+struct DiscoveredSignal{
+    signal: bool,
+}
+
 #[derive(Resource, Debug)] 
 struct SleepTime {
     millis: Arc<AtomicU64>,
@@ -3431,6 +3611,8 @@ fn menu_action(
 
         let activity_signal = Arc::new(AtomicBool::new(false)); // false significa che il robot non fa attivita' principale
         commands.insert_resource(ActivitySignal(activity_signal.clone()));
+
+        commands.insert_resource(DiscoveredSignal{signal: false});
         
         // Creazione del segnale di shutdown
         let shutdown_signal = Arc::new(AtomicBool::new(false));
@@ -3497,8 +3679,11 @@ fn menu_action(
 
         commands.insert_resource(ShutdownSignal(shutdown_signal.clone()));
         commands.insert_resource(PausedSignal(paused_signal.clone()));
+
         let activity_signal = Arc::new(AtomicBool::new(false)); // false significa che il robot non fa attivita' principale
         commands.insert_resource(ActivitySignal(activity_signal.clone()));
+
+        commands.insert_resource(DiscoveredSignal{signal: false});
     
         // Avvio del thread
         let thread_handle = thread::spawn(move || {
@@ -3564,6 +3749,8 @@ fn menu_action(
         commands.insert_resource(PausedSignal(paused_signal.clone()));
         let activity_signal = Arc::new(AtomicBool::new(false)); // false significa che il robot non fa attivita' principale
         commands.insert_resource(ActivitySignal(activity_signal.clone()));
+
+        commands.insert_resource(DiscoveredSignal{signal: false});
     
         // Avvio del thread
         let thread_handle = thread::spawn(move || {
@@ -3629,6 +3816,8 @@ fn menu_action(
         commands.insert_resource(PausedSignal(paused_signal.clone()));
         let activity_signal = Arc::new(AtomicBool::new(false)); // false significa che il robot non fa attivita' principale
         commands.insert_resource(ActivitySignal(activity_signal.clone()));
+
+        commands.insert_resource(DiscoveredSignal{signal: false});
     
         // Avvio del thread
         let thread_handle = thread::spawn(move || {
@@ -3779,7 +3968,7 @@ fn menu_action(
          .add_systems(OnEnter(MenuState::Ai3), (setup, start_in_ai3))
          .add_systems(OnEnter(Ai3_State::In), (set_camera_viewports, start_update_ai3))
          .add_systems(OnExit(MenuState::Ai3),(stop_ai_thread, despawn_screen::<Explode>, despawn_screentry::<Explodetry>))
-         .add_systems(Update, (icons_upgrade, cursor_events, robot_movement_system_maze, update_robot_position, follow_robot_system, button_system, button_system_backpack, update_minimap_outline,)
+         .add_systems(Update, (icons_upgrade, cursor_events, robot_movement_system, update_robot_position, follow_robot_system, button_system, button_system_backpack, update_minimap_outline,)
          .run_if(in_state(Ai3_State::Run)));
  
  
@@ -3834,7 +4023,7 @@ fn menu_action(
             .add_systems(OnEnter(MenuState::UberAi), (setup, start_in_uberai))
             .add_systems(OnEnter(UberAi_State::In), (set_camera_viewports, start_update_uberai))
             .add_systems(OnExit(MenuState::UberAi),(stop_ai_thread, despawn_screen::<Explode>, despawn_screentry::<Explodetry>))
-            .add_systems(Update, (icons_upgrade, cursor_events, robot_movement_system_maze, update_robot_position, follow_robot_system, button_system, button_system_backpack, update_minimap_outline,)
+            .add_systems(Update, (icons_upgrade, cursor_events, robot_movement_system, update_robot_position, follow_robot_system, button_system, button_system_backpack, update_minimap_outline,)
             .run_if(in_state(UberAi_State::Run)));
     
     
