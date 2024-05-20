@@ -2902,12 +2902,36 @@ fn button_system(
                 border_color.0 = Color::RED;
             }
             Interaction::Hovered => {
-               *color = Color::BLACK.into();
-                border_color.0 = Color::GREEN;
+                if dropdownback.is_some() {
+                    *color = Color::BLACK.into();
+                    border_color.0 = Color::GREEN;
+                } else if closeapp.is_some() {
+                   *color = Color::BLACK.into();
+                   border_color.0 = Color::GREEN;
+                } else if dropdown.is_some() {
+                    *color = Color::BLACK.into();
+                    border_color.0 = Color::GREEN;
+                } else {
+                    *color = Color::BLACK.into();
+                    border_color.0 = Color::GREEN;
+                }
             }
+            
+            
             Interaction::None => {
-                *color = BackgroundColor(Color::WHITE);
-                border_color.0 = Color::BLACK;
+                if dropdownback.is_some() {
+                    *color = Color::DARK_GRAY.into();
+                    border_color.0 = Color::BLACK;
+                } else if closeapp.is_some() {
+                    *color = Color::DARK_GRAY.into();
+                    border_color.0 = Color::BLACK;
+                } else if dropdown.is_some() {
+                    *color = Color::DARK_GRAY.into();
+                    border_color.0 = Color::BLACK;
+                } else{
+                    *color = Color::WHITE.into();
+                    border_color.0 = Color::BLACK;
+                }
             } 
         }
     }
