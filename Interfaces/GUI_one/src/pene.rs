@@ -18,7 +18,7 @@ pub fn nearest_tile_type(robot: &impl Runnable, world: &mut World, tile_type: Ti
     let movements: Vec<(i32, i32)> = vec![(1, 0), (-1, 0), (0, 1), (0, -1)];
     let mut min_cost: Option<(Option<(usize, usize)>, u32)> = None;
     let mut min_pos: Option<(usize, usize)> = None;
-
+    println!("{:?}", tile_type);
     // Find the tile of the specified type with the minimum cost
     for x in 0..map.len() {
         for y in 0..map.len() {
@@ -26,6 +26,8 @@ pub fn nearest_tile_type(robot: &impl Runnable, world: &mut World, tile_type: Ti
                 None => {}
                 Some(tile) => {
                     if tile.tile_type == tile_type && (!no_content_tile || tile.content == Content::None) {
+                        println!("Tile found");
+                        println!("{:?}", costs[x][y]);
                         match costs[x][y] {
                             None => {}
                             Some((_, cost)) => {
@@ -112,7 +114,7 @@ fn calc_cost(rob_x: usize, rob_y: usize, map: &Vec<Vec<Option<Tile>>>, costs: &m
                 let ny = (y as i32 + m.1) as usize;
                 match &map[nx][ny] {
                     None => {
-                        let mut base_cost: usize = 30;
+                        let mut base_cost: usize = 15;
                         let mut elevation_cost = 0;
 
                         // Get informations that influence the cost
@@ -127,7 +129,7 @@ fn calc_cost(rob_x: usize, rob_y: usize, map: &Vec<Vec<Option<Tile>>>, costs: &m
                         }
                     }
                     Some(tile) => {
-                        if tile.tile_type.properties().walk() {
+                        if tile.tile_type.properties().walk() || tile.tile_type == TileType::Wall {
                             // let cost = TileType::properties(&tile.tile_type).cost() as u32;
                             // Init costs
                             // I guess I should have participated more in the development, that way I would have avoided this copy and paste from the main lib.

@@ -2599,7 +2599,7 @@ fn update_show_tiles_maze(
                 .insert(Explode);
             }
 
-            println!("I CONTENT SONO: {}", content_counter.count);
+            // println!("I CONTENT SONO: {}", content_counter.count);
         } 
     }
 
@@ -2691,7 +2691,7 @@ fn button_system_backpack(
     mut popup_text_query: Query<&mut Text, With<PopupLabelText>>,
 ) {
     for (interaction, tag_item) in interaction_query.iter_mut() {
-        println!("Interaction: {:?}", interaction);  // Debug: stampa lo stato dell'interazione
+        // println!("Interaction: {:?}", interaction);  // Debug: stampa lo stato dell'interazione
 
         if let Ok((mut popup_style)) = popup_query.get_single_mut() {
             if let Ok(mut popup_text) = popup_text_query.get_single_mut() {
@@ -4405,7 +4405,9 @@ fn find_entrance(
 
 fn go_to_maze(robot: &mut Robottino, world: &mut robotics_lib::world::World, maze: (usize, usize)) {
     let mut last_direction = Direction::Up;
-    if let Some(directions) = nearest_tile_type(robot, world, TileType::Wall, true) {
+    if let Some(directions) = nearest_tile_type(robot, world, TileType::Wall, false) {
+        println!("Il robot ha trovato il muro più vicino.");
+        println!("{:?}", directions);
         for direction in directions {
             last_direction = direction.clone();
             let _ = go(robot, world, direction);
@@ -4414,7 +4416,7 @@ fn go_to_maze(robot: &mut Robottino, world: &mut robotics_lib::world::World, maz
         }
             //  println!("Il robot ha raggiunto la destinazione o il teleport.");
     }
-    // find_entrance(robot, world, last_direction);
+    find_entrance(robot, world, last_direction);
 }
 
 fn set_maze_location(robot: &mut Robottino, row: usize, column: usize) {
@@ -4481,33 +4483,27 @@ fn ai_labirint(robot: &mut Robottino, world: &mut robotics_lib::world::World) {
       
     }
     
+    if !robot.firstcall_signal.load(Ordering::SeqCst) {
+        println!("ENTRATOOOOOOOOOOOOOOO");
+        robot.discover_signal.store(true, Ordering::SeqCst);
+        robot.firstcall_signal.store(true, Ordering::SeqCst);
+    }
     
     if robot.robot.energy.get_energy_level() < 300 {
         robot.robot.energy = rust_and_furious_dynamo::dynamo::Dynamo::update_energy();
     }
     robot_view(robot, world);
-    // print robot.maze_discovered
-    println!("{:?}", robot.maze_discovered);
-    //move robot to the maze with go function i can move up down left right
+    
+    // let tiles_option = cheapest_border(world, robot);
+    //                 if let Some(tiles) = tiles_option {
+    //                      let result = move_to_cheapest_border(world, robot, tiles);
+    //                 }
+
     if let Some((row, col)) = robot.maze_discovered {
         go_to_maze(robot, world, (row, col));
-    } else {
-       
-        
-    }
-    
-   if !robot.firstcall_signal.load(Ordering::SeqCst) {
-    println!("ENTRATOOOOOOOOOOOOOOO");
-        robot.discover_signal.store(true, Ordering::SeqCst);
-        robot.firstcall_signal.store(true, Ordering::SeqCst);
-      
-    }
-    
+    } 
 
-    let tiles_option = cheapest_border(world, robot);
-        if let Some(tiles) = tiles_option {
-                let result = move_to_cheapest_border(world, robot, tiles);             
-        }
+    
 
 }
 fn ai_taglialegna(robot: &mut Robottino, world: &mut robotics_lib::world::World) {
