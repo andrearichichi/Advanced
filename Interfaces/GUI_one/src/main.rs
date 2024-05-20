@@ -2400,7 +2400,7 @@ struct TilePosition {
         }
     } else{
         println!("porcodio");
-
+        sleep(Duration::from_secs(2));
         for (x, row) in world.iter().enumerate() {
             for (y, tile) in row.iter().enumerate() {
                 let old_tile = &old_world[y][x];
@@ -4413,10 +4413,13 @@ fn go_to_maze(robot: &mut Robottino, world: &mut robotics_lib::world::World, maz
             let _ = go(robot, world, direction);
             let current_sleep_time = robot.sleep_time_signal.load(Ordering::SeqCst);
             std::thread::sleep(Duration::from_millis(current_sleep_time));
+            break;
         }
             //  println!("Il robot ha raggiunto la destinazione o il teleport.");
+    } else {
+
+        find_entrance(robot, world, last_direction);
     }
-    find_entrance(robot, world, last_direction);
 }
 
 fn set_maze_location(robot: &mut Robottino, row: usize, column: usize) {
@@ -4486,7 +4489,6 @@ fn ai_labirint(robot: &mut Robottino, world: &mut robotics_lib::world::World) {
     if !robot.firstcall_signal.load(Ordering::SeqCst) {
         println!("ENTRATOOOOOOOOOOOOOOO");
         robot.discover_signal.store(true, Ordering::SeqCst);
-        robot.firstcall_signal.store(true, Ordering::SeqCst);
     }
     
     if robot.robot.energy.get_energy_level() < 300 {
@@ -4498,7 +4500,10 @@ fn ai_labirint(robot: &mut Robottino, world: &mut robotics_lib::world::World) {
     //                 if let Some(tiles) = tiles_option {
     //                      let result = move_to_cheapest_border(world, robot, tiles);
     //                 }
-
+    if !robot.firstcall_signal.load(Ordering::SeqCst) {
+        sleep(Duration::from_millis(500));
+        robot.firstcall_signal.store(true, Ordering::SeqCst);
+    }
     if let Some((row, col)) = robot.maze_discovered {
         go_to_maze(robot, world, (row, col));
     } 
