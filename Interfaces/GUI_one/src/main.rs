@@ -4408,6 +4408,9 @@ fn go_to_maze(robot: &mut Robottino, world: &mut robotics_lib::world::World, maz
     if let Some(directions) = nearest_tile_type(robot, world, TileType::Wall, false) {
         println!("Il robot ha trovato il muro più vicino.");
         println!("{:?}", directions);
+        if directions.len() == 1 {
+            // find_entrance(robot, world, last_direction); bugged
+        }
         for direction in directions {
             last_direction = direction.clone();
             let _ = go(robot, world, direction);
@@ -4416,9 +4419,6 @@ fn go_to_maze(robot: &mut Robottino, world: &mut robotics_lib::world::World, maz
             break;
         }
             //  println!("Il robot ha raggiunto la destinazione o il teleport.");
-    } else {
-
-        find_entrance(robot, world, last_direction);
     }
 }
 
