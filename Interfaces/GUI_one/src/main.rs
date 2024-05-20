@@ -2339,7 +2339,7 @@ struct TilePosition {
     discovered_signal: Res<DiscoveredSignal>,
 ) {
     
-    if !discovered_signal.signal{
+    if !discovered_signal.0.load(Ordering::SeqCst){
 
 
     let update_radius = 4;
@@ -3255,7 +3255,7 @@ enum AiLogic {
     Completo,
 }
 
-fn moviment(robot_data: Arc<Mutex<RobotInfo>>, map: Arc<Mutex<Vec<Vec<Option<Tile>>>>>, ai_logic: AiLogic,  shutdown_signal: Arc<AtomicBool>, paused_signal: Arc<AtomicBool>, sleep_time: Arc<AtomicU64>, activity_signal: Arc<AtomicBool>, teleport_signal: Arc<AtomicBool>) {
+fn moviment(robot_data: Arc<Mutex<RobotInfo>>, map: Arc<Mutex<Vec<Vec<Option<Tile>>>>>, ai_logic: AiLogic,  shutdown_signal: Arc<AtomicBool>, paused_signal: Arc<AtomicBool>, sleep_time: Arc<AtomicU64>, activity_signal: Arc<AtomicBool>, teleport_signal: Arc<AtomicBool>, discovered_signal: Arc<AtomicBool>) {
     let audio = get_audio_manager();
     let background_music = OxAgSoundConfig::new_looped_with_volume("assets/audio/background.ogg", 1.0);
 
@@ -3270,7 +3270,7 @@ fn moviment(robot_data: Arc<Mutex<RobotInfo>>, map: Arc<Mutex<Vec<Vec<Option<Til
         activity_signal: activity_signal,
         teleport_signal: teleport_signal,
         sleep_time_signal: sleep_time.clone(),
-        discover_signal: DiscoveredSignal{signal: false},
+        discover_signal: discovered_signal,
     };
 
 
@@ -3433,9 +3433,7 @@ struct ShutdownSignal(Arc<AtomicBool>);
 struct PausedSignal(Arc<AtomicBool>);
 
 #[derive(Resource, Debug, Default)] 
-struct DiscoveredSignal{
-    signal: bool,
-}
+struct DiscoveredSignal(Arc<AtomicBool>);
 
 #[derive(Resource, Debug, Default)] 
 struct TeleportSignal(Arc<AtomicBool>);
@@ -3687,7 +3685,8 @@ fn menu_action(
         let activity_signal = Arc::new(AtomicBool::new(false)); // false significa che il robot non fa attivita' principale
         commands.insert_resource(ActivitySignal(activity_signal.clone()));
 
-        commands.insert_resource(DiscoveredSignal{signal: false});
+        let discovered_signal = Arc::new(AtomicBool::new(false)); // false significa che il robot non fa attivita' principale
+        commands.insert_resource(DiscoveredSignal(discovered_signal.clone()));
 
         let teleport_signal = Arc::new(AtomicBool::new(false)); // false significa che il robot non fa attivita' principale
         commands.insert_resource(TeleportSignal(teleport_signal.clone()));
@@ -3706,7 +3705,7 @@ fn menu_action(
             println!("Thread AI avviato");
     
             match std::panic::catch_unwind(|| {
-                moviment(robot_data, map, AiLogic::Falegname, shutdown_signal.clone(), paused_signal.clone(), sleep_time_arc.clone(), activity_signal.clone(), teleport_signal.clone());
+                moviment(robot_data, map, AiLogic::Falegname, shutdown_signal.clone(), paused_signal.clone(), sleep_time_arc.clone(), activity_signal.clone(), teleport_signal.clone(), discovered_signal.clone());
             }) {
                 Ok(_) => println!("Thread AI completato con successo"),
                 Err(_) => println!("Thread AI terminato a causa di un panic"),
@@ -3761,7 +3760,8 @@ fn menu_action(
         let activity_signal = Arc::new(AtomicBool::new(false)); // false significa che il robot non fa attivita' principale
         commands.insert_resource(ActivitySignal(activity_signal.clone()));
 
-        commands.insert_resource(DiscoveredSignal{signal: false});
+        let discovered_signal = Arc::new(AtomicBool::new(false)); // false significa che il robot non fa attivita' principale
+        commands.insert_resource(DiscoveredSignal(discovered_signal.clone()));
 
         let teleport_signal = Arc::new(AtomicBool::new(false)); // false significa che il robot non fa attivita' principale
         commands.insert_resource(TeleportSignal(teleport_signal.clone()));
@@ -3771,7 +3771,7 @@ fn menu_action(
             //thread::sleep(std::time::Duration::from_secs(10));
             println!("Thread started");
             match std::panic::catch_unwind(|| {
-                moviment(robot_data, map, AiLogic::Asfaltatore, shutdown_signal.clone(), paused_signal.clone(), sleep_time_arc.clone(), activity_signal.clone(), teleport_signal.clone());
+                moviment(robot_data, map, AiLogic::Asfaltatore, shutdown_signal.clone(), paused_signal.clone(), sleep_time_arc.clone(), activity_signal.clone(), teleport_signal.clone(), discovered_signal.clone());
             }) {
                 Ok(_) => println!("Thread completed successfully"),
                 Err(_) => println!("Thread terminated due to panic"),
@@ -3831,7 +3831,8 @@ fn menu_action(
         let activity_signal = Arc::new(AtomicBool::new(false)); // false significa che il robot non fa attivita' principale
         commands.insert_resource(ActivitySignal(activity_signal.clone()));
 
-        commands.insert_resource(DiscoveredSignal{signal: false});
+        let discovered_signal = Arc::new(AtomicBool::new(false)); // false significa che il robot non fa attivita' principale
+        commands.insert_resource(DiscoveredSignal(discovered_signal.clone()));
 
         let teleport_signal = Arc::new(AtomicBool::new(false)); // false significa che il robot non fa attivita' principale
         commands.insert_resource(TeleportSignal(teleport_signal.clone()));
@@ -3841,7 +3842,7 @@ fn menu_action(
             //thread::sleep(std::time::Duration::from_secs(10));
             println!("Thread started");
             match std::panic::catch_unwind(|| {
-                moviment(robot_data, map, AiLogic::Ricercatore, shutdown_signal.clone(), paused_signal.clone(), sleep_time_arc.clone(), activity_signal.clone(), teleport_signal.clone());
+                moviment(robot_data, map, AiLogic::Ricercatore, shutdown_signal.clone(), paused_signal.clone(), sleep_time_arc.clone(), activity_signal.clone(), teleport_signal.clone(), discovered_signal.clone());
             }) {
                 Ok(_) => println!("Thread completed successfully"),
                 Err(_) => println!("Thread terminated due to panic"),
@@ -3901,7 +3902,8 @@ fn menu_action(
         let activity_signal = Arc::new(AtomicBool::new(false)); // false significa che il robot non fa attivita' principale
         commands.insert_resource(ActivitySignal(activity_signal.clone()));
 
-        commands.insert_resource(DiscoveredSignal{signal: false});
+        let discovered_signal = Arc::new(AtomicBool::new(false)); // false significa che il robot non fa attivita' principale
+        commands.insert_resource(DiscoveredSignal(discovered_signal.clone()));
 
         let teleport_signal = Arc::new(AtomicBool::new(false)); // false significa che il robot non fa attivita' principale
         commands.insert_resource(TeleportSignal(teleport_signal.clone()));
@@ -3911,7 +3913,7 @@ fn menu_action(
             //thread::sleep(std::time::Duration::from_secs(10));
             println!("Thread started");
             match std::panic::catch_unwind(|| {
-                moviment(robot_data, map, AiLogic::Completo, shutdown_signal.clone(), paused_signal.clone(), sleep_time_arc.clone(), activity_signal.clone(), teleport_signal.clone());
+                moviment(robot_data, map, AiLogic::Completo, shutdown_signal.clone(), paused_signal.clone(), sleep_time_arc.clone(), activity_signal.clone(), teleport_signal.clone(), discovered_signal.clone());
             }) {
                 Ok(_) => println!("Thread completed successfully"),
                 Err(_) => println!("Thread terminated due to panic"),
@@ -4222,7 +4224,7 @@ struct Robottino {
     activity_signal: Arc<AtomicBool>,
     teleport_signal: Arc<AtomicBool>,
     sleep_time_signal: Arc<AtomicU64>,
-    discover_signal: DiscoveredSignal,
+    discover_signal: Arc<AtomicBool>,
 }
 
 fn solve_labirint(
@@ -4429,9 +4431,9 @@ fn ai_labirint(robot: &mut Robottino, world: &mut robotics_lib::world::World) {
         robot.robot.energy = rust_and_furious_dynamo::dynamo::Dynamo::update_energy();
     }
     robot_view(robot, world);
-    robot.discover_signal.signal=true;
+  //  robot.discover_signal.signal=true;
     sleep(Duration::from_millis(300));
-    robot.discover_signal.signal=false;
+  //  robot.discover_signal.signal=false;
 
     //move robot to the maze with go function i can move up down left right
     if let Some((row, col)) = robot.maze_discovered {
