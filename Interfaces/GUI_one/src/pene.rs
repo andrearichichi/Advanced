@@ -136,11 +136,7 @@ fn calc_cost(rob_x: usize, rob_y: usize, map: &Vec<Vec<Option<Tile>>>, costs: &m
 
                             // Get informations that influence the cost
                             let environmental_conditions = look_at_sky(world);
-                            print!("{:?}", tile);
-                            print!("{:?}", tile.tile_type);
-                            print!("{:?}", tile.elevation);
                             let new_elevation = tile.elevation;
-                            println!("porcodio");
                             let location = Some(map[x][y].clone());
                             let mut current_elevation = 0 as usize;
                             if let Some(loc) = location.unwrap() {

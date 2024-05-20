@@ -2340,81 +2340,81 @@ struct TilePosition {
 ) {
     
     if !discovered_signal.0.load(Ordering::SeqCst){
+        let update_radius = 4;
+        let mut count = 0;
+        let mut despawn_count = 0;
+        let player_x = robot_position.x as usize / TILE_SIZE as usize;
+        let player_y = robot_position.y as usize / TILE_SIZE as usize;
+
+        let start_x = player_x.saturating_sub(update_radius);
+        let end_x = (player_x + update_radius).min(world.len() - 1);
+        let start_y = player_y.saturating_sub(update_radius);
+        let end_y = (player_y + update_radius).min(world[0].len() - 1);
+
+        for x in start_x..=end_x {
+            for y in start_y..=end_y {
+                // Potenziale inversione degli indici qui se necessario
+                let current_tile = &world[y][x];
+                let old_content = old_world[y][x].as_ref().map(|t| t.content.clone());
 
 
-    let update_radius = 4;
-    let mut count = 0;
-    let mut despawn_count = 0;
-    let player_x = robot_position.x as usize / TILE_SIZE as usize;
-    let player_y = robot_position.y as usize / TILE_SIZE as usize;
+                    if let Some(new_tile) = current_tile {
+                        // Controllo se il tile attuale è una strada o se ci sono cambiamenti nei contenuti.
+                        let is_street = matches!(new_tile.tile_type, TileType::Street);
+                        let content_changed = old_world[y][x].is_none() || old_content != Some(new_tile.content.clone());
+                    
+                        if is_street || content_changed {
+                            count += 1;
+                            // Despawna il tile esistente prima di rispawnarlo, se è una strada
+                            if is_street {
+                                for (entity, pos) in query.iter_mut() {
+                                    if pos.x == x && pos.y == y {
+                                        commands.entity(entity).despawn_recursive();
+                                    //  println!("despawned: {:?} pos {:?}", entity, pos);
+                                        break; // Despawna solo l'entità corrispondente a quella posizione
+                                    }
+                                }
+                            }
+                            // Risppawna il tile
+                            spawn_tile(new_tile, x, y, &mut commands, &tile_icons, &content_icons, &mut content_counter);
+                            old_world[y][x] = Some(new_tile.clone());
+                        }
+                    }
 
-    let start_x = player_x.saturating_sub(update_radius);
-    let end_x = (player_x + update_radius).min(world.len() - 1);
-    let start_y = player_y.saturating_sub(update_radius);
-    let end_y = (player_y + update_radius).min(world[0].len() - 1);
-
-    for x in start_x..=end_x {
-        for y in start_y..=end_y {
-            // Potenziale inversione degli indici qui se necessario
-            let current_tile = &world[y][x];
-            let old_content = old_world[y][x].as_ref().map(|t| t.content.clone());
-
-
-                if let Some(new_tile) = current_tile {
-                    // Controllo se il tile attuale è una strada o se ci sono cambiamenti nei contenuti.
-                    let is_street = matches!(new_tile.tile_type, TileType::Street);
-                    let content_changed = old_world[y][x].is_none() || old_content != Some(new_tile.content.clone());
                 
-                    if is_street || content_changed {
-                        count += 1;
-                        // Despawna il tile esistente prima di rispawnarlo, se è una strada
-                        if is_street {
+
+                if let Some(old_content_unwrapped) = old_content {
+                    if current_tile.is_none() || current_tile.as_ref().unwrap().content == Content::None {
+                        if old_content_unwrapped != Content::None {
                             for (entity, pos) in query.iter_mut() {
                                 if pos.x == x && pos.y == y {
                                     commands.entity(entity).despawn_recursive();
-                                 //  println!("despawned: {:?} pos {:?}", entity, pos);
-                                    break; // Despawna solo l'entità corrispondente a quella posizione
+                                    despawn_count += 1;
                                 }
                             }
+                            old_world[y][x] = current_tile.clone();
                         }
-                        // Risppawna il tile
-                        spawn_tile(new_tile, x, y, &mut commands, &tile_icons, &content_icons, &mut content_counter);
-                        old_world[y][x] = Some(new_tile.clone());
-                    }
-                }
-
-              
-
-            if let Some(old_content_unwrapped) = old_content {
-                if current_tile.is_none() || current_tile.as_ref().unwrap().content == Content::None {
-                    if old_content_unwrapped != Content::None {
-                        for (entity, pos) in query.iter_mut() {
-                            if pos.x == x && pos.y == y {
-                                commands.entity(entity).despawn_recursive();
-                                despawn_count += 1;
-                            }
-                        }
-                        old_world[y][x] = current_tile.clone();
                     }
                 }
             }
         }
-    }
-} else{
+    } else{
+        println!("porcodio");
 
-    for (x, row) in world.iter().enumerate() {
-        for (y, tile) in row.iter().enumerate() {
-            let old_tile = &old_world[y][x];
-            // Se il nuovo tile non e' None e il vecchio tile e' None, spawnalo
-            if tile.is_some()
-                && (old_tile.is_none()
-                    || old_tile.clone().unwrap().content != tile.clone().unwrap().content)
-            {
-                spawn_tile(&tile.clone().unwrap(), y, x, &mut commands, &tile_icons, &content_icons, &mut content_counter);
+        for (x, row) in world.iter().enumerate() {
+            for (y, tile) in row.iter().enumerate() {
+                let old_tile = &old_world[y][x];
+                // Se il nuovo tile non e' None e il vecchio tile e' None, spawnalo
+                if tile.is_some()
+                    && (old_tile.is_none()
+                        || old_tile.clone().unwrap().content != tile.clone().unwrap().content)
+                    {
+                        spawn_tile(&tile.clone().unwrap(), y, x, &mut commands, &tile_icons, &content_icons, &mut content_counter);
+                }
+            }
         }
+        discovered_signal.0.store(false, Ordering::SeqCst);
     }
-    }
-}
 }
 
 /* fn despawn_tiles(
@@ -4345,27 +4345,24 @@ fn find_entrance(
 }
 
 fn go_to_maze(robot: &mut Robottino, world: &mut robotics_lib::world::World, maze: (usize, usize)) {
-    //reach the maze
-    let cord_r = robot.get_coordinate();
-    let mut res: Result<(Vec<Vec<Option<Tile>>>, (usize, usize)), LibError> =
-        Err(LibError::CannotWalk);
     let mut last_direction = Direction::Up;
-    if cord_r.get_row() < maze.0 {
-        res = go(robot, world, Direction::Down);
-        last_direction = Direction::Down;
-    } else if cord_r.get_row() > maze.0 {
-        res = go(robot, world, Direction::Up);
-        last_direction = Direction::Up;
-    } else if cord_r.get_col() < maze.1 {
-        res = go(robot, world, Direction::Right);
-        last_direction = Direction::Right;
-    } else if cord_r.get_col() > maze.1 {
-        res = go(robot, world, Direction::Left);
-        last_direction = Direction::Left;
+    if let Some(directions) = nearest_tile_type(robot, world, TileType::Wall, true) {
+        for direction in directions {
+            last_direction = direction.clone();
+            let _ = go(robot, world, direction);
+            let current_sleep_time = robot.sleep_time_signal.load(Ordering::SeqCst);
+            std::thread::sleep(Duration::from_millis(current_sleep_time));
+        }
+            //  println!("Il robot ha raggiunto la destinazione o il teleport.");
     }
-    if res.is_err() {
-        //if wall is up go left
-        find_entrance(robot, world, last_direction)
+    // find_entrance(robot, world, last_direction);
+}
+
+fn set_maze_location(robot: &mut Robottino, row: usize, column: usize) {
+    robot.maze_discovered = Some((row, column));
+    robot.discover_signal.store(true, Ordering::SeqCst);
+    while robot.discover_signal.load(Ordering::SeqCst) {
+        sleep(std::time::Duration::from_millis(300));
     }
 }
 
@@ -4404,22 +4401,22 @@ fn ai_labirint(robot: &mut Robottino, world: &mut robotics_lib::world::World) {
                         //fai if let some tiles[&(row, col)].is_some();
                         if let Some(tile) = &tiles[&(row, col)] {
                             if tile.tile_type == TileType::Wall {
-                                robot.maze_discovered = Some((row, col));
+                                set_maze_location(robot, row, col);
                             }
                         }
                         if let Some(tile) = &tiles[&(row - 1, col)] {
                             if tile.tile_type == TileType::Wall {
-                                robot.maze_discovered = Some((row - 1, col));
+                                set_maze_location(robot, row - 1, col);
                             }
                         }
                         if let Some(tile) = &tiles[&(row, col - 1)] {
                             if tile.tile_type == TileType::Wall {
-                                robot.maze_discovered = Some((row, col - 1));
+                                set_maze_location(robot, row, col - 1);
                             }
                         }
                         if let Some(tile) = &tiles[&(row - 1, col - 1)] {
                             if tile.tile_type == TileType::Wall {
-                                robot.maze_discovered = Some((row - 1, col - 1));
+                                set_maze_location(robot, row - 1, col - 1);
                             }
                         }
                     }
@@ -4427,18 +4424,31 @@ fn ai_labirint(robot: &mut Robottino, world: &mut robotics_lib::world::World) {
             }
         }
     }
+    
     if robot.robot.energy.get_energy_level() < 300 {
         robot.robot.energy = rust_and_furious_dynamo::dynamo::Dynamo::update_energy();
     }
     robot_view(robot, world);
-  //  robot.discover_signal.signal=true;
-    sleep(Duration::from_millis(300));
-  //  robot.discover_signal.signal=false;
-
+    // print robot.maze_discovered
+    println!("{:?}", robot.maze_discovered);
     //move robot to the maze with go function i can move up down left right
     if let Some((row, col)) = robot.maze_discovered {
         go_to_maze(robot, world, (row, col));
+    } else {
+        robot.maze_discovered=Some((0,0));
+        robot.discover_signal.store(true, Ordering::SeqCst);
+        println!("waiting for maze to be discovered");
+        while robot.discover_signal.load(Ordering::SeqCst) {
+            println!("waiting for maze to be discovered");
+            sleep(std::time::Duration::from_millis(30));
+        }
     }
+
+    let tiles_option = cheapest_border(world, robot);
+        if let Some(tiles) = tiles_option {
+                let result = move_to_cheapest_border(world, robot, tiles);             
+        }
+
 }
 fn ai_taglialegna(robot: &mut Robottino, world: &mut robotics_lib::world::World) {
     //se l'energia e' sotto il 300, la ricarico
@@ -4448,7 +4458,6 @@ fn ai_taglialegna(robot: &mut Robottino, world: &mut robotics_lib::world::World)
 
     let v = robot_view(robot, world);
     let attivita = robot.activity_signal.load(Ordering::SeqCst);
-    println!("{:?}", attivita);
     let a = robot.get_backpack().get_size();
     let b = robot.get_backpack().get_contents().values().sum::<usize>();
     if (a - 5) > b {
