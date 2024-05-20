@@ -14,7 +14,7 @@
             transform: Transform::from_xyz(
                 TILE_SIZE * resource.coordinate_row as f32,
                 TILE_SIZE * resource.coordinate_row as f32,
-                15.0,
+                115.0,
             ), // asse z serve per metterlo sopra i tile e i conent
             ..Default::default()
         })
@@ -25,6 +25,7 @@
 use bevy::core_pipeline::clear_color::ClearColorConfig;
 use bevy::log;
 use bevy::render::camera::Viewport;
+use bevy::render::render_resource::encase::rts_array::Length;
 use bevy::text;
 use bevy::window::PrimaryWindow;
 use bevy::window::WindowMode;
@@ -34,7 +35,9 @@ use op_map::op_pathfinding::{
     get_best_action_to_element, OpActionInput, OpActionOutput, ShoppingList,
 };
 use nearest_tp::nearest_tp::{
-    nearest_teleport, nearest_tile_type};
+    nearest_teleport};
+mod pene;
+use pene::nearest_tile_type;
 use rand::Rng;
 use robotics_lib::world::coordinates;
 use robotics_lib::{
@@ -121,7 +124,7 @@ struct PopupLabelText;
 const MIN_ZOOM: f32 = 0.05; 
 const MAX_ZOOM: f32 = 1.0; //1.0 se 150, 0.25 se 250
 
-const WORLD_SIZE: u32 = 75; //A 200 TROVA IL MAZE
+const WORLD_SIZE: u32 = 200; //A 200 TROVA IL MAZE
 const TILE_SIZE: f32 = 3.0; //LASCIARE A 3!
 
 
@@ -3266,6 +3269,8 @@ fn moviment(robot_data: Arc<Mutex<RobotInfo>>, map: Arc<Mutex<Vec<Vec<Option<Til
         maze_discovered: None,
         activity_signal: activity_signal,
         teleport_signal: teleport_signal,
+        sleep_time_signal: sleep_time.clone(),
+        discover_signal: DiscoveredSignal{signal: false},
     };
 
 
@@ -4216,6 +4221,8 @@ struct Robottino {
     maze_discovered: Option<(usize, usize)>,
     activity_signal: Arc<AtomicBool>,
     teleport_signal: Arc<AtomicBool>,
+    sleep_time_signal: Arc<AtomicU64>,
+    discover_signal: DiscoveredSignal,
 }
 
 fn solve_labirint(
@@ -4422,6 +4429,10 @@ fn ai_labirint(robot: &mut Robottino, world: &mut robotics_lib::world::World) {
         robot.robot.energy = rust_and_furious_dynamo::dynamo::Dynamo::update_energy();
     }
     robot_view(robot, world);
+    robot.discover_signal.signal=true;
+    sleep(Duration::from_millis(300));
+    robot.discover_signal.signal=false;
+
     //move robot to the maze with go function i can move up down left right
     if let Some((row, col)) = robot.maze_discovered {
         go_to_maze(robot, world, (row, col));
@@ -4607,13 +4618,19 @@ fn ai_asfaltatore(robot: &mut Robottino, world: &mut robotics_lib::world::World)
                     }
         }
     } else {
-        if let Some(directions) = nearest_tile_type(robot, world, TileType::ShallowWater) {
+        if let Some(directions) = nearest_tile_type(robot, world, TileType::ShallowWater, true) {
             println!("{:?}", directions);
             if directions.len() > 1 {
+                let mut length = directions.len();
                 for direction in directions {
-                        let _ = go(robot, world, direction);
+                    length = length - 1;
+                    if length == 0 {
                         break;
                     }
+                    let _ = go(robot, world, direction);
+                    let current_sleep_time = robot.sleep_time_signal.load(Ordering::SeqCst);
+                    std::thread::sleep(Duration::from_millis(current_sleep_time));
+                }
                   //  println!("Il robot ha raggiunto la destinazione o il teleport.");
                 } 
             else if directions.len() == 1 {
