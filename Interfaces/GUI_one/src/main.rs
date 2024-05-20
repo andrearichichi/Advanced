@@ -2710,10 +2710,20 @@ fn button_system_backpack(
                         popup_text.sections[0].value = match tag_item.item_type {
                             Content::Rock(_) => format!("A SIMPLE ROCK:\n Gathered {} times.\n Used {} times.\n\n Often overlooked but essential for crafting tools.", content_count, deposited_count),
                             Content::Tree(_) => format!("ANCIENT TREE:\n Harvested {} times.\n Deposited {} times.\n\n Its wood serves as the backbone of homes and weaponry.", content_count, deposited_count),
-                            Content::Garbage(_) => format!("Mysterious Garbage:\n Collected {} times, {} deposited.\n Sometimes trash, sometimes treasure.", content_count, deposited_count),
-                            Content::Fire => format!("Wild Fire:\n Observed {} times, {} deposited.\n Its warmth can comfort or consume.", content_count, deposited_count),
-                            // Other cases
-                            _ => format!("Unknown Element:\n Interacted {} times, {} deposited.\n A mystery to all who encounter it.", content_count, deposited_count),
+                            Content::Garbage(_) => format!("MYSTERIOUS GARBAGE:\n Collected {} times.\n Crafted {} times.\n\n Sometimes trash, sometimes treasure.", content_count, deposited_count),
+                            Content::Fire => format!("WILD FIRE:\n Observed {} times.\n Used {} times.\n\n Its warmth can comfort or consume.", content_count, deposited_count),
+                            Content::Coin(_) => format!("SHINY COIN:\n Used {} times.\n Deposited {} times.\n\n A currency that fuels trade and wealth accumulation.", content_count, deposited_count),
+                            Content::Water(_) => format!("FLOWING WATER:\n Utilized {} times.\n Drank {} times.\n\n Essential for life and various uses.", content_count, deposited_count),
+                            Content::Bin(_) => format!("RECYCLING BIN:\n A bin doesn't fit in your backpack.\n\n Promotes environmental sustainability through recycling."),
+                            Content::Crate(_) => format!("STORAGE CRATE:\n Stop stealing crates! RobotPolice will come after you.\n\n A crucial element for organizing and storing items."),
+                            Content::Bank(_) => format!("LOCAL BANK:\n Only in your desires you can take a whole bank.\n\n A secure place for financial dealings and savings."),
+                            Content::Market(_) => format!("TOWN MARKET:\n  You can't take a Market, maybe just buy something\n\n A hub for buying and selling goods."),
+                            Content::Fish(_) => format!("FRESH FISH:\n Caught {} times.\n Ate {} times.\n\n A source of nourishment and trade.", content_count, deposited_count),
+                            Content::Building => format!("STURDY BUILDING:\n You can't destroy this building terminator.\n\n Provides shelter and space for various activities."),
+                            Content::Bush(_) => format!("GREEN BUSH:\n Pruned {} times.\n Used {} times.\n\n Adds beauty and structure to landscapes.", content_count, deposited_count),
+                            Content::JollyBlock(_) => format!("JOLLY BLOCK:\n Played {} times.\n Deposited {} times.\n\n A source of joy and recreation.", content_count, deposited_count),
+                            Content::Scarecrow => format!("GUARDIAN SCARECROW:\n Positioned {} times.\n Deposited {} times.\n\n Protects crops from birds and pests.", content_count, deposited_count),
+                            _ => format!("UNKNOWN ELEMENT:\n Interacted {} times.\n Deposited {} times.\n\n A mystery to all who encounter it.", content_count, deposited_count),
                         };
                     }
                     Interaction::None => {
@@ -3255,7 +3265,7 @@ enum AiLogic {
     Completo,
 }
 
-fn moviment(robot_data: Arc<Mutex<RobotInfo>>, map: Arc<Mutex<Vec<Vec<Option<Tile>>>>>, ai_logic: AiLogic,  shutdown_signal: Arc<AtomicBool>, paused_signal: Arc<AtomicBool>, sleep_time: Arc<AtomicU64>, activity_signal: Arc<AtomicBool>, teleport_signal: Arc<AtomicBool>, discovered_signal: Arc<AtomicBool>) {
+fn moviment(robot_data: Arc<Mutex<RobotInfo>>, map: Arc<Mutex<Vec<Vec<Option<Tile>>>>>, ai_logic: AiLogic,  shutdown_signal: Arc<AtomicBool>, paused_signal: Arc<AtomicBool>, sleep_time: Arc<AtomicU64>, activity_signal: Arc<AtomicBool>, teleport_signal: Arc<AtomicBool>, discovered_signal: Arc<AtomicBool>, firstcall_signal: Arc<AtomicBool>) {
     let audio = get_audio_manager();
     let background_music = OxAgSoundConfig::new_looped_with_volume("assets/audio/background.ogg", 1.0);
 
@@ -3271,6 +3281,7 @@ fn moviment(robot_data: Arc<Mutex<RobotInfo>>, map: Arc<Mutex<Vec<Vec<Option<Til
         teleport_signal: teleport_signal,
         sleep_time_signal: sleep_time.clone(),
         discover_signal: discovered_signal,
+        firstcall_signal: firstcall_signal
     };
 
 
@@ -3437,6 +3448,10 @@ struct DiscoveredSignal(Arc<AtomicBool>);
 
 #[derive(Resource, Debug, Default)] 
 struct TeleportSignal(Arc<AtomicBool>);
+
+
+#[derive(Resource, Debug, Default)] 
+struct FirstCallSignal(Arc<AtomicBool>);
 
 #[derive(Resource, Debug)] 
 struct SleepTime {
@@ -3690,6 +3705,9 @@ fn menu_action(
 
         let teleport_signal = Arc::new(AtomicBool::new(false)); // false significa che il robot non fa attivita' principale
         commands.insert_resource(TeleportSignal(teleport_signal.clone()));
+
+        let firstcall_signal = Arc::new(AtomicBool::new(false)); // false significa che il robot non fa attivita' principale
+        commands.insert_resource(FirstCallSignal(firstcall_signal.clone()));
         
         // Creazione del segnale di shutdown
         let shutdown_signal = Arc::new(AtomicBool::new(false));
@@ -3697,6 +3715,7 @@ fn menu_action(
 
         commands.insert_resource(ShutdownSignal(shutdown_signal.clone()));
         commands.insert_resource(PausedSignal(paused_signal.clone()));
+
     
         println!("Segnale di shutdown creato");
     
@@ -3705,7 +3724,7 @@ fn menu_action(
             println!("Thread AI avviato");
     
             match std::panic::catch_unwind(|| {
-                moviment(robot_data, map, AiLogic::Falegname, shutdown_signal.clone(), paused_signal.clone(), sleep_time_arc.clone(), activity_signal.clone(), teleport_signal.clone(), discovered_signal.clone());
+                moviment(robot_data, map, AiLogic::Falegname, shutdown_signal.clone(), paused_signal.clone(), sleep_time_arc.clone(), activity_signal.clone(), teleport_signal.clone(), discovered_signal.clone(), firstcall_signal.clone());
             }) {
                 Ok(_) => println!("Thread AI completato con successo"),
                 Err(_) => println!("Thread AI terminato a causa di un panic"),
@@ -3765,13 +3784,18 @@ fn menu_action(
 
         let teleport_signal = Arc::new(AtomicBool::new(false)); // false significa che il robot non fa attivita' principale
         commands.insert_resource(TeleportSignal(teleport_signal.clone()));
+
+        let firstcall_signal = Arc::new(AtomicBool::new(false)); // false significa che il robot non fa attivita' principale
+        commands.insert_resource(FirstCallSignal(firstcall_signal.clone()));
+
+        
     
         // Avvio del thread
         let thread_handle = thread::spawn(move || {
             //thread::sleep(std::time::Duration::from_secs(10));
             println!("Thread started");
             match std::panic::catch_unwind(|| {
-                moviment(robot_data, map, AiLogic::Asfaltatore, shutdown_signal.clone(), paused_signal.clone(), sleep_time_arc.clone(), activity_signal.clone(), teleport_signal.clone(), discovered_signal.clone());
+                moviment(robot_data, map, AiLogic::Asfaltatore, shutdown_signal.clone(), paused_signal.clone(), sleep_time_arc.clone(), activity_signal.clone(), teleport_signal.clone(), discovered_signal.clone(), firstcall_signal.clone());
             }) {
                 Ok(_) => println!("Thread completed successfully"),
                 Err(_) => println!("Thread terminated due to panic"),
@@ -3828,6 +3852,7 @@ fn menu_action(
 
         commands.insert_resource(ShutdownSignal(shutdown_signal.clone()));
         commands.insert_resource(PausedSignal(paused_signal.clone()));
+
         let activity_signal = Arc::new(AtomicBool::new(false)); // false significa che il robot non fa attivita' principale
         commands.insert_resource(ActivitySignal(activity_signal.clone()));
 
@@ -3836,13 +3861,18 @@ fn menu_action(
 
         let teleport_signal = Arc::new(AtomicBool::new(false)); // false significa che il robot non fa attivita' principale
         commands.insert_resource(TeleportSignal(teleport_signal.clone()));
+
+        let firstcall_signal = Arc::new(AtomicBool::new(false)); // false significa che il robot non fa attivita' principale
+        commands.insert_resource(FirstCallSignal(firstcall_signal.clone()));
+
+       
     
         // Avvio del thread
         let thread_handle = thread::spawn(move || {
             //thread::sleep(std::time::Duration::from_secs(10));
             println!("Thread started");
             match std::panic::catch_unwind(|| {
-                moviment(robot_data, map, AiLogic::Ricercatore, shutdown_signal.clone(), paused_signal.clone(), sleep_time_arc.clone(), activity_signal.clone(), teleport_signal.clone(), discovered_signal.clone());
+                moviment(robot_data, map, AiLogic::Ricercatore, shutdown_signal.clone(), paused_signal.clone(), sleep_time_arc.clone(), activity_signal.clone(), teleport_signal.clone(), discovered_signal.clone(), firstcall_signal.clone());
             }) {
                 Ok(_) => println!("Thread completed successfully"),
                 Err(_) => println!("Thread terminated due to panic"),
@@ -3907,13 +3937,17 @@ fn menu_action(
 
         let teleport_signal = Arc::new(AtomicBool::new(false)); // false significa che il robot non fa attivita' principale
         commands.insert_resource(TeleportSignal(teleport_signal.clone()));
+
+        let firstcall_signal = Arc::new(AtomicBool::new(false)); // false significa che il robot non fa attivita' principale
+        commands.insert_resource(FirstCallSignal(firstcall_signal.clone()));
+
     
         // Avvio del thread
         let thread_handle = thread::spawn(move || {
             //thread::sleep(std::time::Duration::from_secs(10));
             println!("Thread started");
             match std::panic::catch_unwind(|| {
-                moviment(robot_data, map, AiLogic::Completo, shutdown_signal.clone(), paused_signal.clone(), sleep_time_arc.clone(), activity_signal.clone(), teleport_signal.clone(), discovered_signal.clone());
+                moviment(robot_data, map, AiLogic::Completo, shutdown_signal.clone(), paused_signal.clone(), sleep_time_arc.clone(), activity_signal.clone(), teleport_signal.clone(), discovered_signal.clone(), firstcall_signal.clone());
             }) {
                 Ok(_) => println!("Thread completed successfully"),
                 Err(_) => println!("Thread terminated due to panic"),
@@ -4225,6 +4259,7 @@ struct Robottino {
     teleport_signal: Arc<AtomicBool>,
     sleep_time_signal: Arc<AtomicU64>,
     discover_signal: Arc<AtomicBool>,
+    firstcall_signal: Arc<AtomicBool>,
 }
 
 fn solve_labirint(
@@ -4360,10 +4395,6 @@ fn go_to_maze(robot: &mut Robottino, world: &mut robotics_lib::world::World, maz
 
 fn set_maze_location(robot: &mut Robottino, row: usize, column: usize) {
     robot.maze_discovered = Some((row, column));
-    robot.discover_signal.store(true, Ordering::SeqCst);
-    while robot.discover_signal.load(Ordering::SeqCst) {
-        sleep(std::time::Duration::from_millis(300));
-    }
 }
 
 fn ai_labirint(robot: &mut Robottino, world: &mut robotics_lib::world::World) {
@@ -4423,7 +4454,9 @@ fn ai_labirint(robot: &mut Robottino, world: &mut robotics_lib::world::World) {
                 }
             }
         }
+      
     }
+    
     
     if robot.robot.energy.get_energy_level() < 300 {
         robot.robot.energy = rust_and_furious_dynamo::dynamo::Dynamo::update_energy();
@@ -4435,14 +4468,17 @@ fn ai_labirint(robot: &mut Robottino, world: &mut robotics_lib::world::World) {
     if let Some((row, col)) = robot.maze_discovered {
         go_to_maze(robot, world, (row, col));
     } else {
-        robot.maze_discovered=Some((0,0));
-        robot.discover_signal.store(true, Ordering::SeqCst);
-        println!("waiting for maze to be discovered");
-        while robot.discover_signal.load(Ordering::SeqCst) {
-            println!("waiting for maze to be discovered");
-            sleep(std::time::Duration::from_millis(30));
-        }
+       
+        
     }
+    
+   if !robot.firstcall_signal.load(Ordering::SeqCst) {
+    println!("ENTRATOOOOOOOOOOOOOOO");
+        robot.discover_signal.store(true, Ordering::SeqCst);
+        robot.firstcall_signal.store(true, Ordering::SeqCst);
+      
+    }
+    
 
     let tiles_option = cheapest_border(world, robot);
         if let Some(tiles) = tiles_option {
