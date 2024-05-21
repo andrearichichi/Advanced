@@ -36,8 +36,8 @@ use op_map::op_pathfinding::{
 };
 use nearest_tp::nearest_tp::{
     nearest_teleport};
-mod pene;
-use pene::nearest_tile_type;
+mod utils;
+use utils::{nearest_tile_type, go_to_coordinate};
 use rand::Rng;
 use robotics_lib::world::coordinates;
 use robotics_lib::{
@@ -124,7 +124,7 @@ struct PopupLabelText;
 const MIN_ZOOM: f32 = 0.05; 
 const MAX_ZOOM: f32 = 1.0; //1.0 se 150, 0.25 se 250
 
-const WORLD_SIZE: u32 = 200; //A 200 TROVA IL MAZE
+const WORLD_SIZE: u32 = 250; //A 200 TROVA IL MAZE
 const TILE_SIZE: f32 = 3.0; //LASCIARE A 3!
 
 
@@ -2399,8 +2399,6 @@ struct TilePosition {
             }
         }
     } else{
-        println!("porcodio");
-        sleep(Duration::from_secs(2));
         for (x, row) in world.iter().enumerate() {
             for (y, tile) in row.iter().enumerate() {
                 let old_tile = &old_world[y][x];
@@ -3301,11 +3299,14 @@ fn moviment(robot_data: Arc<Mutex<RobotInfo>>, map: Arc<Mutex<Vec<Vec<Option<Til
         weather_tool: WeatherPredictionTool::new(),
         ai_logic: ai_logic,
         maze_discovered: None,
+        circumnavigate_maze: false,
+        tp_maze: None,
         activity_signal: activity_signal,
         teleport_signal: teleport_signal,
         sleep_time_signal: sleep_time.clone(),
         discover_signal: discovered_signal,
-        firstcall_signal: firstcall_signal
+        firstcall_signal: firstcall_signal,
+        maze_corners: vec![vec![None; 2]; 2],
     };
 
 
@@ -4279,6 +4280,9 @@ struct Robottino {
     weather_tool: WeatherPredictionTool,
     ai_logic: AiLogic,
     maze_discovered: Option<(usize, usize)>,
+    circumnavigate_maze: bool,
+    maze_corners: Vec<Vec<Option<(usize, usize)>>>,
+    tp_maze: Option<(usize, usize)>,
     activity_signal: Arc<AtomicBool>,
     teleport_signal: Arc<AtomicBool>,
     sleep_time_signal: Arc<AtomicU64>,
@@ -4306,116 +4310,133 @@ fn solve_labirint(
     }
 }
 
-fn find_entrance(
+fn circumnavigate_maze(
     robot: &mut Robottino,
-    world: &mut robotics_lib::world::World,
-    mut last_direction: Direction,
-) {
-    robot.robot.energy = rust_and_furious_dynamo::dynamo::Dynamo::update_energy();
-    loop {
-        //sleep 300
-        
-        if last_direction == Direction::Up {
-            go(robot, world, Direction::Left);
-        } else if last_direction == Direction::Down {
-            go(robot, world, Direction::Right);
-        } else if last_direction == Direction::Left {
-            go(robot, world, Direction::Down);
-        } else if last_direction == Direction::Right {
-            go(robot, world, Direction::Up);
+    world: &mut robotics_lib::world::World) {
+    
+
+    let view = robot_view(robot, world);
+    //count number of wall
+    let (count, count_down, count_right, count_up, count_left) = get_wall_count_view(&view);
+
+
+    if  (count == 1 && (view[0][1].as_ref().unwrap().tile_type == TileType::Wall || view[0][2].as_ref().unwrap().tile_type == TileType::Wall)) || count_down > 1 {
+        // destra
+        if count == 1 && view[0][2].as_ref().unwrap().tile_type == TileType::Wall {
+            robot.maze_corners[0][1] = Some((robot.robot.coordinate.get_row(), robot.robot.coordinate.get_col()));
         }
+        let _ = go(robot, world, Direction::Right);
+    }
+    else if (count == 1 && (view[1][0].as_ref().unwrap().tile_type == TileType::Wall || view[0][0].as_ref().unwrap().tile_type == TileType::Wall)) || count_left > 1 {
+        // giu
+        if count == 1 && view[0][0].as_ref().unwrap().tile_type == TileType::Wall {
+            robot.maze_corners[0][0] = Some((robot.robot.coordinate.get_row(), robot.robot.coordinate.get_col()));
+        }
+        let _ = go(robot, world, Direction::Up);
+    }
+    else if (count == 1 && (view[2][1].as_ref().unwrap().tile_type == TileType::Wall || view[2][0].as_ref().unwrap().tile_type == TileType::Wall)) || count_up > 1 {
+        // sinistra
+        if count == 1 && view[2][0].as_ref().unwrap().tile_type == TileType::Wall {
+            robot.maze_corners[1][0] = Some((robot.robot.coordinate.get_row(), robot.robot.coordinate.get_col()));
+        }
+        let _ = go(robot, world, Direction::Left);
+    }
+    else if (count == 1 && (view[1][2].as_ref().unwrap().tile_type == TileType::Wall || view[2][2].as_ref().unwrap().tile_type == TileType::Wall)) || count_right > 1 {
+        // su
+        if count == 1 && view[2][2].as_ref().unwrap().tile_type == TileType::Wall {
+            robot.maze_corners[1][1] = Some((robot.robot.coordinate.get_row(), robot.robot.coordinate.get_col()));
+        }
+        let _ = go(robot, world, Direction::Down);
+    }   
+        
+}
 
-        let view = robot_view(robot, world);
-        update_map(robot, world);
-        //get tile 1 unwrap if some
-        println!("{:?}",view[0][1].as_ref().unwrap().tile_type==TileType::Wall);//alto
-        println!("{:?}",view[1][0].as_ref().unwrap().tile_type==TileType::Wall);//sinistra
-        println!("{:?}",view[1][2].as_ref().unwrap().tile_type==TileType::Wall);//destra
-        println!("{:?}",view[2][1].as_ref().unwrap().tile_type==TileType::Wall);//basso
-        sleep(std::time::Duration::from_millis(300));
-
-        match last_direction {
-            Direction::Up => {
-                if let Some(tile) = &view[0][1] {
-                    if tile.tile_type == TileType::Wall {
-                        print!("su");
-                    } else {
-                        println!("spostato su");
-                        go(robot, world, Direction::Up);
-                        let view = robot_view(robot, world);
-                        if (view[1][0].as_ref().unwrap().tile_type==TileType::Wall && view[1][2].as_ref().unwrap().tile_type==TileType::Wall){
-                            solve_labirint(robot, world, last_direction.clone());
-                            break;
-                        }
-                        last_direction = Direction::Right;
-                    }
-                }
-            }
-            Direction::Down => {
-                if let Some(tile) = &view[2][1] {
-                    if tile.tile_type == TileType::Wall {
-                        print!("giu");
-                    } else {
-                        println!("spostato giu");
-                        go(robot, world, Direction::Down);
-                        let view = robot_view(robot, world);
-                        if (view[1][0].as_ref().unwrap().tile_type==TileType::Wall && view[1][2].as_ref().unwrap().tile_type==TileType::Wall){
-                            solve_labirint(robot, world, last_direction);
-                            break;
-                        }
-                        last_direction = Direction::Left;
-                    }
-                }
-            }
-            Direction::Left => {
-                if let Some(tile) = &view[1][0] {
-                    if tile.tile_type == TileType::Wall {
-                        print!("left");
-                    } else {
-                        println!("spostato sinistra");
-                        go(robot, world, Direction::Left);
-                        let view = robot_view(robot, world);
-                        if (view[0][1].as_ref().unwrap().tile_type==TileType::Wall && view[2][1].as_ref().unwrap().tile_type==TileType::Wall){
-                            solve_labirint(robot, world, last_direction);
-                            break;
-                        }
-                        last_direction = Direction::Up;
-                    }
-                }
-            }
-            Direction::Right => {
-                if let Some(tile) = &view[1][2] {
-                    if tile.tile_type == TileType::Wall {
-                        print!("right");
-                    } else {
-                        println!("spostato destra");
-                        go(robot, world, Direction::Right);
-                        let view = robot_view(robot, world);
-                        if (view[0][1].as_ref().unwrap().tile_type==TileType::Wall && view[2][1].as_ref().unwrap().tile_type==TileType::Wall){
-                            solve_labirint(robot, world, last_direction);
-                            break;
-                        }
-                        last_direction = Direction::Down;
-                    }
-                }
-            }
+fn get_wall_count_view(view: &Vec<Vec<Option<Tile>>>) -> (i32, i32, i32, i32, i32) {
+    let mut count = 0;
+    let mut count_down = 0;
+    let mut count_right = 0;
+    let mut count_up = 0;
+    let mut count_left = 0;
+            
+    if let Some(tile) = view[0][0].as_ref() {
+        if tile.tile_type == TileType::Wall {
+            count += 1;
+            count_down += 1;
+            count_left += 1;
         }
     }
+
+    if let Some(tile) = view[0][1].as_ref() {
+        if tile.tile_type == TileType::Wall {
+            count += 1;
+            count_down += 1;
+        }
+    }
+            
+    if let Some(tile) = view[0][2].as_ref() {
+        if tile.tile_type == TileType::Wall {
+            count += 1;
+            count_down += 1;
+            count_right += 1;
+        }
+    }
+            
+    if let Some(tile) = view[1][0].as_ref() {
+        if tile.tile_type == TileType::Wall {
+            count += 1;
+            count_left += 1;
+        }
+    }
+            
+    if let Some(tile) = view[1][2].as_ref() {
+        if tile.tile_type == TileType::Wall {
+            count += 1;
+            count_right += 1;
+        }
+    }
+            
+    if let Some(tile) = view[2][0].as_ref() {
+        if tile.tile_type == TileType::Wall {
+            count += 1;
+            count_up += 1;
+            count_left += 1;
+        }
+    }
+            
+    if let Some(tile) = view[2][1].as_ref() {
+        if tile.tile_type == TileType::Wall {
+            count += 1;
+            count_up += 1;
+        }
+    }
+            
+    if let Some(tile) = view[2][2].as_ref() {
+        if tile.tile_type == TileType::Wall {
+            count += 1;
+            count_up += 1;
+            count_right += 1;
+        }
+    }
+    (count, count_down, count_right, count_up, count_left)
 }
 
 fn go_to_maze(robot: &mut Robottino, world: &mut robotics_lib::world::World, maze: (usize, usize)) {
-    let mut last_direction = Direction::Up;
+    
     if let Some(directions) = nearest_tile_type(robot, world, TileType::Wall, false) {
-        println!("Il robot ha trovato il muro più vicino.");
-        println!("{:?}", directions);
-        if directions.len() == 1 {
-            // find_entrance(robot, world, last_direction); bugged
+        let view: Vec<Vec<Option<Tile>>> = robot_view(robot, world);
+        for row in &view {
+            for tile_option in row {
+                if let Some(tile) = tile_option {
+                    if tile.tile_type == TileType::Wall {
+                        println!("Il robot ha raggiunto il labirinto.");
+                        robot.circumnavigate_maze = true;
+                    }
+                }
+            }
         }
+
         for direction in directions {
-            last_direction = direction.clone();
             let _ = go(robot, world, direction);
-            let current_sleep_time = robot.sleep_time_signal.load(Ordering::SeqCst);
-            std::thread::sleep(Duration::from_millis(current_sleep_time));
             break;
         }
             //  println!("Il robot ha raggiunto la destinazione o il teleport.");
@@ -4487,7 +4508,7 @@ fn ai_labirint(robot: &mut Robottino, world: &mut robotics_lib::world::World) {
     }
     
     if !robot.firstcall_signal.load(Ordering::SeqCst) {
-        println!("ENTRATOOOOOOOOOOOOOOO");
+        // println!("ENTRATOOOOOOOOOOOOOOO");
         robot.discover_signal.store(true, Ordering::SeqCst);
     }
     
@@ -4504,12 +4525,41 @@ fn ai_labirint(robot: &mut Robottino, world: &mut robotics_lib::world::World) {
         sleep(Duration::from_millis(500));
         robot.firstcall_signal.store(true, Ordering::SeqCst);
     }
-    if let Some((row, col)) = robot.maze_discovered {
-        go_to_maze(robot, world, (row, col));
-    } 
-
     
 
+    if robot.maze_corners[0][0].is_some() && robot.maze_corners[0][1].is_some() && robot.maze_corners[1][0].is_some() && robot.maze_corners[1][1].is_some() {
+        //summ all the corners row and column
+        let mut row = 0;
+        let mut col = 0;
+        for i in 0..2 {
+            for j in 0..2 {
+                row += robot.maze_corners[i][j].unwrap().0;
+                col += robot.maze_corners[i][j].unwrap().1;
+            }
+        }
+        row /= 4;
+        col /= 4;
+        if let Some(directions) = go_to_coordinate(robot, world, Some((row, col)), false) {
+            if directions.len() > 1 {
+                let mut length = directions.len();
+                for direction in directions {
+                    length = length - 1;
+                    if length == 0 {
+                        break;
+                    }
+                    let _ = go(robot, world, direction);
+                    break;
+                }
+            } 
+        }
+    }
+    else if robot.circumnavigate_maze {
+        // println!("circumnavigooooo");
+        circumnavigate_maze(robot, world);
+    }
+    else if let Some((row, col)) = robot.maze_discovered {
+        go_to_maze(robot, world, (row, col));
+    }
 }
 fn ai_taglialegna(robot: &mut Robottino, world: &mut robotics_lib::world::World) {
     //se l'energia e' sotto il 300, la ricarico

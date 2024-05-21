@@ -9,11 +9,26 @@ use robotics_lib::utils::{calculate_cost_go_with_environment, go_allowed, LibErr
 
 
 
+pub fn go_to_coordinate(robot: &impl Runnable, world: &mut World, coordinate: Option<(usize, usize)>, no_content_tile: bool) -> Option<Vec<Direction>> {
+    let (_, (robot_x, robot_y)) = where_am_i(robot, &world);
+    let map = robot_map(world).expect("Errore nella mappa");
+    let mut costs: Vec<Vec<Option<(Option<(usize, usize)>, u32)>>> = vec![vec![None; map.len()]; map.len()];
+    calc_cost(robot_x, robot_y, &map, &mut costs, world, None);
+
+    // If a teleport position is found, calculate the path to that position
+    if let Some(destination) = coordinate {
+        let directions = get_directions_to_teleport((robot_x, robot_y), destination, &costs);
+        Some(directions)
+    } else {
+        None
+    }
+}
+
 pub fn nearest_tile_type(robot: &impl Runnable, world: &mut World, tile_type: TileType, no_content_tile: bool) -> Option<Vec<Direction>> {
     let (_, (robot_x, robot_y)) = where_am_i(robot, &world);
     let map = robot_map(world).expect("Errore nella mappa");
     let mut costs: Vec<Vec<Option<(Option<(usize, usize)>, u32)>>> = vec![vec![None; map.len()]; map.len()];
-    calc_cost(robot_x, robot_y, &map, &mut costs, world);
+    calc_cost(robot_x, robot_y, &map, &mut costs, world, Some(TileType::Wall));
 
     let movements: Vec<(i32, i32)> = vec![(1, 0), (-1, 0), (0, 1), (0, -1)];
     let mut min_cost: Option<(Option<(usize, usize)>, u32)> = None;
@@ -26,8 +41,6 @@ pub fn nearest_tile_type(robot: &impl Runnable, world: &mut World, tile_type: Ti
                 None => {}
                 Some(tile) => {
                     if tile.tile_type == tile_type && (!no_content_tile || tile.content == Content::None) {
-                        println!("Tile found");
-                        println!("{:?}", costs[x][y]);
                         match costs[x][y] {
                             None => {}
                             Some((_, cost)) => {
@@ -60,7 +73,6 @@ pub fn nearest_tile_type(robot: &impl Runnable, world: &mut World, tile_type: Ti
         None
     }
 }
-
 
 pub fn get_directions_to_tile(start: (usize, usize), destination: (usize, usize), costs: &Vec<Vec<Option<(Option<(usize, usize)>, u32)>>>) -> Vec<Direction> {
     let mut path = Vec::new();
@@ -98,7 +110,7 @@ pub fn get_directions_to_tile(start: (usize, usize), destination: (usize, usize)
     directions
 }
 
-fn calc_cost(rob_x: usize, rob_y: usize, map: &Vec<Vec<Option<Tile>>>, costs: &mut Vec<Vec<Option<(Option<(usize, usize)>, u32)>>>, world: &World) {
+fn calc_cost(rob_x: usize, rob_y: usize, map: &Vec<Vec<Option<Tile>>>, costs: &mut Vec<Vec<Option<(Option<(usize, usize)>, u32)>>>, world: &World, tile_type_to_ignore: Option<TileType>) {
     let mut pq = BinaryHeap::new();
     let movements = vec![(1i32, 0i32), (-1, 0), (0, 1), (0, -1)];
 
@@ -129,7 +141,7 @@ fn calc_cost(rob_x: usize, rob_y: usize, map: &Vec<Vec<Option<Tile>>>, costs: &m
                         }
                     }
                     Some(tile) => {
-                        if tile.tile_type.properties().walk() || tile.tile_type == TileType::Wall {
+                        if tile.tile_type.properties().walk() || Some(tile.tile_type) == tile_type_to_ignore {
                             // let cost = TileType::properties(&tile.tile_type).cost() as u32;
                             // Init costs
                             // I guess I should have participated more in the development, that way I would have avoided this copy and paste from the main lib.
@@ -164,7 +176,6 @@ fn calc_cost(rob_x: usize, rob_y: usize, map: &Vec<Vec<Option<Tile>>>, costs: &m
         }
     }
 }
-
 
 pub fn get_directions_to_teleport(start: (usize, usize), destination: (usize, usize), costs: &Vec<Vec<Option<(Option<(usize, usize)>, u32)>>>) -> Vec<Direction> {
     let mut path = Vec::new();
