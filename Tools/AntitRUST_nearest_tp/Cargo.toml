@@ -28,5 +28,5 @@ readme = "README.md"
 name = "nearest_tp"
 path = "src/lib.rs"
 
-[dependencies.robotics_lib]
-registry-index = "sparse+https://advancedprogramming.disi.unitn.it/api/v1/crates/"
+[dependencies]
+robotics_lib = {version="0.1.21", registry = "kellnr"}
