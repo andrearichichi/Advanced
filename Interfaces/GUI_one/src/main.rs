@@ -124,7 +124,7 @@ struct PopupLabelText;
 const MIN_ZOOM: f32 = 0.05; 
 const MAX_ZOOM: f32 = 1.0; //1.0 se 150, 0.25 se 250
 
-const WORLD_SIZE: u32 = 250; //A 200 TROVA IL MAZE
+const WORLD_SIZE: u32 = 75; //A 200 TROVA IL MAZE
 const TILE_SIZE: f32 = 3.0; //LASCIARE A 3!
 
 
@@ -4450,160 +4450,245 @@ fn set_maze_location(robot: &mut Robottino, row: usize, column: usize) {
 fn ai_labirint(robot: &mut Robottino, world: &mut robotics_lib::world::World) {
     //maze are 18*18 so we check every 9 tiles
     //if robotmap some save it
-    if robot.maze_discovered.is_none() {
-        if let Some(map) = robot_map(world) {
-            //quanto e' grande la mappa
-            let map_size = map.len();
-            let times_to_discover_map_for_side = map_size / 9 + 1;
-            for i in 1..times_to_discover_map_for_side {
-                for j in 1..times_to_discover_map_for_side {
-                    if robot.maze_discovered.is_some() {
-                        break;
-                    }
-                    if robot.robot.energy.get_energy_level() < 300 {
-                        robot.robot.energy =
-                            rust_and_furious_dynamo::dynamo::Dynamo::update_energy();
-                    }
-                    let row = i * 9;
-                    let col = j * 9;
-                    let tiles = discover_tiles(
-                        robot,
-                        world,
-                        &[
-                            (row - 1, col),
-                            (row, col),
-                            (row - 1, col - 1),
-                            (row, col - 1),
-                        ],
-                    );
-                    //get result
-                    if let Ok(tiles) = tiles {
-                        //check if a Tile is Some and is a wall
-                        //fai if let some tiles[&(row, col)].is_some();
-                        if let Some(tile) = &tiles[&(row, col)] {
-                            if tile.tile_type == TileType::Wall {
-                                set_maze_location(robot, row, col);
-                            }
-                        }
-                        if let Some(tile) = &tiles[&(row - 1, col)] {
-                            if tile.tile_type == TileType::Wall {
-                                set_maze_location(robot, row - 1, col);
-                            }
-                        }
-                        if let Some(tile) = &tiles[&(row, col - 1)] {
-                            if tile.tile_type == TileType::Wall {
-                                set_maze_location(robot, row, col - 1);
-                            }
-                        }
-                        if let Some(tile) = &tiles[&(row - 1, col - 1)] {
-                            if tile.tile_type == TileType::Wall {
-                                set_maze_location(robot, row - 1, col - 1);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-      
-    }
-    
-    if !robot.firstcall_signal.load(Ordering::SeqCst) {
-        // println!("ENTRATOOOOOOOOOOOOOOO");
-        robot.discover_signal.store(true, Ordering::SeqCst);
-    }
-    
-    if robot.robot.energy.get_energy_level() < 300 {
-        robot.robot.energy = rust_and_furious_dynamo::dynamo::Dynamo::update_energy();
-    }
-    robot_view(robot, world);
-    
-    // let tiles_option = cheapest_border(world, robot);
-    //                 if let Some(tiles) = tiles_option {
-    //                      let result = move_to_cheapest_border(world, robot, tiles);
-    //                 }
-    if !robot.firstcall_signal.load(Ordering::SeqCst) {
-        sleep(Duration::from_millis(500));
-        robot.firstcall_signal.store(true, Ordering::SeqCst);
-    }
-    
-
-    if robot.maze_corners[0][0].is_some() && robot.maze_corners[0][1].is_some() && robot.maze_corners[1][0].is_some() && robot.maze_corners[1][1].is_some() {
-        //summ all the corners row and column
-        let mut row = 0;
-        let mut col = 0;
-        for i in 0..2 {
-            for j in 0..2 {
-                row += robot.maze_corners[i][j].unwrap().0;
-                col += robot.maze_corners[i][j].unwrap().1;
-            }
-        }
-        row /= 4;
-        col /= 4;
-        if let Some(directions) = go_to_coordinate(robot, world, Some((row, col)), false) {
-            if directions.len() > 1 {
-                let mut length = directions.len();
-                for direction in directions {
-                    length = length - 1;
-                    if length == 0 {
-                        break;
-                    }
+    let search_teleport = robot.teleport_signal.load(Ordering::SeqCst);
+    if search_teleport == true {
+        println!("Il robot sta cercando il teleport...");
+        if let Some(directions) = nearest_teleport(robot, world) {
+            for direction in directions {
                     let _ = go(robot, world, direction);
                     break;
                 }
-            } 
+                println!("Il robot ha raggiunto la destinazione o il teleport.");
+            } else {
+                    println!("Nessun percorso trovato al teleport.");
+                }
+    }else{
+        if robot.maze_discovered.is_none() {
+            if let Some(map) = robot_map(world) {
+                //quanto e' grande la mappa
+                let map_size = map.len();
+                let times_to_discover_map_for_side = map_size / 9 + 1;
+                for i in 1..times_to_discover_map_for_side {
+                    for j in 1..times_to_discover_map_for_side {
+                        if robot.maze_discovered.is_some() {
+                            break;
+                        }
+                        if robot.robot.energy.get_energy_level() < 300 {
+                            robot.robot.energy =
+                                rust_and_furious_dynamo::dynamo::Dynamo::update_energy();
+                        }
+                        let row = i * 9;
+                        let col = j * 9;
+                        let tiles = discover_tiles(
+                            robot,
+                            world,
+                            &[
+                                (row - 1, col),
+                                (row, col),
+                                (row - 1, col - 1),
+                                (row, col - 1),
+                            ],
+                        );
+                        //get result
+                        if let Ok(tiles) = tiles {
+                            //check if a Tile is Some and is a wall
+                            //fai if let some tiles[&(row, col)].is_some();
+                            if let Some(tile) = &tiles[&(row, col)] {
+                                if tile.tile_type == TileType::Wall {
+                                    set_maze_location(robot, row, col);
+                                }
+                            }
+                            if let Some(tile) = &tiles[&(row - 1, col)] {
+                                if tile.tile_type == TileType::Wall {
+                                    set_maze_location(robot, row - 1, col);
+                                }
+                            }
+                            if let Some(tile) = &tiles[&(row, col - 1)] {
+                                if tile.tile_type == TileType::Wall {
+                                    set_maze_location(robot, row, col - 1);
+                                }
+                            }
+                            if let Some(tile) = &tiles[&(row - 1, col - 1)] {
+                                if tile.tile_type == TileType::Wall {
+                                    set_maze_location(robot, row - 1, col - 1);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        
         }
-    }
-    else if robot.circumnavigate_maze {
-        // println!("circumnavigooooo");
-        circumnavigate_maze(robot, world);
-    }
-    else if let Some((row, col)) = robot.maze_discovered {
-        go_to_maze(robot, world, (row, col));
+        
+        if !robot.firstcall_signal.load(Ordering::SeqCst) {
+            // println!("ENTRATOOOOOOOOOOOOOOO");
+            robot.discover_signal.store(true, Ordering::SeqCst);
+        }
+        
+        if robot.robot.energy.get_energy_level() < 300 {
+            robot.robot.energy = rust_and_furious_dynamo::dynamo::Dynamo::update_energy();
+        }
+        robot_view(robot, world);
+        
+        // let tiles_option = cheapest_border(world, robot);
+        //                 if let Some(tiles) = tiles_option {
+        //                      let result = move_to_cheapest_border(world, robot, tiles);
+        //                 }
+        if !robot.firstcall_signal.load(Ordering::SeqCst) {
+            sleep(Duration::from_millis(500));
+            robot.firstcall_signal.store(true, Ordering::SeqCst);
+        }
+        
+
+        if robot.maze_corners[0][0].is_some() && robot.maze_corners[0][1].is_some() && robot.maze_corners[1][0].is_some() && robot.maze_corners[1][1].is_some() {
+            //summ all the corners row and column
+            let mut row = 0;
+            let mut col = 0;
+            for i in 0..2 {
+                for j in 0..2 {
+                    row += robot.maze_corners[i][j].unwrap().0;
+                    col += robot.maze_corners[i][j].unwrap().1;
+                }
+            }
+            row /= 4;
+            col /= 4;
+            if let Some(directions) = go_to_coordinate(robot, world, Some((row, col)), false) {
+                if directions.len() > 1 {
+                    let mut length = directions.len();
+                    for direction in directions {
+                        length = length - 1;
+                        if length == 0 {
+                            break;
+                        }
+                        let _ = go(robot, world, direction);
+                        break;
+                    }
+                } 
+            }
+        }
+        else if robot.circumnavigate_maze {
+            // println!("circumnavigooooo");
+            circumnavigate_maze(robot, world);
+        }
+        else if let Some((row, col)) = robot.maze_discovered {
+            go_to_maze(robot, world, (row, col));
+        }
     }
 }
 fn ai_taglialegna(robot: &mut Robottino, world: &mut robotics_lib::world::World) {
+    
     //se l'energia e' sotto il 300, la ricarico
     if robot.robot.energy.get_energy_level() < 300 {
         robot.robot.energy = rust_and_furious_dynamo::dynamo::Dynamo::update_energy();
     }
 
-    let v = robot_view(robot, world);
-    let attivita = robot.activity_signal.load(Ordering::SeqCst);
-    let a = robot.get_backpack().get_size();
-    let b = robot.get_backpack().get_contents().values().sum::<usize>();
-    if (a - 5) > b {
-        if attivita == true{   
-            // NEAREST TELEPORT (QUASI FUNZIONANTE)
-            // if let Some(directions) = nearest_teleport(robot, world) {
-            //         for direction in directions {
-            //                 let _ = go(robot, world, direction);
-            //                 break;
-            //             }
-            //             println!("Il robot ha raggiunto la destinazione o il teleport.");
-            //         } else {
-            //                 println!("Nessun percorso trovato al teleport.");
-            //             }
+    let search_teleport = robot.teleport_signal.load(Ordering::SeqCst);
+    if search_teleport == true {
+        println!("Il robot sta cercando il teleport...");
+        if let Some(directions) = nearest_teleport(robot, world) {
+            for direction in directions {
+                    let _ = go(robot, world, direction);
+                    break;
+                }
+                println!("Il robot ha raggiunto la destinazione o il teleport.");
+            } else {
+                    println!("Nessun percorso trovato al teleport.");
+                }
+    }else{
+        let v = robot_view(robot, world);
+        let attivita = robot.activity_signal.load(Ordering::SeqCst);
+        let a = robot.get_backpack().get_size();
+        let b = robot.get_backpack().get_contents().values().sum::<usize>();
+        if (a - 5) > b {
+            if attivita == true{   
+                // NEAREST TELEPORT (QUASI FUNZIONANTE)
+                // if let Some(directions) = nearest_teleport(robot, world) {
+                //         for direction in directions {
+                //                 let _ = go(robot, world, direction);
+                //                 break;
+                //             }
+                //             println!("Il robot ha raggiunto la destinazione o il teleport.");
+                //         } else {
+                //                 println!("Nessun percorso trovato al teleport.");
+                //             }
+                let mut shopping_list = ShoppingList {
+                    list: vec![(
+                        (Content::Tree(0), Some(OpActionInput::Destroy()))
+                    )],
+                };
+    
+                match get_best_action_to_element(robot, world, &mut shopping_list) {
+                    None => {
+                        let tiles_option = cheapest_border(world, robot);
+                        if let Some(tiles) = tiles_option {
+                             let result = move_to_cheapest_border(world, robot, tiles);             
+                            if attivita == true{   
+                                DestroyZone.execute(world, robot, Content::Tree(0));
+                            }
+                             let num_trees = robot.get_backpack().get_contents().get(&Content::Tree(0)).unwrap_or(&0);
+                        }
+                    }
+                    Some(next_action) => {
+                        // println!("{:?}", &rand);
+                        println!("trovato albero?");
+                        println!("{:?}", next_action);
+                        match next_action {
+                            OpActionOutput::Move(dir) => {
+                                go(robot, world, dir);
+                            }
+                            OpActionOutput::Destroy(dir) => {
+                                // println!("Destroy");
+                                destroy(robot, world, dir);
+                            }
+                            OpActionOutput::Put(c, u, d) => {
+                                print!("depositandoooooooooooo");
+                                //print c u d
+                                println!("{:?} {:?} {:?}", c, u, d);
+                                put(robot, world, c, u, d);
+                            }
+                        }
+                    }
+                }
+            } else {
+                let tiles_option = cheapest_border(world, robot);
+                        if let Some(tiles) = tiles_option {
+                             let result = move_to_cheapest_border(world, robot, tiles);             
+                            if attivita == true{   
+                                DestroyZone.execute(world, robot, Content::Tree(0));
+                            }
+                             let num_trees = robot.get_backpack().get_contents().get(&Content::Tree(0)).unwrap_or(&0);
+                        }
+            }
+        } else {
             let mut shopping_list = ShoppingList {
                 list: vec![(
-                    (Content::Tree(0), Some(OpActionInput::Destroy()))
+                    Content::Crate(Range::default()),
+                    Some(OpActionInput::Put(Content::Tree(0), a-5)),
                 )],
             };
-
             match get_best_action_to_element(robot, world, &mut shopping_list) {
                 None => {
                     let tiles_option = cheapest_border(world, robot);
                     if let Some(tiles) = tiles_option {
-                         let result = move_to_cheapest_border(world, robot, tiles);             
+                        //manage the return stat of move to cheapest border
+                        let result = move_to_cheapest_border(world, robot, tiles);
+                        
+                        // Debug print prima della distruzione/raccolta
+                        // println!("Tentativo di raccogliere albero alla posizione corrente...");
                         if attivita == true{   
                             DestroyZone.execute(world, robot, Content::Tree(0));
                         }
-                         let num_trees = robot.get_backpack().get_contents().get(&Content::Tree(0)).unwrap_or(&0);
+            
+                        // Debug print dopo la distruzione/raccolta
+                    //  println!("Albero raccolto con successo!");
+            
+                        // Stampa opzionale per confermare il contenuto dello zaino
+                        let num_trees = robot.get_backpack().get_contents().get(&Content::Tree(0)).unwrap_or(&0);
+                    //  println!("Numero di alberi nello zaino: {}", num_trees);
                     }
                 }
                 Some(next_action) => {
                     // println!("{:?}", &rand);
-                    println!("trovato albero?");
-                    println!("{:?}", next_action);
                     match next_action {
                         OpActionOutput::Move(dir) => {
                             go(robot, world, dir);
@@ -4621,160 +4706,117 @@ fn ai_taglialegna(robot: &mut Robottino, world: &mut robotics_lib::world::World)
                     }
                 }
             }
-        } else {
-            let tiles_option = cheapest_border(world, robot);
-                    if let Some(tiles) = tiles_option {
-                         let result = move_to_cheapest_border(world, robot, tiles);             
-                        if attivita == true{   
-                            DestroyZone.execute(world, robot, Content::Tree(0));
-                        }
-                         let num_trees = robot.get_backpack().get_contents().get(&Content::Tree(0)).unwrap_or(&0);
-                    }
-        }
-    } else {
-        let mut shopping_list = ShoppingList {
-            list: vec![(
-                Content::Crate(Range::default()),
-                Some(OpActionInput::Put(Content::Tree(0), a-5)),
-            )],
-        };
-        match get_best_action_to_element(robot, world, &mut shopping_list) {
-            None => {
-                let tiles_option = cheapest_border(world, robot);
-                if let Some(tiles) = tiles_option {
-                    //manage the return stat of move to cheapest border
-                    let result = move_to_cheapest_border(world, robot, tiles);
-                    
-                    // Debug print prima della distruzione/raccolta
-                    // println!("Tentativo di raccogliere albero alla posizione corrente...");
-                    if attivita == true{   
-                        DestroyZone.execute(world, robot, Content::Tree(0));
-                    }
-        
-                    // Debug print dopo la distruzione/raccolta
-                //  println!("Albero raccolto con successo!");
-        
-                    // Stampa opzionale per confermare il contenuto dello zaino
-                    let num_trees = robot.get_backpack().get_contents().get(&Content::Tree(0)).unwrap_or(&0);
-                //  println!("Numero di alberi nello zaino: {}", num_trees);
-                }
-            }
-            Some(next_action) => {
-                // println!("{:?}", &rand);
-                match next_action {
-                    OpActionOutput::Move(dir) => {
-                        go(robot, world, dir);
-                    }
-                    OpActionOutput::Destroy(dir) => {
-                        // println!("Destroy");
-                        destroy(robot, world, dir);
-                    }
-                    OpActionOutput::Put(c, u, d) => {
-                        print!("depositandoooooooooooo");
-                        //print c u d
-                        println!("{:?} {:?} {:?}", c, u, d);
-                        put(robot, world, c, u, d);
-                    }
-                }
-            }
         }
     }
+
 }
 
 fn ai_asfaltatore(robot: &mut Robottino, world: &mut robotics_lib::world::World) {
     if robot.robot.energy.get_energy_level() < 200 {
         robot.robot.energy = rust_and_furious_dynamo::dynamo::Dynamo::update_energy();
     }
+    let search_teleport = robot.teleport_signal.load(Ordering::SeqCst);
+    if search_teleport == true {
+        println!("Il robot sta cercando il teleport...");
+        if let Some(directions) = nearest_teleport(robot, world) {
+            for direction in directions {
+                    let _ = go(robot, world, direction);
+                    break;
+                }
+                println!("Il robot ha raggiunto la destinazione o il teleport.");
+            } else {
+                    println!("Nessun percorso trovato al teleport.");
+                }
+    }else{
+        let a = robot_view(robot, world);
+    // println!("{:?}", a);
+        let attivita = robot.activity_signal.load(Ordering::SeqCst);
+    // println!("{:?}", attivita);
+        let a = robot.get_backpack().get_size();
+        let b = robot.get_backpack().get_contents().values().sum::<usize>();
+        if b < 5 {
+            if attivita == true{   
+                let mut shopping_list = ShoppingList {
+                    list: vec![(
+                        (Content::Rock(0), Some(OpActionInput::Destroy()))
+                    )],
+                };
 
-    let a = robot_view(robot, world);
-   // println!("{:?}", a);
-    let attivita = robot.activity_signal.load(Ordering::SeqCst);
-   // println!("{:?}", attivita);
-    let a = robot.get_backpack().get_size();
-    let b = robot.get_backpack().get_contents().values().sum::<usize>();
-    if b < 5 {
-        if attivita == true{   
-            let mut shopping_list = ShoppingList {
-                list: vec![(
-                    (Content::Rock(0), Some(OpActionInput::Destroy()))
-                )],
-            };
-
-            match get_best_action_to_element(robot, world, &mut shopping_list) {
-                None => {
-                    let tiles_option = cheapest_border(world, robot);
-                    if let Some(tiles) = tiles_option {
-                         let result = move_to_cheapest_border(world, robot, tiles);             
-                        if attivita == true{   
-                            DestroyZone.execute(world, robot, Content::Rock(0));
+                match get_best_action_to_element(robot, world, &mut shopping_list) {
+                    None => {
+                        let tiles_option = cheapest_border(world, robot);
+                        if let Some(tiles) = tiles_option {
+                            let result = move_to_cheapest_border(world, robot, tiles);             
+                            if attivita == true{   
+                                DestroyZone.execute(world, robot, Content::Rock(0));
+                            }
+                        }
+                    }
+                    Some(next_action) => {
+                    //   println!("trovata roccia?");
+                    //  println!("{:?}", next_action);
+                        match next_action {
+                            OpActionOutput::Move(dir) => {
+                                go(robot, world, dir);
+                            }
+                            OpActionOutput::Destroy(dir) => {
+                                // println!("Destroy");
+                                destroy(robot, world, dir);
+                            }
+                            OpActionOutput::Put(c, u, d) => {
+                            // print!("depositandoooooooooooo");
+                                //print c u d
+                            //    println!("{:?} {:?} {:?}", c, u, d);
+                                put(robot, world, c, u, d);
+                            }
                         }
                     }
                 }
-                Some(next_action) => {
-                 //   println!("trovata roccia?");
-                  //  println!("{:?}", next_action);
-                    match next_action {
-                        OpActionOutput::Move(dir) => {
-                            go(robot, world, dir);
+            } else {
+                let tiles_option = cheapest_border(world, robot);
+                        if let Some(tiles) = tiles_option {
+                            let result = move_to_cheapest_border(world, robot, tiles);             
+                            if attivita == true{   
+                                DestroyZone.execute(world, robot, Content::Rock(0));
+                            }
                         }
-                        OpActionOutput::Destroy(dir) => {
-                            // println!("Destroy");
-                            destroy(robot, world, dir);
-                        }
-                        OpActionOutput::Put(c, u, d) => {
-                           // print!("depositandoooooooooooo");
-                            //print c u d
-                        //    println!("{:?} {:?} {:?}", c, u, d);
-                            put(robot, world, c, u, d);
-                        }
-                    }
-                }
             }
         } else {
-            let tiles_option = cheapest_border(world, robot);
-                    if let Some(tiles) = tiles_option {
-                         let result = move_to_cheapest_border(world, robot, tiles);             
-                        if attivita == true{   
-                            DestroyZone.execute(world, robot, Content::Rock(0));
+            if let Some(directions) = nearest_tile_type(robot, world, TileType::ShallowWater, true) {
+                println!("{:?}", directions);
+                if directions.len() > 1 {
+                    let mut length = directions.len();
+                    for direction in directions {
+                        length = length - 1;
+                        if length == 0 {
+                            break;
                         }
+                        let _ = go(robot, world, direction);
+                        let current_sleep_time = robot.sleep_time_signal.load(Ordering::SeqCst);
+                        std::thread::sleep(Duration::from_millis(current_sleep_time));
                     }
-        }
-    } else {
-        if let Some(directions) = nearest_tile_type(robot, world, TileType::ShallowWater, true) {
-            println!("{:?}", directions);
-            if directions.len() > 1 {
-                let mut length = directions.len();
-                for direction in directions {
-                    length = length - 1;
-                    if length == 0 {
-                        break;
-                    }
-                    let _ = go(robot, world, direction);
-                    let current_sleep_time = robot.sleep_time_signal.load(Ordering::SeqCst);
-                    std::thread::sleep(Duration::from_millis(current_sleep_time));
-                }
-                  //  println!("Il robot ha raggiunto la destinazione o il teleport.");
+                    //  println!("Il robot ha raggiunto la destinazione o il teleport.");
+                    } 
+                else if directions.len() == 1 {
+                    for direction in directions {
+                        let v = bessie::bessie::road_paving_machine(
+                                    robot,
+                                    world,
+                                    direction,
+                                    bessie::bessie::State::MakeRoad,
+                                );
+                            }
+                } else{
+                    
+                    let tiles_option = cheapest_border(world, robot);
+                        if let Some(tiles) = tiles_option {
+                            let result = move_to_cheapest_border(world, robot, tiles);             
+                            if attivita == true{   
+                                DestroyZone.execute(world, robot, Content::Rock(0));
+                            }
+                        }
                 } 
-            else if directions.len() == 1 {
-                for direction in directions {
-                    let v = bessie::bessie::road_paving_machine(
-                                robot,
-                                world,
-                                direction,
-                                bessie::bessie::State::MakeRoad,
-                            );
-                        }
-            } else{
-                
-                let tiles_option = cheapest_border(world, robot);
-                    if let Some(tiles) = tiles_option {
-                         let result = move_to_cheapest_border(world, robot, tiles);             
-                        if attivita == true{   
-                            DestroyZone.execute(world, robot, Content::Rock(0));
-                        }
-                    }
-            } 
-        }
+            }
         // nearest_tile_type(robot, world, Content::Water(0));
         //     sleep(std::time::Duration::from_millis(300));
         //     let v = bessie::bessie::road_paving_machine(
@@ -4794,6 +4836,7 @@ fn ai_asfaltatore(robot: &mut Robottino, world: &mut robotics_lib::world::World)
         //             _ => go(robot, world, Direction::Right),
         //         };
         //     }
+        }
     }
 }
 fn ai_completo_con_tool (robot: &mut Robottino, world: &mut robotics_lib::world::World) {
