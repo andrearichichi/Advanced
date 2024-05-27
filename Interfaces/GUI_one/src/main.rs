@@ -104,6 +104,8 @@ struct TagItem {
 
 #[derive(Component)]
 struct PopupLabel;
+#[derive(Component)]
+struct TagInfo;
 
 #[derive(Component)]
 struct PopupLabelText;
@@ -1206,6 +1208,19 @@ fn setup(
                             },
                         ))
                         .insert(TagCoordinate);
+
+                        //INFO
+                        parent
+                        .spawn(TextBundle::from_section(
+                            "INFO \n", 
+                            TextStyle {
+                                font: font_handle3.clone(),
+                                font_size: 15.0,
+                                color: Color::WHITE,
+                                ..default()
+                            },
+                        ))
+                        .insert(TagInfo);
                 })
                 .insert(Label);
                 
@@ -1574,8 +1589,26 @@ fn setup(
     }
 }
 
+
+fn tile_type_sort_key(tile_type: &TileType) -> u8 {
+    match tile_type {
+        TileType::DeepWater => 1,
+        TileType::ShallowWater => 2,
+        TileType::Sand => 3,
+        TileType::Grass => 4,
+        TileType::Street => 5,
+        TileType::Hill => 6,
+        TileType::Mountain => 7,
+        TileType::Snow => 8,
+        TileType::Lava => 9,
+        TileType::Teleport(_) => 10, // Teleport tiles treated the same regardless of boolean
+        TileType::Wall => 11,
+    }
+}
+
 fn update_infos(
     resource: RobotInfo, 
+   // robot: Robottino,
     weather_icons: Res<WeatherIcons>,
     mut tracker: ResMut<ContentTracker>,
    // mut old_value: ResMut<OldValueBackPack>,
@@ -1587,6 +1620,7 @@ fn update_infos(
             Without<TagTime>,
             Without<TagBackPack>,
             Without<TagCoordinate>,
+            Without<TagInfo>
         ),
     >,
     mut coordinate_quert: Query<
@@ -1597,6 +1631,7 @@ fn update_infos(
             Without<TagTime>,
             Without<TagBackPack>,
             Without<TagEnergy>,
+            Without<TagInfo>
         )
     >,
     mut time_query: Query<
@@ -1607,6 +1642,18 @@ fn update_infos(
             Without<Roboto>,
             Without<TagBackPack>,
             Without<TagCoordinate>,
+            Without<TagInfo>,
+        ),
+    >,
+    mut info_query: Query<
+        &mut Text,
+        (
+            With<TagInfo>,
+            Without<TagEnergy>,
+            Without<Roboto>,
+            Without<TagBackPack>,
+            Without<TagCoordinate>,
+            Without<TagTime>
         ),
     >,
     mut backpack_query: Query<
@@ -1618,6 +1665,7 @@ fn update_infos(
             Without<Roboto>,
             Without<TagTime>,
             Without<TagCoordinate>,
+            Without<TagInfo>
         ),
     >,
     mut battery_query: Query<(&mut Style, &mut BackgroundColor), With<EnergyBar>>,
@@ -1638,6 +1686,26 @@ fn update_infos(
         text.sections[0].value = format!(
             "Coordinates: X: {}, Y:{}",  resource.coordinate_column, resource.coordinate_row
         );
+    }
+
+    for mut text in info_query.iter_mut() {
+        let mut info_text = String::new();
+        info_text.push_str("\nTile info:\n");
+    
+        // Collect keys
+        let mut keys: Vec<_> = resource.tiles_percentage.keys().collect();
+    
+        // Sort keys using the custom sort function
+        keys.sort_by_key(|&key| tile_type_sort_key(key));
+    
+        // Iterate over sorted keys
+        for key in keys {
+            if let Some(value) = resource.tiles_percentage.get(key) {
+                info_text.push_str(&format!("{:<20} {}\n", format!("{:?}", key), value));
+            }
+        }
+    
+        text.sections[0].value = info_text;
     }
 
     //TESTO TIME E WEATHER
@@ -3012,6 +3080,7 @@ pub fn zoom_in(mut query: Query<&mut OrthographicProjection, With<Camera>>) {
 
 fn icons_upgrade(
     mut tracker: ResMut<ContentTracker>,
+  // robot: Robottino,
  //  mut old_value: ResMut<OldValueBackPack>,
     weather_icons: Option<Res<WeatherIcons>>,
     robot_resource: Res<RobotResource>,
@@ -3023,6 +3092,7 @@ fn icons_upgrade(
             Without<TagTime>,
             Without<TagBackPack>,
             Without<TagCoordinate>,
+            Without<TagInfo>
         ),
     >,
     mut coordinate_quert: Query<
@@ -3033,6 +3103,7 @@ fn icons_upgrade(
             Without<TagTime>,
             Without<TagBackPack>,
             Without<TagEnergy>,
+            Without<TagInfo>
         )
     >,
     mut time_query: Query<
@@ -3043,6 +3114,7 @@ fn icons_upgrade(
             Without<Roboto>,
             Without<TagBackPack>,
             Without<TagCoordinate>,
+            Without<TagInfo>
         ),
     >,
     mut backpack_query: Query<
@@ -3054,6 +3126,18 @@ fn icons_upgrade(
             Without<Roboto>,
             Without<TagTime>,
             Without<TagCoordinate>,
+            Without<TagInfo>
+        ),
+    >,
+    mut info_query: Query<
+        &mut Text,
+        (
+            With<TagInfo>,
+            Without<TagEnergy>,
+            Without<Roboto>,
+            Without<TagBackPack>,
+            Without<TagCoordinate>,
+            Without<TagTime>
         ),
     >,
     battery_query: Query<(&mut Style, &mut BackgroundColor), With<EnergyBar>>,
@@ -3075,6 +3159,7 @@ fn icons_upgrade(
             energy_query,
             coordinate_quert,
             time_query,
+            info_query,
             backpack_query,
             battery_query,
             sun_query,
@@ -3308,7 +3393,6 @@ fn moviment(robot_data: Arc<Mutex<RobotInfo>>, map: Arc<Mutex<Vec<Vec<Option<Til
         discover_signal: discovered_signal,
         firstcall_signal: firstcall_signal,
         maze_corners: vec![vec![None; 2]; 2],
-        tiles_percentage: HashMap::new().into(),
     };
 
 
@@ -3382,6 +3466,7 @@ struct RobotInfo {
     next_weather: Option<WeatherType>,    // prossima previsione del tempo
     ticks_until_change: u32,              // tempo per la prossima previsione del tempo2
     time: String,
+    tiles_percentage: HashMap<TileType, f64>,
 }
 
 //**************************** */
@@ -3701,6 +3786,7 @@ fn menu_action(
             next_weather: None,
             ticks_until_change: 0,
             time: "00:00".to_string(),
+            tiles_percentage: HashMap::new(),
         };
     
         println!("RobotInfo inizializzato con: {:?}", robot_info);
@@ -3778,6 +3864,7 @@ fn menu_action(
             next_weather: None,
             ticks_until_change: 0,
             time: "00:00".to_string(),
+            tiles_percentage: HashMap::new(),
         };
     
         // Creazione di Arc<Mutex<>> per robot_data e map
@@ -3855,6 +3942,7 @@ fn menu_action(
             next_weather: None,
             ticks_until_change: 0,
             time: "00:00".to_string(),
+            tiles_percentage: HashMap::new(),
         };
     
         // Creazione di Arc<Mutex<>> per robot_data e map
@@ -3931,6 +4019,7 @@ fn menu_action(
             next_weather: None,
             ticks_until_change: 0,
             time: "00:00".to_string(),
+            tiles_percentage: HashMap::new(),
         };
     
         // Creazione di Arc<Mutex<>> per robot_data e map
@@ -4290,7 +4379,7 @@ struct Robottino {
     sleep_time_signal: Arc<AtomicU64>,
     discover_signal: Arc<AtomicBool>,
     firstcall_signal: Arc<AtomicBool>,
-    tiles_percentage: Arc<HashMap<TileType, f64>>,
+   // tiles_percentage: Arc<HashMap<TileType, f64>>,
 }
 
 fn solve_labirint(
@@ -4895,7 +4984,11 @@ impl Runnable for Robottino {
 
         let new_weather = look_at_sky(world).get_weather_condition();
         let tiles_stats = discovered_tiles_stats(&robot_map(world));
-        self.tiles_percentage = Arc::new(tiles_stats);
+        {
+            let mut shared_robot = self.shared_robot.lock().unwrap();
+            shared_robot.tiles_percentage = tiles_stats;
+        } 
+        //self.tiles_percentage = Arc::new(tiles_stats);
 
         /* let sleep_time_milly: u64 = 300;
         sleep(std::time::Duration::from_millis(sleep_time_milly)); */
@@ -4918,6 +5011,7 @@ impl Runnable for Robottino {
         //update info
         {
             let mut shared_robot = self.shared_robot.lock().unwrap();
+            
             shared_robot.energy_level = self.robot.energy.get_energy_level();
             shared_robot.coordinate_row = self.robot.coordinate.get_row();
             shared_robot.coordinate_column = self.robot.coordinate.get_col();
