@@ -34,6 +34,7 @@ use bevy::{app::AppExit, prelude::*, render::view::RenderLayers};
 use op_map::op_pathfinding::{
     get_best_action_to_element, OpActionInput, OpActionOutput, ShoppingList,
 };
+use tiles_stats::tiles_stats::discovered_tiles_stats;
 use nearest_tp::nearest_tp::{
     nearest_teleport};
 mod utils;
@@ -3307,6 +3308,7 @@ fn moviment(robot_data: Arc<Mutex<RobotInfo>>, map: Arc<Mutex<Vec<Vec<Option<Til
         discover_signal: discovered_signal,
         firstcall_signal: firstcall_signal,
         maze_corners: vec![vec![None; 2]; 2],
+        tiles_percentage: HashMap::new().into(),
     };
 
 
@@ -4288,6 +4290,7 @@ struct Robottino {
     sleep_time_signal: Arc<AtomicU64>,
     discover_signal: Arc<AtomicBool>,
     firstcall_signal: Arc<AtomicBool>,
+    tiles_percentage: Arc<HashMap<TileType, f64>>,
 }
 
 fn solve_labirint(
@@ -4891,7 +4894,8 @@ impl Runnable for Robottino {
     fn process_tick(&mut self, world: &mut robotics_lib::world::World) {
 
         let new_weather = look_at_sky(world).get_weather_condition();
-    
+        let tiles_stats = discovered_tiles_stats(&robot_map(world));
+        self.tiles_percentage = Arc::new(tiles_stats);
 
         /* let sleep_time_milly: u64 = 300;
         sleep(std::time::Duration::from_millis(sleep_time_milly)); */
@@ -4994,6 +4998,9 @@ fn update_map(robot: &mut Robottino, world: &mut robotics_lib::world::World) {
     }
     drop(shared_robot);
 }
+
+
+
 
 fn weather_check(robot: &Robottino) -> Option<(WeatherType, u32)> {
     let ticks_until_weather = match robot.weather_tool.ticks_until_weather_change(100000000000) {

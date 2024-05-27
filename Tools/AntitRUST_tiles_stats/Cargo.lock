@@ -94,7 +94,7 @@ dependencies = [
 [[package]]
 name = "robotics_lib"
 version = "0.1.21"
-source = "sparse+https://advancedprogramming.disi.unitn.it/api/v1/crates/"
+source = "sparse+http://advancedprogramming.disi.unitn.it/api/v1/crates/"
 checksum = "f4fb131bf43873aa43c65bfa795c05c5ee8fe2f904e2b8dd7878cea13e214fc5"
 dependencies = [
  "lazy_static",
@@ -162,7 +162,7 @@ dependencies = [
 
 [[package]]
 name = "tiles_stats"
-version = "0.1.4"
+version = "0.1.7"
 dependencies = [
  "robotics_lib",
 ]
