@@ -1,4 +1,7 @@
 use std::collections::HashMap;
+use std::fmt;
+
+// Assuming Tile and TileType are defined as per your context
 use robotics_lib::world::tile::TileType;
 use robotics_lib::world::tile::Tile;
 
@@ -11,7 +14,6 @@ pub fn discovered_tiles_stats(
             let mut tile_counts = HashMap::new();
             let mut total_tiles = 0.0;
 
-            // Count occurrences of each TileType
             for row in tiles {
                 for tile_option in row {
                     if let Some(tile) = tile_option {
@@ -21,10 +23,9 @@ pub fn discovered_tiles_stats(
                 }
             }
 
-            // Calculate percentages and insert into discovered_tiles_count
             let mut discovered_tiles_count = HashMap::new();
             for (tile_type, count) in tile_counts {
-                let percentage = ((count as f64 / total_tiles) * 100.0 * 10.0).round() / 10.0;
+                let percentage = (count as f64 / total_tiles) * 100.0;
                 discovered_tiles_count.insert(tile_type, percentage);
             }
 
@@ -32,3 +33,4 @@ pub fn discovered_tiles_stats(
         }
     }
 }
+
