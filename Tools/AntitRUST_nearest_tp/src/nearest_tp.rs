@@ -23,7 +23,7 @@ pub fn nearest_teleport(robot: &impl Runnable, world: &mut World) -> Option<Vec<
             match &map[x][y] {
                 None => {}
                 Some(tile) => {
-                    if tile.tile_type == TileType::Teleport(true) {
+                    if tile.tile_type == TileType::Teleport(true) || tile.tile_type == TileType::Teleport(false) {
                         match costs[x][y] {
                             None => {}
                             Some((_, cost)) => {
