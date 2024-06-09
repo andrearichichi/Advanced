@@ -851,7 +851,7 @@ fn setup(
             // Posiziona il rettangolo in basso e al centro
             position_type: PositionType::Absolute,
             bottom: Val::Px(25.0), // Distanza dal fondo dello schermo
-            left: Val::Percent(40.0), // Centra orizzontalmente
+            left: Val::Percent(37.0), // Centra orizzontalmente
             border: UiRect::all(Val::Px(4.0)),
             // Traslazione di -50% della propria larghezza per centrare esattamente
             //translate: Transform::from_xyz(-100.0, 0.0, 0.0), 
@@ -972,12 +972,12 @@ fn setup(
         style: Style {
             // Imposta le dimensioni del rettangolo
             width: Val::Px(250.0),
-            height: Val::Px(120.0),
+            height: Val::Px(100.0),
             
             // Posiziona il rettangolo in basso e al centro
             position_type: PositionType::Absolute,
             bottom: Val::Px(25.0), // Distanza dal fondo dello schermo
-            left: Val::Percent(60.0), // Centra orizzontalmente
+            left: Val::Percent(65.0), // Centra orizzontalmente
             border: UiRect::all(Val::Px(4.0)),
             // Traslazione di -50% della propria larghezza per centrare esattamente
             //translate: Transform::from_xyz(-100.0, 0.0, 0.0), 
